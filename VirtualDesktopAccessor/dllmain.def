@@ -1,0 +1,8 @@
+LIBRARY DLLMAIN
+EXPORTS
+	GetDesktopCount @1
+	GetDesktopNumberById @2
+	GetDesktopNumber @3
+	GoToDesktopNumber @4
+	RegisterPostMessageHook @5
+	UnregisterPostMessageHook @6

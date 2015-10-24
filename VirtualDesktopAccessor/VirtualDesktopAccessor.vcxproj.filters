@@ -36,4 +36,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="dllmain.def">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>
