@@ -26,7 +26,7 @@ AutoHotkey script, and examples:
 	DllCall(GoToDesktopNumberProc, Int, 0)
 
 	; Switch to desktop number 2 ...
-	DllCall(GoToDesktopNumberProc, Int, 0)
+	DllCall(GoToDesktopNumberProc, Int, 1)
 
 
 Jari Pennanen, 2015
