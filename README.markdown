@@ -4,6 +4,8 @@ VirtualDesktopAccessor.dll
 
 DLL for accessing Windows 10 Virtual Desktop features from e.g. AutoHotkey
 
+Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDesktopAccessor.dll in the repository. This DLL works only on 64 bit Windows 10.
+
 AutoHotkey script, and examples:
 
 	DetectHiddenWindows, On
@@ -41,8 +43,6 @@ AutoHotkey script, and examples:
 
 	; ...
 
-	
-	
 
 
 Jari Pennanen, 2015

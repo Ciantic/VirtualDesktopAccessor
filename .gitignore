@@ -228,3 +228,5 @@ _Pvt_Extensions
 
 # FAKE - F# Make
 .fake/
+
+!x64/Release/VirtualDesktopAccessor.dll
