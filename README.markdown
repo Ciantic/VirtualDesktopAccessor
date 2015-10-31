@@ -6,6 +6,8 @@ DLL for accessing Windows 10 Virtual Desktop features from e.g. AutoHotkey
 
 Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDesktopAccessor.dll in the repository. This DLL works only on 64 bit Windows 10.
 
+You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist.x86.exe](https://www.microsoft.com/en-us/download/details.aspx?id=48145), if they are not installed already. I've built the DLL using VS 2015, and Microsoft is not providing those runtimes (who knows why) with Windows 10 yet.
+
 AutoHotkey script, and examples:
 
 	DetectHiddenWindows, On
