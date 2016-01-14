@@ -1,8 +1,14 @@
 LIBRARY DLLMAIN
 EXPORTS
-	GetDesktopCount @1
-	GetDesktopNumberById @2
-	GetDesktopNumber @3
-	GoToDesktopNumber @4
-	RegisterPostMessageHook @5
-	UnregisterPostMessageHook @6
+    GetCurrentDesktopNumber @8
+    GetDesktopCount @1
+	GetDesktopIdByNumber @12
+    GetDesktopNumber @7
+    GetDesktopNumberById @2
+    GetWindowDesktopId @3
+    GetWindowDesktopNumber @4
+    IsWindowOnCurrentVirtualDesktop @5
+    MoveWindowToDesktopNumber @6
+    GoToDesktopNumber @9
+    RegisterPostMessageHook @10
+    UnregisterPostMessageHook @11

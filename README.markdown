@@ -1,14 +1,13 @@
+# VirtualDesktopAccessor.dll
 
-VirtualDesktopAccessor.dll
-==========================
-
-DLL for accessing Windows 10 Virtual Desktop features from e.g. AutoHotkey
+DLL for accessing Windows 10 Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2016
 
 Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDesktopAccessor.dll in the repository. This DLL works only on 64 bit Windows 10.
 
 You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist.x86.exe](https://www.microsoft.com/en-us/download/details.aspx?id=48145), if they are not installed already. I've built the DLL using VS 2015, and Microsoft is not providing those runtimes (who knows why) with Windows 10 yet.
 
-AutoHotkey script, and examples:
+## AutoHotkey script as example:
+
 
 	DetectHiddenWindows, On
 	hwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
@@ -46,5 +45,19 @@ AutoHotkey script, and examples:
 	; ...
 
 
+## All functions exported by DLL:
 
-Jari Pennanen, 2015
+    * int GetCurrentDesktopNumber()
+    * int GetDesktopCount()
+    * GUID GetDesktopIdByNumber(int number) // Returns zeroed GUID with invalid number found
+    * int GetDesktopNumber(IVirtualDesktop *pDesktop) 
+    * int GetDesktopNumberById(GUID desktopId)
+    * GUID GetWindowDesktopId(HWND window)
+    * int GetWindowDesktopNumber(HWND window)
+    * int IsWindowOnCurrentVirtualDesktop(HWND window)
+    * BOOL MoveWindowToDesktopNumber(HWND window, int number)  // This does not work
+    * void GoToDesktopNumber(int number)
+    * void RegisterPostMessageHook(HWND listener, int messageOffset)
+    * void UnregisterPostMessageHook(HWND hwnd)
+    
+Note that `MoveWindowToDesktopNumber` is defined in Windows API but it works only for windows in *same process*, thus it can't work when interacting with other windows. This is a limitation of Windows API.

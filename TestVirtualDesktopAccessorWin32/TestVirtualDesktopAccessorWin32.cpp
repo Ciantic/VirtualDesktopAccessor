@@ -83,6 +83,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	RegisterPostMessageHook(hwnd, MESSAGE_OFFSET);
 	std::wcout << "Desktops: " << GetDesktopCount() << "\r\n";
+	std::wcout << "Console Window's Desktop Number: " << GetWindowDesktopNumber(GetConsoleWindow()) << std::endl;
+	std::wcout << "Current Desktop Number: " << GetCurrentDesktopNumber() << "\r\n";
+
+	GUID g = GetDesktopIdByNumber(GetCurrentDesktopNumber());
+	WCHAR text[255];
+	StringFromGUID2(g, &text[0], 255);
+	std::wcout << "Current Desktop GUID: " << text << std::endl;
+
+	GUID g2 = GetWindowDesktopId(GetConsoleWindow());
+	WCHAR text2[255];
+	StringFromGUID2(g2, &text2[0], 255);
+	std::wcout << "Console Window's Desktop GUID: " << text2 << std::endl;
 
 	while (GetMessage(&messages, NULL, 0, 0))
 	{
