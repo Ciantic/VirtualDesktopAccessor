@@ -11,9 +11,6 @@ const CLSID CLSID_ImmersiveShell = {
 const CLSID CLSID_VirtualDesktopManagerInternal = {
 	0xC5E0CDCA, 0x7B6E, 0x41B2, 0x9F, 0xC4, 0xD9, 0x39, 0x75, 0xCC, 0x46, 0x7B };
 
-const IID IID_IVirtualDesktopManagerInternal = {
-	0xEF9F1A6C, 0xD3CC, 0x4358, 0xB7, 0x12, 0xF8, 0x4B, 0x63, 0x5B, 0xEB, 0xE7 };
-
 const CLSID CLSID_IVirtualNotificationService = {
 	0xA501FDEC, 0x4A09, 0x464C, 0xAE, 0x4E, 0x1B, 0x9C, 0x21, 0xB8, 0x49, 0x18 
 };
@@ -54,7 +51,9 @@ enum AdjacentDesktop
 	RightDirection = 4
 };
 
-MIDL_INTERFACE("AF8DA486-95BB-4460-B3B7-6E7A6B2962B5")
+
+// Old: AF8DA486-95BB-4460-B3B7-6E7A6B2962B5
+MIDL_INTERFACE("f31574d6-b682-4cdc-bd56-1827860abec6")
 IVirtualDesktopManagerInternal : public IUnknown
 {
 public:

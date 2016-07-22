@@ -41,9 +41,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+					 _In_opt_ HINSTANCE hPrevInstance,
+					 _In_ LPWSTR    lpCmdLine,
+					 _In_ int       nCmdShow)
 {
 	HWND hwnd;
 	MSG messages;
@@ -95,7 +95,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	WCHAR text2[255];
 	StringFromGUID2(g2, &text2[0], 255);
 	std::wcout << "Console Window's Desktop GUID: " << text2 << std::endl;
-
 	while (GetMessage(&messages, NULL, 0, 0))
 	{
 		TranslateMessage(&messages);
@@ -103,7 +102,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	UnregisterPostMessageHook(hwnd);
-
+	
 	return messages.wParam;
 }
 

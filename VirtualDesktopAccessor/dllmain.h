@@ -35,6 +35,7 @@ void _RegisterService() {
 		__uuidof(IServiceProvider), (PVOID*)&pServiceProvider);
 
 	if (pServiceProvider == nullptr) {
+		std::wcout << L"FATAL ERROR: pServiceProvider is null";
 		return;
 	}
 
@@ -43,6 +44,11 @@ void _RegisterService() {
 	pServiceProvider->QueryService(
 		CLSID_VirtualDesktopManagerInternal,
 		__uuidof(IVirtualDesktopManagerInternal), (PVOID*)&pDesktopManagerInternal);
+
+	if (pDesktopManagerInternal == nullptr) {
+		std::wcout << L"FATAL ERROR: pDesktopManagerInternal is null";
+		return;
+	}
 
 	// Notification service
 	HRESULT hrNotificationService = pServiceProvider->QueryService(
@@ -131,7 +137,7 @@ IVirtualDesktop* GetDesktopByNumber(int number) {
 GUID DllExport GetWindowDesktopId(HWND window) {
 	_RegisterService();
 
-	GUID pDesktopId = GUID({ 0 });
+	GUID pDesktopId = {};
 	pDesktopManager->GetWindowDesktopId(window, &pDesktopId);
 
 	return pDesktopId;
