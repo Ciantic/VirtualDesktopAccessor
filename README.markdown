@@ -1,6 +1,6 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 10 Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2016
+DLL for accessing Windows 10 (tested with build 14393) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2016
 
 Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDesktopAccessor.dll in the repository. This DLL works only on 64 bit Windows 10.
 
@@ -8,39 +8,80 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 
 ## AutoHotkey script as example:
 
-
 	DetectHiddenWindows, On
 	hwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
 	hwnd+=0x1000<<32
 
-	hVirtualDesktopAccessor := DllCall("LoadLibrary", "Str", "C:\Source\CandCPP\VirtualDesktopAccessor\x64\Release\VirtualDesktopAccessor.dll", "Ptr") 
+
+	hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, "C:\Source\CandCPP\VirtualDesktopAccessor\x64\Release\VirtualDesktopAccessor.dll", "Ptr") 
 	GoToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GoToDesktopNumber", "Ptr")
+	GetCurrentDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetCurrentDesktopNumber", "Ptr")
 	RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
 	UnregisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "UnregisterPostMessageHook", "Ptr")
+	activeWindowByDesktop := {}
 
+	GoToPrevDesktop() {
+		global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
+		current := DllCall(GetCurrentDesktopNumberProc, UInt)
+		GoToDesktopNumber(current - 1)
+		return
+	}
+
+	GoToNextDesktop() {
+		global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
+		current := DllCall(GetCurrentDesktopNumberProc, UInt)
+		GoToDesktopNumber(current + 1)    
+		return
+	}
+
+	GoToDesktopNumber(num) {
+		global GetCurrentDesktopNumberProc, GoToDesktopNumberProc, activeWindowByDesktop
+
+		; Store the active window of old desktop
+		WinGet, activeHwnd, ID, A
+		current := DllCall(GetCurrentDesktopNumberProc, UInt) 
+		activeWindowByDesktop[current] := activeHwnd
+
+		; Try to avoid flashing task bar buttons
+		WinActivate, ahk_class Shell_TrayWnd
+
+		; Change desktop
+		DllCall(GoToDesktopNumberProc, Int, num)
+		return
+	}
+
+	; Windows 10 desktop changes listener
 	DllCall(RegisterPostMessageHookProc, Int, hwnd, Int, 0x1400 + 30)
 	OnMessage(0x1400 + 30, "VWMess")
 	VWMess(wParam, lParam, msg, hwnd) {
+		global activeWindowByDesktop
+		desktopNumber := lParam + 1
+		Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
 		
 		; When switching to desktop 1, set background pluto.jpg
 		if (lParam == 0) {
-			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\pluto.jpg", UInt, 1)
+			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\saturn.jpg", UInt, 1)
 		; When switching to desktop 2, set background DeskGmail.png
 		} else if (lParam == 1) {
 			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskGmail.png", UInt, 1)
 		; When switching to desktop 7 or 8, set background DeskMisc.png
-		} else if (lParam == 6 || lParam == 7) {
+		} else if (lParam == 2 || lParam == 3) {
 			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskMisc.png", UInt, 1)
 		; Other desktops, set background to DeskWork.png
 		} else {
 			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskWork.png", UInt, 1)
 		}
+
+		; Try to restore active window from memory
+		oldHwnd := activeWindowByDesktop[lParam]
+		WinActivate, ahk_id %oldHwnd%
 	}
+
 	; Win + Ctrl + 1 = Switch to desktop 1
-	*#1::DllCall(GoToDesktopNumberProc, Int, 0)
+	*#1::GoToDesktopNumber(0)
 
 	; Win + Ctrl + 2 = Switch to desktop 2
-	*#2::DllCall(GoToDesktopNumberProc, Int, 1)
+	*#2::GoToDesktopNumber(1)
 
 	; ...
 
