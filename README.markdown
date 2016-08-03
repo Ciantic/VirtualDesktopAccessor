@@ -56,21 +56,21 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	VWMess(wParam, lParam, msg, hwnd) {
 		global activeWindowByDesktop
 		desktopNumber := lParam + 1
-		Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
+		; Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
 		
 		; When switching to desktop 1, set background pluto.jpg
-		if (lParam == 0) {
-			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\saturn.jpg", UInt, 1)
+		;if (lParam == 0) {
+		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\saturn.jpg", UInt, 1)
 		; When switching to desktop 2, set background DeskGmail.png
-		} else if (lParam == 1) {
-			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskGmail.png", UInt, 1)
+		;} else if (lParam == 1) {
+		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskGmail.png", UInt, 1)
 		; When switching to desktop 7 or 8, set background DeskMisc.png
-		} else if (lParam == 2 || lParam == 3) {
-			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskMisc.png", UInt, 1)
+		;} else if (lParam == 2 || lParam == 3) {
+		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskMisc.png", UInt, 1)
 		; Other desktops, set background to DeskWork.png
-		} else {
-			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskWork.png", UInt, 1)
-		}
+		;} else {
+		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskWork.png", UInt, 1)
+		;}
 
 		; Try to restore active window from memory
 		oldHwnd := activeWindowByDesktop[lParam]
