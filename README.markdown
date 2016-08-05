@@ -12,25 +12,45 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	hwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
 	hwnd+=0x1000<<32
 
-
 	hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, "C:\Source\CandCPP\VirtualDesktopAccessor\x64\Release\VirtualDesktopAccessor.dll", "Ptr") 
 	GoToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GoToDesktopNumber", "Ptr")
 	GetCurrentDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetCurrentDesktopNumber", "Ptr")
+	IsWindowOnCurrentVirtualDesktopProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsWindowOnCurrentVirtualDesktop", "Ptr")
+	MoveWindowToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "MoveWindowToDesktopNumber", "Ptr")
 	RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
 	UnregisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "UnregisterPostMessageHook", "Ptr")
+	; GetWindowDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetWindowDesktopNumber", "Ptr")
 	activeWindowByDesktop := {}
+
+	MoveCurrentWindowToDesktop(number) {
+		global MoveWindowToDesktopNumberProc
+		WinGet, activeHwnd, ID, A
+		DllCall(MoveWindowToDesktopNumberProc, UInt, activeHwnd, UInt, number)
+		GoToDesktopNumber(number)
+		Sleep, 100
+		WinActivate, ahk_id %activeHwnd%
+	}
+
 
 	GoToPrevDesktop() {
 		global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
 		current := DllCall(GetCurrentDesktopNumberProc, UInt)
-		GoToDesktopNumber(current - 1)
+		if (current = 0) {
+			GoToDesktopNumber(7)
+		} else {
+			GoToDesktopNumber(current - 1)      
+		}
 		return
 	}
 
 	GoToNextDesktop() {
 		global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
 		current := DllCall(GetCurrentDesktopNumberProc, UInt)
-		GoToDesktopNumber(current + 1)    
+		if (current = 7) {
+			GoToDesktopNumber(0)
+		} else {
+			GoToDesktopNumber(current + 1)    
+		}
 		return
 	}
 
@@ -54,36 +74,41 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	DllCall(RegisterPostMessageHookProc, Int, hwnd, Int, 0x1400 + 30)
 	OnMessage(0x1400 + 30, "VWMess")
 	VWMess(wParam, lParam, msg, hwnd) {
-		global activeWindowByDesktop
+		global activeWindowByDesktop, IsWindowOnCurrentVirtualDesktopProc
 		desktopNumber := lParam + 1
-		; Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
+		Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
 		
 		; When switching to desktop 1, set background pluto.jpg
-		;if (lParam == 0) {
-		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\saturn.jpg", UInt, 1)
+		if (lParam == 0) {
+			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\saturn.jpg", UInt, 1)
 		; When switching to desktop 2, set background DeskGmail.png
-		;} else if (lParam == 1) {
-		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskGmail.png", UInt, 1)
+		} else if (lParam == 1) {
+			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskGmail.png", UInt, 1)
 		; When switching to desktop 7 or 8, set background DeskMisc.png
-		;} else if (lParam == 2 || lParam == 3) {
-		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskMisc.png", UInt, 1)
+		} else if (lParam == 2 || lParam == 3) {
+			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskMisc.png", UInt, 1)
 		; Other desktops, set background to DeskWork.png
-		;} else {
-		;	DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskWork.png", UInt, 1)
-		;}
-
-		; Try to restore active window from memory
+		} else {
+			DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\DeskWork.png", UInt, 1)
+		}
+		
+		; Try to restore active window from memory (if it's still there)
 		oldHwnd := activeWindowByDesktop[lParam]
-		WinActivate, ahk_id %oldHwnd%
+		isOnDesktop := DllCall(IsWindowOnCurrentVirtualDesktopProc, UInt, oldHwnd, UInt)
+		if (isOnDesktop == 1) {
+			WinActivate, ahk_id %oldHwnd%
+		}
 	}
-
+	; Switching desktops:
 	; Win + Ctrl + 1 = Switch to desktop 1
 	*#1::GoToDesktopNumber(0)
 
 	; Win + Ctrl + 2 = Switch to desktop 2
 	*#2::GoToDesktopNumber(1)
 
-	; ...
+	; Moving windowes:
+	; Win + Shift + 1 = Move current window to desktop 1, and go there
+	+#2::MoveCurrentWindowToDesktop(1)
 
 
 ## All functions exported by DLL:
