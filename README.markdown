@@ -23,11 +23,11 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	activeWindowByDesktop := {}
 
 	MoveCurrentWindowToDesktop(number) {
-		global MoveWindowToDesktopNumberProc, activeWindowByDesktop
+		global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc, activeWindowByDesktop
 		WinGet, activeHwnd, ID, A
-		activeWindowByDesktop[number] := activeHwnd
+		activeWindowByDesktop[number] := 0 ; Do not activate
 		DllCall(MoveWindowToDesktopNumberProc, UInt, activeHwnd, UInt, number)
-		GoToDesktopNumber(number)
+		DllCall(GoToDesktopNumberProc, UInt, number)
 	}
 
 	GoToPrevDesktop() {
