@@ -15,6 +15,7 @@ std::map<HWND, int> listeners;
 IServiceProvider* pServiceProvider = nullptr;
 IVirtualDesktopManagerInternal *pDesktopManagerInternal = nullptr;
 IVirtualDesktopManager *pDesktopManager = nullptr;
+IApplicationViewCollection *viewCollection = nullptr;
 
 DWORD idNotificationService = 0;
 IVirtualDesktopNotificationService* pDesktopNotificationService = nullptr;
@@ -38,12 +39,19 @@ void _RegisterService() {
 		std::wcout << L"FATAL ERROR: pServiceProvider is null";
 		return;
 	}
+	pServiceProvider->QueryService(__uuidof(IApplicationViewCollection), &viewCollection);
+	
 
 	pServiceProvider->QueryService(__uuidof(IVirtualDesktopManager), &pDesktopManager);
 
 	pServiceProvider->QueryService(
 		CLSID_VirtualDesktopManagerInternal,
 		__uuidof(IVirtualDesktopManagerInternal), (PVOID*)&pDesktopManagerInternal);
+
+	if (viewCollection == nullptr) {
+		std::wcout << L"FATAL ERROR: viewCollection is null";
+		return;
+	}
 
 	if (pDesktopManagerInternal == nullptr) {
 		std::wcout << L"FATAL ERROR: pDesktopManagerInternal is null";
@@ -175,8 +183,12 @@ BOOL DllExport MoveWindowToDesktopNumber(HWND window, int number) {
 	if (pDesktop != nullptr) {
 		GUID id = { 0 };
 		if (SUCCEEDED(pDesktop->GetID(&id))) {
-			pDesktopManager->MoveWindowToDesktop(window, id);
-			return true;
+			IApplicationView* app = nullptr;
+			viewCollection->GetViewForHwnd(window, &app);
+			if (app != nullptr) {
+				pDesktopManagerInternal->MoveViewToDesktop(app, pDesktop);
+				return true;
+			}
 		}
 	}
 	return false;

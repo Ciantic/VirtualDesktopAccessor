@@ -15,9 +15,12 @@ const CLSID CLSID_IVirtualNotificationService = {
 	0xA501FDEC, 0x4A09, 0x464C, 0xAE, 0x4E, 0x1B, 0x9C, 0x21, 0xB8, 0x49, 0x18 
 };
 
-// aa509086-5ca9-4c25-8f95-589d3c07b48a
 const CLSID CLSID_IVirtualDesktopManager = {
 	0xAA509086, 0x5CA9, 0x4C25, { 0x8f, 0x95, 0x58, 0x9d, 0x3c, 0x07, 0xb4, 0x8a }
+};
+
+const CLSID CLSID_VirtualDesktopPinnedApps = {
+	0xb5a399e7, 0x1c87, 0x46b8, 0x88, 0xe9, 0xfc, 0x57, 0x47, 0xb1, 0x71, 0xbd
 };
 
 // IID same as in MIDL IVirtualDesktopNotification
@@ -141,6 +144,32 @@ public:
 		IVirtualDesktop *pDesktopNew) = 0;
 
 };
+
+// Ignore following API's:
+#define IImmersiveApplication UINT
+#define IApplicationViewChangeListener UINT
+
+DECLARE_INTERFACE_IID_(IApplicationViewCollection, IUnknown, "2C08ADF0-A386-4B35-9250-0FE183476FCC")
+{
+	/*** IUnknown methods ***/
+	STDMETHOD(QueryInterface)(THIS_ REFIID riid, LPVOID FAR* ppvObject) PURE;
+	STDMETHOD_(ULONG, AddRef)(THIS) PURE;
+	STDMETHOD_(ULONG, Release)(THIS) PURE;
+
+	/*** IApplicationViewCollection methods ***/
+	STDMETHOD(GetViews)(THIS_ IObjectArray**) PURE;
+	STDMETHOD(GetViewsByZOrder)(THIS_ IObjectArray**) PURE;
+	STDMETHOD(GetViewsByAppUserModelId)(THIS_ PCWSTR, IObjectArray**) PURE;
+	STDMETHOD(GetViewForHwnd)(THIS_ HWND, IApplicationView**) PURE;
+	STDMETHOD(GetViewForApplication)(THIS_ IImmersiveApplication*, IApplicationView**) PURE;
+	STDMETHOD(GetViewForAppUserModelId)(THIS_ PCWSTR, IApplicationView**) PURE;
+	STDMETHOD(GetViewInFocus)(THIS_ IApplicationView**) PURE;
+	STDMETHOD(RefreshCollection)(THIS) PURE;
+	STDMETHOD(RegisterForApplicationViewChanges)(THIS_ IApplicationViewChangeListener*, DWORD*) PURE;
+	STDMETHOD(RegisterForApplicationViewPositionChanges)(THIS_ IApplicationViewChangeListener*, DWORD*) PURE;
+	STDMETHOD(UnregisterForApplicationViewChanges)(THIS_ DWORD) PURE;
+};
+
 
 MIDL_INTERFACE("0CD45E71-D927-4F15-8B0A-8FEF525337BF")
 IVirtualDesktopNotificationService : public IUnknown

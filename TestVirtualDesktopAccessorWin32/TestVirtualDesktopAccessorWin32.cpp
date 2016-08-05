@@ -85,6 +85,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	std::wcout << "Desktops: " << GetDesktopCount() << "\r\n";
 	std::wcout << "Console Window's Desktop Number: " << GetWindowDesktopNumber(GetConsoleWindow()) << std::endl;
 	std::wcout << "Current Desktop Number: " << GetCurrentDesktopNumber() << "\r\n";
+	MoveWindowToDesktopNumber((HWND) 0x24086A, 1);
 
 	GUID g = GetDesktopIdByNumber(GetCurrentDesktopNumber());
 	WCHAR text[255];
