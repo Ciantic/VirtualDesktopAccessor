@@ -23,14 +23,12 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	activeWindowByDesktop := {}
 
 	MoveCurrentWindowToDesktop(number) {
-		global MoveWindowToDesktopNumberProc
+		global MoveWindowToDesktopNumberProc, activeWindowByDesktop
 		WinGet, activeHwnd, ID, A
+		activeWindowByDesktop[number] := activeHwnd
 		DllCall(MoveWindowToDesktopNumberProc, UInt, activeHwnd, UInt, number)
 		GoToDesktopNumber(number)
-		Sleep, 100
-		WinActivate, ahk_id %activeHwnd%
 	}
-
 
 	GoToPrevDesktop() {
 		global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
@@ -76,7 +74,7 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	VWMess(wParam, lParam, msg, hwnd) {
 		global activeWindowByDesktop, IsWindowOnCurrentVirtualDesktopProc
 		desktopNumber := lParam + 1
-		
+
 		; Change the icon of the AutoHotkey, totally optional, get ico files somewhere
 		; Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
 		
