@@ -121,9 +121,7 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
     * GUID GetWindowDesktopId(HWND window)
     * int GetWindowDesktopNumber(HWND window)
     * int IsWindowOnCurrentVirtualDesktop(HWND window)
-    * BOOL MoveWindowToDesktopNumber(HWND window, int number)  // This does not work
+    * BOOL MoveWindowToDesktopNumber(HWND window, int number) 
     * void GoToDesktopNumber(int number)
     * void RegisterPostMessageHook(HWND listener, int messageOffset)
     * void UnregisterPostMessageHook(HWND hwnd)
-    
-Note that `MoveWindowToDesktopNumber` is defined in Windows API but it works only for windows in *same process*, thus it can't work when interacting with other windows. This is a limitation of Windows API.
