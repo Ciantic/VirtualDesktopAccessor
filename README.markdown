@@ -76,7 +76,9 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 	VWMess(wParam, lParam, msg, hwnd) {
 		global activeWindowByDesktop, IsWindowOnCurrentVirtualDesktopProc
 		desktopNumber := lParam + 1
-		Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
+		
+		; Change the icon of the AutoHotkey, totally optional, get ico files somewhere
+		; Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
 		
 		; When switching to desktop 1, set background pluto.jpg
 		if (lParam == 0) {
