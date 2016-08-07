@@ -64,7 +64,7 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
 			activeWindowByDesktop[current] := activeHwnd
 		}
 
-		; Try to avoid flashing task bar buttons, deactivate the current window is not pinned
+		; Try to avoid flashing task bar buttons, deactivate the current window if it is not pinned
 		if (isPinned != 1) {
 			WinActivate, ahk_class Shell_TrayWnd
 		}
