@@ -135,6 +135,9 @@ VWMess(wParam, lParam, msg, hwnd) {
     * void GoToDesktopNumber(int number)
     * void RegisterPostMessageHook(HWND listener, int messageOffset)
     * void UnregisterPostMessageHook(HWND hwnd)
-	* int IsPinnedWindow(HWND hwnd)
+	* int IsPinnedWindow(HWND hwnd) // Returns 1 if pinned, 0 if not pinned, -1 if not valid
 	* void PinWindow(HWND hwnd)
 	* void UnPinWindow(HWND hwnd)
+	* int IsPinnedApp(HWND hwnd) // Returns 1 if pinned, 0 if not pinned, -1 if not valid
+	* void PinApp(HWND hwnd)
+	* void UnPinApp(HWND hwnd)

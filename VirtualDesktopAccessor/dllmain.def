@@ -15,3 +15,6 @@ EXPORTS
     IsPinnedWindow @13
     PinWindow @14
     UnPinWindow @15
+    IsPinnedApp @16
+    PinApp @17
+    UnPinApp @18

@@ -88,11 +88,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// MoveWindowToDesktopNumber((HWND) 0x003E04F2, 1);
 	HWND notepad = FindWindow(_T("Notepad"), NULL);
 	if (notepad != 0) {
-
 		int number = GetCurrentDesktopNumber();
 
 		// Test pinning it
-		std::wcout << "Try pinning the notepad." << std::endl;
+		std::wcout << "Try pinning the notepad (the window)." << std::endl;
 		PinWindow(notepad);
 		std::wcout << "Is notepad pinned?" << IsPinnedWindow(notepad) << std::endl;
 		GoToDesktopNumber(number + 1);
@@ -101,6 +100,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		UnPinWindow(notepad);
 		std::wcout << "Is notepad pinned?" << IsPinnedWindow(notepad) << std::endl;
 
+		Sleep(2000);
+
+		// Test pinning the whole app!
+		std::wcout << "Try pinning the notepad (the app executable)." << std::endl;
+		PinApp(notepad);
+		std::wcout << "Is notepad pinned app?" << IsPinnedApp(notepad) << std::endl;
+		GoToDesktopNumber(number + 1);
+		Sleep(2000);
+		GoToDesktopNumber(number);
+		UnPinApp(notepad);
+		std::wcout << "Is notepad pinned app?" << IsPinnedApp(notepad) << std::endl;
+
+		// Test moving it
 		if (!IsWindowOnCurrentVirtualDesktop(notepad)) {
 			MoveWindowToDesktopNumber(notepad, number);
 		}
