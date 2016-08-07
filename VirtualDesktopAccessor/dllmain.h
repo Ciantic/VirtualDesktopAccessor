@@ -327,7 +327,6 @@ void DllExport UnPinWindow(HWND hwnd) {
 
 int DllExport IsPinnedApp(HWND hwnd) {
 	_RegisterService();
-	_RegisterService();
 	LPWSTR appId = GetApplicationIdForHwnd(hwnd);
 	if (appId != nullptr) {
 		BOOL isPinned = false;
