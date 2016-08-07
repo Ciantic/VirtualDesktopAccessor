@@ -12,3 +12,6 @@ EXPORTS
     GoToDesktopNumber @9
     RegisterPostMessageHook @10
     UnregisterPostMessageHook @11
+    IsPinnedWindow @13
+    PinWindow @14
+    UnPinWindow @15

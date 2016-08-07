@@ -30,10 +30,11 @@ const IID IID_IVirtualDesktopNotification = {
 };
 
 
-struct IApplicationView : public IUnknown
+MIDL_INTERFACE("9ac0b5c8-1484-4c5b-9533-4134a0f97cea")
+IApplicationView : public IUnknown
 {
 public:
-
+	virtual HRESULT STDMETHODCALLTYPE GetAppUserModelId(LPWSTR *id) = 0;
 };
 
 MIDL_INTERFACE("FF72FFDD-BE7E-43FC-9C03-AD81681E88E4")
@@ -143,6 +144,23 @@ public:
 		IVirtualDesktop *pDesktopOld,
 		IVirtualDesktop *pDesktopNew) = 0;
 
+};
+
+DECLARE_INTERFACE_IID_(IVirtualDesktopPinnedApps, IUnknown, "4ce81583-1e4c-4632-a621-07a53543148f")
+{
+	/*** IUnknown methods ***/
+	STDMETHOD(QueryInterface)(THIS_ REFIID riid, LPVOID FAR* ppvObject) PURE;
+	STDMETHOD_(ULONG, AddRef)(THIS) PURE;
+	STDMETHOD_(ULONG, Release)(THIS) PURE;
+
+	/*** IVirtualDesktopPinnedApps methods ***/
+	STDMETHOD(IsAppIdPinned)(THIS_ PCWSTR appId, BOOL*) PURE;
+	STDMETHOD(PinAppID)(THIS_ PCWSTR appId) PURE;
+	STDMETHOD(UnpinAppID)(THIS_ PCWSTR appId) PURE;
+	STDMETHOD(IsViewPinned)(THIS_ IApplicationView*, BOOL*) PURE;
+	STDMETHOD(PinView)(THIS_ IApplicationView*) PURE;
+	STDMETHOD(UnpinView)(THIS_ IApplicationView*) PURE;
+	
 };
 
 // Ignore following API's:

@@ -16,6 +16,7 @@ IServiceProvider* pServiceProvider = nullptr;
 IVirtualDesktopManagerInternal *pDesktopManagerInternal = nullptr;
 IVirtualDesktopManager *pDesktopManager = nullptr;
 IApplicationViewCollection *viewCollection = nullptr;
+IVirtualDesktopPinnedApps *pinnedApps = nullptr;
 
 DWORD idNotificationService = 0;
 IVirtualDesktopNotificationService* pDesktopNotificationService = nullptr;
@@ -43,6 +44,10 @@ void _RegisterService() {
 	
 
 	pServiceProvider->QueryService(__uuidof(IVirtualDesktopManager), &pDesktopManager);
+
+	pServiceProvider->QueryService(
+		CLSID_VirtualDesktopPinnedApps,
+		__uuidof(IVirtualDesktopPinnedApps), (PVOID*)&pinnedApps);
 
 	pServiceProvider->QueryService(
 		CLSID_VirtualDesktopManagerInternal,
@@ -271,6 +276,76 @@ void DllExport GoToDesktopNumber(int number) {
 	}
 }
 
+IApplicationView* GetApplicationViewForHwnd(HWND hwnd) {
+	IApplicationView* app = nullptr;
+	viewCollection->GetViewForHwnd(hwnd, &app);
+	return app;
+}
+
+LPWSTR GetApplicationIdForHwnd(HWND hwnd) {
+	IApplicationView* app = GetApplicationViewForHwnd(hwnd);
+	if (app != nullptr) {
+		std::wcout << "App view" << app << std::endl;
+		LPWSTR appId = new TCHAR[1024];
+		app->GetAppUserModelId(&appId);
+		std::wcout << "App view ID" << appId << std::endl;
+		return appId;
+	}
+	return nullptr;
+}
+
+int DllExport IsPinnedWindow(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* pView = GetApplicationViewForHwnd(hwnd);
+	BOOL isPinned = false;
+	if (pView != nullptr) {
+		pinnedApps->IsViewPinned(pView, &isPinned);
+		if (isPinned) {
+			return 1;
+		}
+		else {
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+void DllExport PinWindow(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* pView = GetApplicationViewForHwnd(hwnd);
+	if (pView != nullptr) {
+		pinnedApps->PinView(pView);
+	}
+}
+
+void DllExport UnPinWindow(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* pView = GetApplicationViewForHwnd(hwnd);
+	if (pView != nullptr) {
+		pinnedApps->UnpinView(pView);
+	}
+}
+
+/*
+void DllExport IsPinnedApp(HWND hwnd) {
+	_RegisterService();
+
+}
+
+void DllExport PinApp(HWND hwnd) {
+	_RegisterService();
+	LPWSTR appId = GetApplicationIdForHwnd(hwnd);
+	std::wcout << "Pin app" << appId << std::endl;
+	if (appId != nullptr) {
+		pinnedApps->PinAppID(appId);
+	}
+}
+
+void DllExport UnPinApp(HWND hwnd) {
+
+}
+*/
 class _Notifications : public IVirtualDesktopNotification {
 private:
 	ULONG _referenceCount;

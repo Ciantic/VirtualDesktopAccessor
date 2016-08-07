@@ -125,3 +125,6 @@ You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist
     * void GoToDesktopNumber(int number)
     * void RegisterPostMessageHook(HWND listener, int messageOffset)
     * void UnregisterPostMessageHook(HWND hwnd)
+	* int IsPinnedWindow(HWND hwnd)
+	* void PinWindow(HWND hwnd)
+	* void UnPinWindow(HWND hwnd)

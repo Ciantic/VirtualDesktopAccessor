@@ -86,7 +86,35 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	std::wcout << "Console Window's Desktop Number: " << GetWindowDesktopNumber(GetConsoleWindow()) << std::endl;
 	std::wcout << "Current Desktop Number: " << GetCurrentDesktopNumber() << "\r\n";
 	// MoveWindowToDesktopNumber((HWND) 0x003E04F2, 1);
-	std::wcout << "Is notepad on the desktop: " << IsWindowOnCurrentVirtualDesktop((HWND) 0x003E04F2) << std::endl;
+	HWND notepad = FindWindow(_T("Notepad"), NULL);
+	if (notepad != 0) {
+
+		int number = GetCurrentDesktopNumber();
+
+		// Test pinning it
+		std::wcout << "Try pinning the notepad." << std::endl;
+		PinWindow(notepad);
+		std::wcout << "Is notepad pinned?" << IsPinnedWindow(notepad) << std::endl;
+		GoToDesktopNumber(number + 1);
+		Sleep(2000);
+		GoToDesktopNumber(number);
+		UnPinWindow(notepad);
+		std::wcout << "Is notepad pinned?" << IsPinnedWindow(notepad) << std::endl;
+
+		if (!IsWindowOnCurrentVirtualDesktop(notepad)) {
+			MoveWindowToDesktopNumber(notepad, number);
+		}
+		std::wcout << "Notepad is on on the current desktop. " << std::endl;
+		Sleep(1000);
+		MoveWindowToDesktopNumber(notepad, number + 1);
+		std::wcout << "Notepad should now have been moved to the next desktop." << std::endl;
+		Sleep(1000);
+		MoveWindowToDesktopNumber(notepad, number);		
+	}
+	else {
+		std::wcout << "Start notepad to try moving a window, or pinning it" << std::endl;
+	}
+	
 
 	GUID g = GetDesktopIdByNumber(GetCurrentDesktopNumber());
 	WCHAR text[255];
