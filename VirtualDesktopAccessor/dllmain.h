@@ -277,12 +277,16 @@ void DllExport GoToDesktopNumber(int number) {
 }
 
 IApplicationView* GetApplicationViewForHwnd(HWND hwnd) {
+	if (hwnd == 0)
+		return nullptr;
 	IApplicationView* app = nullptr;
 	viewCollection->GetViewForHwnd(hwnd, &app);
 	return app;
 }
 
 LPWSTR GetApplicationIdForHwnd(HWND hwnd) {
+	if (hwnd == 0)
+		return nullptr;
 	IApplicationView* app = GetApplicationViewForHwnd(hwnd);
 	if (app != nullptr) {
 		LPWSTR appId = new TCHAR[1024];
@@ -293,6 +297,8 @@ LPWSTR GetApplicationIdForHwnd(HWND hwnd) {
 }
 
 int DllExport IsPinnedWindow(HWND hwnd) {
+	if (hwnd == 0)
+		return -1;
 	_RegisterService();
 	IApplicationView* pView = GetApplicationViewForHwnd(hwnd);
 	BOOL isPinned = false;
@@ -310,6 +316,8 @@ int DllExport IsPinnedWindow(HWND hwnd) {
 }
 
 void DllExport PinWindow(HWND hwnd) {
+	if (hwnd == 0)
+		return;
 	_RegisterService();
 	IApplicationView* pView = GetApplicationViewForHwnd(hwnd);
 	if (pView != nullptr) {
@@ -318,6 +326,8 @@ void DllExport PinWindow(HWND hwnd) {
 }
 
 void DllExport UnPinWindow(HWND hwnd) {
+	if (hwnd == 0)
+		return;
 	_RegisterService();
 	IApplicationView* pView = GetApplicationViewForHwnd(hwnd);
 	if (pView != nullptr) {
@@ -326,6 +336,8 @@ void DllExport UnPinWindow(HWND hwnd) {
 }
 
 int DllExport IsPinnedApp(HWND hwnd) {
+	if (hwnd == 0)
+		return -1;
 	_RegisterService();
 	LPWSTR appId = GetApplicationIdForHwnd(hwnd);
 	if (appId != nullptr) {
@@ -342,6 +354,8 @@ int DllExport IsPinnedApp(HWND hwnd) {
 }
 
 void DllExport PinApp(HWND hwnd) {
+	if (hwnd == 0)
+		return;
 	_RegisterService();
 	LPWSTR appId = GetApplicationIdForHwnd(hwnd);
 	if (appId != nullptr) {
@@ -350,6 +364,8 @@ void DllExport PinApp(HWND hwnd) {
 }
 
 void DllExport UnPinApp(HWND hwnd) {
+	if (hwnd == 0)
+		return;
 	_RegisterService();
 	LPWSTR appId = GetApplicationIdForHwnd(hwnd);
 	if (appId != nullptr) {
