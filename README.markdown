@@ -21,8 +21,17 @@ MoveWindowToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopA
 RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
 UnregisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "UnregisterPostMessageHook", "Ptr")
 IsPinnedWindowProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsPinnedWindow", "Ptr")
+RestartVirtualDesktopAccessorProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RestartVirtualDesktopAccessor", "Ptr")
 ; GetWindowDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetWindowDesktopNumber", "Ptr")
 activeWindowByDesktop := {}
+
+; Restart the virtual desktop accessor when Explorer.exe crashes, or restarts (e.g. when coming from fullscreen game)
+explorerRestartMsg := DllCall("user32\RegisterWindowMessage", "Str", "TaskbarCreated")
+OnMessage(explorerRestartMsg, "OnExplorerRestart")
+OnExplorerRestart(wParam, lParam, msg, hwnd) {
+    global RestartVirtualDesktopAccessorProc
+    DllCall(RestartVirtualDesktopAccessorProc, UInt, result)
+}
 
 MoveCurrentWindowToDesktop(number) {
 	global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc, activeWindowByDesktop
@@ -141,3 +150,8 @@ VWMess(wParam, lParam, msg, hwnd) {
 	* int IsPinnedApp(HWND hwnd) // Returns 1 if pinned, 0 if not pinned, -1 if not valid
 	* void PinApp(HWND hwnd)
 	* void UnPinApp(HWND hwnd)
+	* int IsWindowOnDesktopNumber(HWND window, int number) / 
+	* void RestartVirtualDesktopAccessor() // Call this during taskbar created message
+
+	* void EnableKeepMinimized() // Experimental, minimizes the windows on background
+	* void RestoreMinimized() // Experimental, restore all windows minimized by EnableKeepMinimized

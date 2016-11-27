@@ -93,6 +93,8 @@ DECLARE_INTERFACE_IID_(IApplicationView, IUnknown, "9ac0b5c8-1484-4c5b-9533-4134
 	STDMETHOD(IsMirrored)(THIS_ BOOL*) PURE;
 };
 
+const __declspec(selectany) IID & IID_IApplicationView = __uuidof(IApplicationView);
+
 DECLARE_INTERFACE_IID_(IVirtualDesktopPinnedApps, IUnknown, "4ce81583-1e4c-4632-a621-07a53543148f")
 {
 	/*** IUnknown methods ***/

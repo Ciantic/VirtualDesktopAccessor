@@ -80,15 +80,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		);
 
 	ShowWindow(hwnd, SW_HIDE);
+	_OpenDllWindow(hInstance);
 
 	RegisterPostMessageHook(hwnd, MESSAGE_OFFSET);
 	std::wcout << "Desktops: " << GetDesktopCount() << "\r\n";
 	std::wcout << "Console Window's Desktop Number: " << GetWindowDesktopNumber(GetConsoleWindow()) << std::endl;
 	std::wcout << "Current Desktop Number: " << GetCurrentDesktopNumber() << "\r\n";
-	// MoveWindowToDesktopNumber((HWND) 0x003E04F2, 1);
+
 	HWND notepad = FindWindow(_T("Notepad"), NULL);
 	if (notepad != 0) {
 		int number = GetCurrentDesktopNumber();
+
+		std::wcout << "Is notepad on this desktop: " << IsWindowOnDesktopNumber(notepad, number) << std::endl;
 
 		// Test pinning it
 		std::wcout << "Try pinning the notepad (the window)." << std::endl;

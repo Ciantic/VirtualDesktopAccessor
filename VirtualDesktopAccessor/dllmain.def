@@ -18,3 +18,8 @@ EXPORTS
     IsPinnedApp @16
     PinApp @17
     UnPinApp @18
+
+	EnableKeepMinimized @19
+	RestoreMinimized @20
+	IsWindowOnDesktopNumber @21
+	RestartVirtualDesktopAccessor @22
