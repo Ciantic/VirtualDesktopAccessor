@@ -1,10 +1,10 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 10 (tested with build 14393) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2016
+DLL for accessing Windows 10 (tested with build 17134.48) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2018
 
 Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDesktopAccessor.dll in the repository. This DLL works only on 64 bit Windows 10.
 
-You probably first need the [VS 2015 runtimes vc_redist.x64.exe and/or vc_redist.x86.exe](https://www.microsoft.com/en-us/download/details.aspx?id=48145), if they are not installed already. I've built the DLL using VS 2015, and Microsoft is not providing those runtimes (who knows why) with Windows 10 yet.
+You probably first need the [VS 2017 runtimes vc_redist.x64.exe and/or vc_redist.x86.exe](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads), if they are not installed already. I've built the DLL using VS 2017, and Microsoft is not providing those runtimes (who knows why) with Windows 10 yet.
 
 ## AutoHotkey script as example:
 
@@ -153,5 +153,5 @@ VWMess(wParam, lParam, msg, hwnd) {
 	* int IsWindowOnDesktopNumber(HWND window, int number) / 
 	* void RestartVirtualDesktopAccessor() // Call this during taskbar created message
 
-	* void EnableKeepMinimized() // Experimental, minimizes the windows on background
-	* void RestoreMinimized() // Experimental, restore all windows minimized by EnableKeepMinimized
+	* void EnableKeepMinimized() // Deprecated, does nothing
+	* void RestoreMinimized() // Deprecated, does nothing

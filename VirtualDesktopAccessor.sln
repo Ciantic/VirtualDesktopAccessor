@@ -1,11 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2018
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualDesktopAccessor", "VirtualDesktopAccessor\VirtualDesktopAccessor.vcxproj", "{75640BB7-FA6D-4DED-A074-E4758CCEF7D1}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestVirtualDesktopAccessorWin32", "TestVirtualDesktopAccessorWin32\TestVirtualDesktopAccessorWin32.vcxproj", "{FA401C23-A170-45D0-BB2C-9F21A8E07B2C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{88DF21E3-B4B2-4CE5-A9B2-C4A60BF898B5}"
+	ProjectSection(SolutionItems) = preProject
+		README.markdown = README.markdown
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,5 +39,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {762C7D7B-DF75-46B0-9409-DE72C96B2A3F}
 	EndGlobalSection
 EndGlobal
