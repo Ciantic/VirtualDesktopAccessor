@@ -38,9 +38,9 @@ const IID IID_IVirtualDesktopNotification = {
 #define APPLICATION_VIEW_CLOAK_TYPE UINT
 #define IApplicationViewPosition UINT
 
-// Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{871F602A-2B58-42B4-8C4B-6C43D642C06F}
+// Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{372E1D3B-38D3-42E4-A15B-8AB2B178F513}
 // Found with searching "IApplicationView"
-DECLARE_INTERFACE_IID_(IApplicationView, IInspectable, "871F602A-2B58-42B4-8C4B-6C43D642C06F")
+DECLARE_INTERFACE_IID_(IApplicationView, IInspectable, "372E1D3B-38D3-42E4-A15B-8AB2B178F513")
 {
 	/*** IUnknown methods ***/
 	STDMETHOD(QueryInterface)(THIS_ REFIID riid, LPVOID FAR* ppvObject) PURE;
@@ -98,17 +98,18 @@ DECLARE_INTERFACE_IID_(IApplicationView, IInspectable, "871F602A-2B58-42B4-8C4B-
 	STDMETHOD(GetEnterpriseId)(THIS_ PWSTR*) PURE;
 	STDMETHOD(IsMirrored)(THIS_ BOOL*) PURE;
 
-	// Unsure
 	STDMETHOD(Unknown1)(THIS_ int*) PURE;
 	STDMETHOD(Unknown2)(THIS_ int*) PURE;
 	STDMETHOD(Unknown3)(THIS_ int*) PURE;
 	STDMETHOD(Unknown4)(THIS_ int) PURE;
-
-	// 17661?
-	//STDMETHOD(Unknown5)(THIS) PURE;
-	//STDMETHOD(Unknown6)(THIS_ int*) PURE;
-	//STDMETHOD(Unknown7)(THIS_ int) PURE;
-	//STDMETHOD(Unknown8)(THIS_ int, THIS_ int) PURE;
+	STDMETHOD(Unknown5)(THIS_ int*) PURE;
+	STDMETHOD(Unknown6)(THIS_ int) PURE;
+	STDMETHOD(Unknown7)(THIS) PURE;
+	STDMETHOD(Unknown8)(THIS_ int*) PURE;
+	STDMETHOD(Unknown9)(THIS_ int) PURE;
+	STDMETHOD(Unknown10)(THIS_ int, int) PURE;
+	STDMETHOD(Unknown11)(THIS_ int) PURE;
+	STDMETHOD(Unknown12)(THIS_ SIZE*) PURE;
 
 };
 
