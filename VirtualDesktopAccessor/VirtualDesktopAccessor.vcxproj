@@ -22,7 +22,7 @@
     <ProjectGuid>{75640BB7-FA6D-4DED-A074-E4758CCEF7D1}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>VirtualDesktopAccessor</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

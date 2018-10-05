@@ -1,6 +1,6 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 10 (tested with build 17134.48) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2018
+DLL for accessing Windows 10 (tested with 1809 build 17663) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2018
 
 Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDesktopAccessor.dll in the repository. This DLL works only on 64 bit Windows 10.
 

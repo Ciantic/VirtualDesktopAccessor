@@ -135,8 +135,8 @@ DECLARE_INTERFACE_IID_(IVirtualDesktopPinnedApps, IUnknown, "4ce81583-1e4c-4632-
 #define IImmersiveApplication UINT
 #define IApplicationViewChangeListener UINT
 
-// In registry: Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{2C08ADF0-A386-4B35-9250-0FE183476FCC}
-DECLARE_INTERFACE_IID_(IApplicationViewCollection, IUnknown, "2C08ADF0-A386-4B35-9250-0FE183476FCC")
+// In registry: Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{1841C6D7-4F9D-42C0-AF41-8747538F10E5}
+DECLARE_INTERFACE_IID_(IApplicationViewCollection, IUnknown, "1841C6D7-4F9D-42C0-AF41-8747538F10E5")
 {
 	/*** IUnknown methods ***/
 	STDMETHOD(QueryInterface)(THIS_ REFIID riid, LPVOID FAR* ppvObject) PURE;
@@ -151,9 +151,13 @@ DECLARE_INTERFACE_IID_(IApplicationViewCollection, IUnknown, "2C08ADF0-A386-4B35
 	STDMETHOD(GetViewForApplication)(THIS_ IImmersiveApplication*, IApplicationView**) PURE;
 	STDMETHOD(GetViewForAppUserModelId)(THIS_ PCWSTR, IApplicationView**) PURE;
 	STDMETHOD(GetViewInFocus)(THIS_ IApplicationView**) PURE;
+	STDMETHOD(Unknown1)(THIS_ IApplicationView**) PURE;
+
 	STDMETHOD(RefreshCollection)(THIS) PURE;
 	STDMETHOD(RegisterForApplicationViewChanges)(THIS_ IApplicationViewChangeListener*, DWORD*) PURE;
-	STDMETHOD(RegisterForApplicationViewPositionChanges)(THIS_ IApplicationViewChangeListener*, DWORD*) PURE;
+
+	// Removed in 1809
+	// STDMETHOD(RegisterForApplicationViewPositionChanges)(THIS_ IApplicationViewChangeListener*, DWORD*) PURE;
 	STDMETHOD(UnregisterForApplicationViewChanges)(THIS_ DWORD) PURE;
 };
 
@@ -177,7 +181,7 @@ enum AdjacentDesktop
 };
 
 
-// Old: AF8DA486-95BB-4460-B3B7-6E7A6B2962B5
+// HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{F31574D6-B682-4CDC-BD56-1827860ABEC6}
 MIDL_INTERFACE("f31574d6-b682-4cdc-bd56-1827860abec6")
 IVirtualDesktopManagerInternal : public IUnknown
 {
@@ -222,6 +226,7 @@ public:
 };
 
 // aa509086-5ca9-4c25-8f95-589d3c07b48a ?
+// HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{A5CD92FF-29BE-454C-8D04-D82879FB3F1B}
 MIDL_INTERFACE("a5cd92ff-29be-454c-8d04-d82879fb3f1b")
 IVirtualDesktopManager : public IUnknown
 {
@@ -239,6 +244,7 @@ public:
 		/* [in] */ __RPC__in REFGUID desktopId) = 0;
 };
 
+// Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{C179334C-4295-40D3-BEA1-C654D965605A}
 MIDL_INTERFACE("C179334C-4295-40D3-BEA1-C654D965605A")
 IVirtualDesktopNotification : public IUnknown
 {
