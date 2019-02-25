@@ -192,9 +192,9 @@ GUID DllExport GetWindowDesktopId(HWND window) {
 int DllExport GetWindowDesktopNumber(HWND window) {
 	_RegisterService();
 
-	GUID* pDesktopId = new GUID({ 0 });
-	if (SUCCEEDED(pDesktopManager->GetWindowDesktopId(window, pDesktopId))) {
-		return GetDesktopNumberById(*pDesktopId);
+	GUID pDesktopId = {};
+	if (SUCCEEDED(pDesktopManager->GetWindowDesktopId(window, &pDesktopId))) {
+		return GetDesktopNumberById(pDesktopId);
 	}
 
 	return -1;
@@ -353,6 +353,8 @@ struct ShowWindowOnDesktopAction {
 };
 
 LPWSTR _GetApplicationIdForHwnd(HWND hwnd) {
+	// TODO: This should not return a pointer, it should take in a pointer, or return either wstring or std::string
+
 	if (hwnd == 0)
 		return nullptr;
 	IApplicationView* app = _GetApplicationViewForHwnd(hwnd);
@@ -531,6 +533,8 @@ void _RegisterDesktopNotifications() {
 	if (registeredForNotifications) {
 		return;
 	}
+
+	// TODO: This is never deleted
 	_Notifications *nf = new _Notifications();
 	HRESULT res = pDesktopNotificationService->Register(nf, &idNotificationService);
 	if (SUCCEEDED(res)) {

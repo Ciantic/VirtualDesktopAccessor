@@ -92,6 +92,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		int number = GetCurrentDesktopNumber();
 
 		std::wcout << "Is notepad on this desktop: " << IsWindowOnDesktopNumber(notepad, number) << std::endl;
+		std::wcout << "Is notepad on current desktop: " << IsWindowOnCurrentVirtualDesktop(notepad) << std::endl;
 
 		// Test pinning it
 		std::wcout << "Try pinning the notepad (the window)." << std::endl;
