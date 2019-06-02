@@ -23,3 +23,13 @@ EXPORTS
 	RestoreMinimized @20
 	IsWindowOnDesktopNumber @21
 	RestartVirtualDesktopAccessor @22
+
+	ViewIsShownInSwitchers @23
+	ViewIsVisible @24
+	ViewGetThumbnailHwnd @25
+	ViewSetFocus @26
+	ViewSwitchTo @27
+	ViewGetByZOrder @28
+	ViewGetFocused @29
+	ViewGetLastActivationTimestamp @30
+	ViewGetByLastActivationOrder @31

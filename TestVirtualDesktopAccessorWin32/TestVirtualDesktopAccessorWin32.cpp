@@ -87,12 +87,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	std::wcout << "Console Window's Desktop Number: " << GetWindowDesktopNumber(GetConsoleWindow()) << std::endl;
 	std::wcout << "Current Desktop Number: " << GetCurrentDesktopNumber() << "\r\n";
 
+	HWND arr[1024];
+	UINT numberOfWindows = ViewGetByLastActivationOrder((HWND*)&arr, 1024, 1, 0);
+	std::wcout << "Number of windows: " << numberOfWindows << std::endl;
+
+
 	HWND notepad = FindWindow(_T("Notepad"), NULL);
 	if (notepad != 0) {
 		int number = GetCurrentDesktopNumber();
 
 		std::wcout << "Is notepad on this desktop: " << IsWindowOnDesktopNumber(notepad, number) << std::endl;
 		std::wcout << "Is notepad on current desktop: " << IsWindowOnCurrentVirtualDesktop(notepad) << std::endl;
+		std::wcout << "Is notepad shown on alt tab switcher: " << ViewIsShownInSwitchers(notepad) << std::endl;
+		std::wcout << "Is notepad visible: " << ViewIsVisible(notepad) << std::endl;
+		std::wcout << "Where is thumbnail of notepad: " << ViewGetThumbnailHwnd(notepad) << std::endl;
 
 		// Test pinning it
 		std::wcout << "Try pinning the notepad (the window)." << std::endl;

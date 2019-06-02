@@ -55,21 +55,21 @@ DECLARE_INTERFACE_IID_(IApplicationView, IInspectable, "372E1D3B-38D3-42E4-A15B-
 	/*** IApplicationView methods ***/
 	STDMETHOD(SetFocus)(THIS) PURE;
 	STDMETHOD(SwitchTo)(THIS) PURE;
-	STDMETHOD(TryInvokeBack)(THIS_ IAsyncCallback*) PURE;
-	STDMETHOD(GetThumbnailWindow)(THIS_ HWND*) PURE;
-	STDMETHOD(GetMonitor)(THIS_ IImmersiveMonitor**) PURE;
-	STDMETHOD(GetVisibility)(THIS_ int*) PURE;
-	STDMETHOD(SetCloak)(THIS_ APPLICATION_VIEW_CLOAK_TYPE, int) PURE;
-	STDMETHOD(GetPosition)(THIS_ REFIID, void**) PURE;
-	STDMETHOD(SetPosition)(THIS_ IApplicationViewPosition*) PURE;
-	STDMETHOD(InsertAfterWindow)(THIS_ HWND) PURE;
-	STDMETHOD(GetExtendedFramePosition)(THIS_ RECT*) PURE;
-	STDMETHOD(GetAppUserModelId)(THIS_ PWSTR*) PURE;
-	STDMETHOD(SetAppUserModelId)(THIS_ PCWSTR) PURE;
-	STDMETHOD(IsEqualByAppUserModelId)(THIS_ PCWSTR, int*) PURE;
-	STDMETHOD(GetViewState)(THIS_ UINT*) PURE;
-	STDMETHOD(SetViewState)(THIS_ UINT) PURE;
-	STDMETHOD(GetNeediness)(THIS_ int*) PURE;
+	STDMETHOD(TryInvokeBack)(THIS_ IAsyncCallback*) PURE; // Proc8
+	STDMETHOD(GetThumbnailWindow)(THIS_ HWND*) PURE; // Proc9
+	STDMETHOD(GetMonitor)(THIS_ IImmersiveMonitor**) PURE; // Proc10
+	STDMETHOD(GetVisibility)(THIS_ int*) PURE; // Proc11
+	STDMETHOD(SetCloak)(THIS_ APPLICATION_VIEW_CLOAK_TYPE, int) PURE; // Proc12
+	STDMETHOD(GetPosition)(THIS_ REFIID, void**) PURE; // Proc13
+	STDMETHOD(SetPosition)(THIS_ IApplicationViewPosition*) PURE; // Proc14
+	STDMETHOD(InsertAfterWindow)(THIS_ HWND) PURE; // Proc15
+	STDMETHOD(GetExtendedFramePosition)(THIS_ RECT*) PURE; // Proc16
+	STDMETHOD(GetAppUserModelId)(THIS_ PWSTR*) PURE; // Proc17
+	STDMETHOD(SetAppUserModelId)(THIS_ PCWSTR) PURE; // Proc18
+	STDMETHOD(IsEqualByAppUserModelId)(THIS_ PCWSTR, int*) PURE; // Proc19
+	STDMETHOD(GetViewState)(THIS_ UINT*) PURE; // Proc20
+	STDMETHOD(SetViewState)(THIS_ UINT) PURE; // Proc21
+	STDMETHOD(GetNeediness)(THIS_ int*) PURE; // Proc22
 	STDMETHOD(GetLastActivationTimestamp)(THIS_ ULONGLONG*) PURE;
 	STDMETHOD(SetLastActivationTimestamp)(THIS_ ULONGLONG) PURE;
 	STDMETHOD(GetVirtualDesktopId)(THIS_ GUID*) PURE;
@@ -92,11 +92,11 @@ DECLARE_INTERFACE_IID_(IApplicationView, IInspectable, "372E1D3B-38D3-42E4-A15B-
 	STDMETHOD(IsInHighZOrderBand)(THIS_ BOOL*) PURE;
 	STDMETHOD(IsSplashScreenPresented)(THIS_ BOOL*) PURE;
 	STDMETHOD(Flash)(THIS) PURE;
-	STDMETHOD(GetRootSwitchableOwner)(THIS_ IApplicationView**) PURE;
-	STDMETHOD(EnumerateOwnershipTree)(THIS_ IObjectArray**) PURE;
+	STDMETHOD(GetRootSwitchableOwner)(THIS_ IApplicationView**) PURE; // proc45
+	STDMETHOD(EnumerateOwnershipTree)(THIS_ IObjectArray**) PURE; // proc46
 	
-	STDMETHOD(GetEnterpriseId)(THIS_ PWSTR*) PURE;
-	STDMETHOD(IsMirrored)(THIS_ BOOL*) PURE;
+	STDMETHOD(GetEnterpriseId)(THIS_ PWSTR*) PURE; // proc47
+	STDMETHOD(IsMirrored)(THIS_ BOOL*) PURE; //
 
 	STDMETHOD(Unknown1)(THIS_ int*) PURE;
 	STDMETHOD(Unknown2)(THIS_ int*) PURE;

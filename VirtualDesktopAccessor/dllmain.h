@@ -447,6 +447,274 @@ void DllExport UnPinApp(HWND hwnd) {
 	}
 }
 
+int DllExport ViewIsShownInSwitchers(HWND hwnd) {
+
+	//// Iterate views for fun
+	//IObjectArray* arr = nullptr;
+	//UINT count;
+	//viewCollection->GetViews(&arr);
+	//arr->GetCount(&count);
+
+	//for (int i = 0; i < count; i++)
+	//{
+	//	IApplicationView* app2;
+	//	HRESULT getAtResult = arr->GetAt(i, IID_IApplicationView, (void**)&app2);
+	//	if (app2 != nullptr && getAtResult == S_OK) {
+	//		PWSTR modelId;
+	//		app2->GetAppUserModelId(&modelId);
+
+	//		BOOL showInSwitchers = 0;
+	//		app2->GetShowInSwitchers(&showInSwitchers);
+
+	//		BOOL isVisible = 0;
+	//		app2->GetVisibility(&isVisible);
+
+	//		int unknown1 = 0;
+	//		HRESULT res1 = app2->Unknown1(&unknown1);
+	//		int unknown2 = 0;
+	//		HRESULT res2 = app2->Unknown2(&unknown2);
+	//		int unknown3 = 0;
+	//		HRESULT res3 = app2->Unknown3(&unknown3);
+	//		int unknown5 = 0;
+	//		HRESULT res5 = app2->Unknown5(&unknown5);
+	//		int unknown8 = 0;
+	//		HRESULT res8 = app2->Unknown8(&unknown8);
+
+	//		/* E_NOTIMPL
+	//		BOOL isInHighZOrderBand = 0;
+	//		HRESULT zres = app2->IsInHighZOrderBand(&isInHighZOrderBand);
+	//		*/
+
+	//		/* Access violation
+	//		BOOL isTray = 0;
+	//		HRESULT isTrayRes = app2->IsTray(&isTray);
+	//		*/
+
+	//		wprintf(L"modelId: %s switcher: %d visible: %d  %d %d %d %d %d\n", modelId, showInSwitchers, isVisible, unknown1, unknown2, unknown3, unknown5, unknown8);
+
+	//		/* Seems to be always nullptr
+	//		HSTRING className;
+	//		app2->GetRuntimeClassName(&className);
+	//		*/
+
+	//		/*
+	//		Seems to be always 0xcccccccc00000000
+	//		IApplicationView* app2Owner;
+	//		if (app2->GetRootSwitchableOwner(&app2Owner) == S_OK && app2Owner != (IApplicationView*) 0xcccccccc00000000) {
+	//			PWSTR modelIdOwner;
+	//			app2Owner->GetAppUserModelId(&modelIdOwner);
+	//			wprintf(L"modelId owner: %s \n", modelIdOwner);
+	//			app2Owner->Release();
+	//		}
+	//		*/
+	//	}
+	//	app2->Release();
+	//}
+
+
+	_RegisterService();
+	IApplicationView* view = _GetApplicationViewForHwnd(hwnd);
+	int result = -1;
+	if (view != nullptr) {
+		BOOL show = 0;
+		if (view->GetShowInSwitchers(&show) == S_OK) {
+			result = show;
+		}
+		view->Release();
+	}
+	return result;
+}
+
+int DllExport ViewIsVisible(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* view = _GetApplicationViewForHwnd(hwnd);
+	int result = -1;
+	if (view != nullptr) {
+		int show = 0;
+		if (view->GetVisibility(&show) == S_OK) {
+			result = show;
+		}
+		view->Release();
+	}
+	return result;
+}
+
+HWND DllExport ViewGetThumbnailHwnd(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* view = _GetApplicationViewForHwnd(hwnd);
+	HWND result = 0;
+	if (view != nullptr) {
+		if (view->GetThumbnailWindow(&result) != S_OK) {
+			result = 0;
+		}
+		view->Release();
+	}
+	return result;
+}
+
+HRESULT DllExport ViewSetFocus(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* view = _GetApplicationViewForHwnd(hwnd);
+	HRESULT result = -1;
+	if (view != nullptr) {
+		result = view->SetFocus();
+		view->Release();
+	}
+	return result;
+}
+
+HWND DllExport ViewGetFocused() {
+	_RegisterService();
+	IApplicationView* view;
+	HRESULT getAtResult = viewCollection->GetViewInFocus(&view);
+	HWND ret = 0;
+	if (view != nullptr && getAtResult == S_OK) {
+		HWND wnd = 0;
+		if (view->GetThumbnailWindow(&wnd) == S_OK && wnd != 0) {
+			ret = wnd;
+		}
+		view->Release();
+	}
+	return ret;
+}
+
+HRESULT DllExport ViewSwitchTo(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* view = _GetApplicationViewForHwnd(hwnd);
+	HRESULT result = -1;
+	if (view != nullptr) {
+		result = view->SwitchTo();
+		view->Release();
+	}
+	return result;
+}
+
+UINT DllExport ViewGetByZOrder(HWND *windows, UINT count, BOOL onlySwitcherWindows, BOOL onlyCurrentDesktop) {
+	_RegisterService();
+	IObjectArray* arr = nullptr;
+	UINT countViews;
+	IApplicationView* view;
+	int fill = 0;
+	if (viewCollection->GetViewsByZOrder(&arr) != S_OK) {
+		return 0;
+	}
+	arr->GetCount(&countViews);
+	if (countViews > count) {
+		arr->Release();
+		return 0;
+	}
+
+	for (UINT i = 0; i < count; i++)
+	{
+		HRESULT getAtResult = arr->GetAt(i - 1, IID_IApplicationView, (void**)&view);
+		
+		if (view != nullptr && getAtResult == S_OK) {
+			HWND wnd = 0;
+			BOOL showInSwitchers = false;
+			BOOL isOnCurrentDesktop = false;
+			if (onlySwitcherWindows && (view->GetShowInSwitchers(&showInSwitchers) != S_OK || !showInSwitchers)) {
+				view->Release();
+				continue;
+			}
+			if (view->GetThumbnailWindow(&wnd) != S_OK || wnd == 0) {
+				view->Release();
+				continue;
+			}
+			if (onlyCurrentDesktop && (pDesktopManager->IsWindowOnCurrentVirtualDesktop(wnd, &isOnCurrentDesktop) != S_OK || !isOnCurrentDesktop)) {
+				view->Release();
+				continue;
+			}
+			windows[fill] = wnd;
+			fill++;
+			view->Release();
+		}
+	}
+	arr->Release();
+	return fill;
+}
+
+struct TempWindowEntry {
+	HWND hwnd;
+	ULONGLONG lastActivationTimestamp;
+};
+
+UINT DllExport ViewGetByLastActivationOrder(HWND *windows, UINT count, BOOL onlySwitcherWindows, BOOL onlyCurrentDesktop) {
+	_RegisterService();
+	IObjectArray* arr = nullptr;
+	UINT countViews;
+	IApplicationView* view;
+	if (viewCollection->GetViews(&arr) != S_OK) {
+		return 0;
+	}
+	arr->GetCount(&countViews);
+	if (countViews > count) {
+		arr->Release();
+		return 0;
+	}
+
+	std::vector<TempWindowEntry> unsorted;
+	for (UINT i = 0; i < count; i++)
+	{
+		HRESULT getAtResult = arr->GetAt(i - 1, IID_IApplicationView, (void**)&view);
+		if (view != nullptr && getAtResult == S_OK) {
+			HWND wnd = 0;
+			ULONGLONG lastActivationTimestamp = 0;
+			BOOL showInSwitchers = false;
+			BOOL isOnCurrentDesktop = false;
+
+			if (onlySwitcherWindows && (view->GetShowInSwitchers(&showInSwitchers) != S_OK || !showInSwitchers)) {
+				view->Release();
+				continue;
+			}
+			if (view->GetThumbnailWindow(&wnd) != S_OK || wnd == 0) {
+				view->Release();
+				continue;
+			}
+
+			if (onlyCurrentDesktop && (pDesktopManager->IsWindowOnCurrentVirtualDesktop(wnd, &isOnCurrentDesktop) != S_OK || !isOnCurrentDesktop)) {
+				view->Release();
+				continue;
+			}
+
+			if (view->GetLastActivationTimestamp(&lastActivationTimestamp) != S_OK) {
+				view->Release();
+				continue;
+			}
+			TempWindowEntry entry;
+			entry.hwnd = wnd;
+			entry.lastActivationTimestamp = lastActivationTimestamp;
+			unsorted.push_back(entry);
+			view->Release();
+		}
+	}
+	arr->Release();
+
+	std::sort(unsorted.begin(), unsorted.end(), [](auto const& lhs, auto const& rhs) {
+		return lhs.lastActivationTimestamp > rhs.lastActivationTimestamp;
+	});
+
+	UINT i = 0;
+	for (auto entry : unsorted) {
+		windows[i] = entry.hwnd;
+		i++;
+	}
+	
+	return i;
+}
+
+ULONGLONG DllExport ViewGetLastActivationTimestamp(HWND hwnd) {
+	_RegisterService();
+	IApplicationView* view = _GetApplicationViewForHwnd(hwnd);
+	ULONGLONG result = 0;
+	if (view != nullptr) {
+		if (view->GetLastActivationTimestamp(&result) != S_OK) {
+			result = 0;
+		}
+		view->Release();
+	}
+	return result;
+}
+
 class _Notifications : public IVirtualDesktopNotification {
 private:
 	ULONG _referenceCount;

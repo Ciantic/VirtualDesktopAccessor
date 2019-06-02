@@ -6,6 +6,15 @@ Download the VirtualDesktopAccessor.dll from directory x64\Release\VirtualDeskto
 
 You probably first need the [VS 2017 runtimes vc_redist.x64.exe and/or vc_redist.x86.exe](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads), if they are not installed already. I've built the DLL using VS 2017, and Microsoft is not providing those runtimes (who knows why) with Windows 10 yet.
 
+## Change log
+
+* 02.06.2019:
+  
+  Exported the Alt+Tab functions prefixed with `View`, this should allow user of the DLL to create native feeling ALT+Tab switcher, since these functions uses the same `IApplicationView` functions as real Alt+Tab switcher itself.
+
+  The function to get Alt+Tab windows is basically `ViewGetByLastActivationOrder`.
+
+
 ## AutoHotkey script as example:
 
 ```AutoHotkey
@@ -96,7 +105,7 @@ VWMess(wParam, lParam, msg, hwnd) {
 	WinGet, activeHwnd, ID, A 
 	isPinned := DllCall(IsPinnedWindowProc, UInt, activeHwnd)
 	oldHwnd := activeWindowByDesktop[lParam]
-	isOnDesktop := DllCall(IsWindowOnCurrentVirtualDesktopProc, UInt, oldHwnd, UInt)
+	isOnDesktop := DllCall(IsWindowOnCurrentVirtualDesktopProc, UInt, oldHwnd, Int)
 	if (isOnDesktop == 1 && isPinned != 1) {
 		WinActivate, ahk_id %oldHwnd%
 	}
@@ -152,6 +161,16 @@ VWMess(wParam, lParam, msg, hwnd) {
 	* void UnPinApp(HWND hwnd)
 	* int IsWindowOnDesktopNumber(HWND window, int number) / 
 	* void RestartVirtualDesktopAccessor() // Call this during taskbar created message
+
+	* int ViewIsShownInSwitchers(HWND hwnd) // Is the window shown in Alt+Tab list?
+	* int ViewIsVisible(HWND hwnd) // Is the window visible?
+	* HWND ViewGetThumbnailHwnd(HWND hwnd) // Get thumbnail handle for a window, possibly peek preview of Alt+Tab
+	* void ViewSetFocus(HWND hwnd) // Set focus like Alt+Tab switcher
+	* HWND ViewGetFocused() // Get focused window thumbnail handle
+	* void ViewSwitchTo(HWND hwnd) // Switch to window like Alt+Tab switcher
+	* uint ViewGetByZOrder(HWND *windows, UINT count, BOOL onlySwitcherWindows, BOOL onlyCurrentDesktop) // Get windows in Z-order (NOT alt-tab order)
+	* uint ViewGetByLastActivationOrder(HWND *windows, UINT count, BOOL onlySwitcherWindows, BOOL onlyCurrentDesktop) // Get windows in alt tab order
+	* uint ViewGetLastActivationTimestamp(HWND) // Get last activation timestamp
 
 	* void EnableKeepMinimized() // Deprecated, does nothing
 	* void RestoreMinimized() // Deprecated, does nothing
