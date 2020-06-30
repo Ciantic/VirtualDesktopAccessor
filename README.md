@@ -1,5 +1,7 @@
 # Windows virtual desktop bindings library for Rust
 
-Work in progress, will be released in the crates.io when done.
+First version available now in: https://crates.io/crates/winvd
+
+## Other
 
 This might deprecate CPP implementation, once I get a DLL also done with Rust.
