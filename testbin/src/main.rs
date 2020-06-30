@@ -1,6 +1,6 @@
 use winapi::um::winuser::FindWindowW;
 
-use std::ptr::null;
+use std::{ptr::null, time::Duration};
 use winapi::shared::windef::HWND;
 use winvirtualdesktops::{initialize, DesktopID, VirtualDesktopService};
 
@@ -68,9 +68,38 @@ fn main() {
     );
 
     // Move window between desktops
-    println!("Move notepad to first desktop...");
-    dbg!(service.move_window_to_desktop(notepad_hwnd, desktops.get(0).unwrap()));
-    // service.move_window_to_desktop(notepad_hwnd, current_desktop_id);
+
+    // Not a real window, testing error
+    println!(
+        "Try to move non existant window... {:?}",
+        service.move_window_to_desktop(999999999 as HWND, desktops.get(0).unwrap())
+    );
+
+    // Move notepad
+    println!("Move notepad to first desktop for three seconds, and then return it...");
+    println!(
+        "Move to first... {:?}",
+        service.move_window_to_desktop(notepad_hwnd, desktops.get(0).unwrap())
+    );
+    println!("Wait three seconds...");
+    std::thread::sleep(Duration::from_secs(3));
+    println!(
+        "Move back to this desktop {:?}",
+        service.move_window_to_desktop(notepad_hwnd, &current_desktop_id)
+    );
+
+    // Switch to desktop and back
+    println!("Move notepad to first desktop for three seconds, and then return it...");
+    println!(
+        "Move to first... {:?}",
+        service.go_to_desktop(desktops.get(0).unwrap())
+    );
+    println!("Wait three seconds...");
+    std::thread::sleep(Duration::from_secs(3));
+    println!(
+        "Move back to this desktop {:?}",
+        service.go_to_desktop(&current_desktop_id)
+    );
 
     println!("Press enter key to close...");
     std::io::stdin().read_line(&mut String::new()).unwrap();

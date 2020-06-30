@@ -44,6 +44,8 @@ use std::{cell::Cell, ffi::c_void, ptr::null_mut};
 #[derive(Debug, Clone)]
 pub enum VirtualDesktopError {
     UnknownError,
+    WindowNotFound,
+    DesktopNotFound,
     ApartmentInitError(HRESULT),
     ComResultError(HRESULT, String),
 }
@@ -100,10 +102,10 @@ impl VirtualDesktopService {
         Ok(desktops)
     }
 
-    fn _get_desktop_by_id_internal(
+    fn _get_desktop_by_id(
         &self,
         desktop: &DesktopID,
-    ) -> Option<ComPtr<dyn IVirtualDesktop>> {
+    ) -> Result<ComPtr<dyn IVirtualDesktop>, VirtualDesktopError> {
         self._get_desktops()
             .unwrap()
             .iter()
@@ -113,6 +115,7 @@ impl VirtualDesktopService {
                 &id == desktop
             })
             .map(|v| v.clone())
+            .ok_or(VirtualDesktopError::DesktopNotFound)
     }
 
     /// Get desktops (GUID's)
@@ -253,9 +256,8 @@ impl VirtualDesktopService {
         hwnd: HWND,
         desktop: &DesktopID,
     ) -> Result<bool, VirtualDesktopError> {
-        let desktop_id = self.get_desktop_by_window(hwnd)?;
-        let current_desktop = self.get_current_desktop()?;
-        Ok(current_desktop == desktop_id)
+        let window_desktop = self.get_desktop_by_window(hwnd)?;
+        Ok(&window_desktop == desktop)
     }
 
     /// Move window to desktop
@@ -264,11 +266,11 @@ impl VirtualDesktopService {
         hwnd: HWND,
         desktop: &DesktopID,
     ) -> Result<(), VirtualDesktopError> {
-        let desktop = self._get_desktop_by_id_internal(desktop).unwrap();
+        let desktop = self._get_desktop_by_id(desktop)?;
         let ptr: *mut IApplicationViewVTable = std::ptr::null_mut();
         let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &ptr) };
         if ptr.is_null() {
-            return Err(VirtualDesktopError::UnknownError);
+            return Err(VirtualDesktopError::WindowNotFound);
         }
         if FAILED(res) {
             return Err(VirtualDesktopError::ComResultError(
@@ -278,35 +280,30 @@ impl VirtualDesktopService {
         }
         let view: ComPtr<dyn IApplicationView> = unsafe { ComPtr::new(ptr as *mut _) };
 
-        unsafe {
+        let res = unsafe {
             self.virtual_desktop_manager_internal
                 .move_view_to_desktop(view, desktop)
         };
-
-        // if FAILED(res) {
-        //     return Err(VirtualDesktopError::ComResultError(
-        //         res,
-        //         "IVirtualDesktopManager.move_window_to_desktop".into(),
-        //     ));
-        // }
+        if FAILED(res) {
+            return Err(VirtualDesktopError::ComResultError(
+                res,
+                "IVirtualDesktopManager.move_view_to_desktop".into(),
+            ));
+        }
         Ok(())
     }
 
     /// Go to desktop
-    pub fn go_to_desktop(&self, desktop: DesktopID) -> Result<(), VirtualDesktopError> {
-        let desktops = self._get_desktops()?;
-        let to_desktop = desktops.iter().find(|v| {
-            let mut id: DesktopID = Default::default();
-            unsafe { v.get_id(&mut id) };
-            id == desktop
-        });
-        if let Some(d) = to_desktop {
-            let res = unsafe {
-                self.virtual_desktop_manager_internal
-                    .switch_desktop(d.clone())
-            };
+    pub fn go_to_desktop(&self, desktop: &DesktopID) -> Result<(), VirtualDesktopError> {
+        let d = self._get_desktop_by_id(desktop)?;
+        let res = unsafe { self.virtual_desktop_manager_internal.switch_desktop(d) };
+        if FAILED(res) {
+            return Err(VirtualDesktopError::ComResultError(
+                res,
+                "IVirtualDesktopManagerInternal.switch_desktop".into(),
+            ));
         }
-        Err(VirtualDesktopError::UnknownError)
+        Ok(())
     }
 
     /// Is window pinned?
