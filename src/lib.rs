@@ -51,6 +51,7 @@ pub enum Error {
 }
 
 pub struct VirtualDesktopService {
+    on_drop_deinit_apartment: Cell<bool>,
     service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
@@ -341,9 +342,15 @@ impl VirtualDesktopService {
         Err(VirtualDesktopError::UnknownError)
     }
     */
+
+    /// Initialize service and COM apartment. If you don't use other COM API's,
+    /// you may use this initialization.
     pub fn initialize() -> Result<VirtualDesktopService, Error> {
-        init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
-        VirtualDesktopService::initialize_only_service()
+        init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
+        // init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
+        let service = VirtualDesktopService::initialize_only_service()?;
+        service.on_drop_deinit_apartment.set(true);
+        Ok(service)
     }
 
     /// Initialize only ImmersiveShell provider service, must be re-called on
@@ -368,11 +375,18 @@ impl VirtualDesktopService {
         let listener =
             VirtualDesktopChangeListener::register(virtualdesktop_notification_service).unwrap();
         Ok(VirtualDesktopService {
+            on_drop_deinit_apartment: Cell::new(false),
             virtual_desktop_manager: virtual_desktop_manager,
             service_provider: service_provider,
             virtual_desktop_notification_listener: listener,
             virtual_desktop_manager_internal: vd_internale,
             app_view_collection: app_view_collection,
         })
+    }
+}
+
+impl Drop for VirtualDesktopService {
+    fn drop(&mut self) {
+        if self.on_drop_deinit_apartment.get() {}
     }
 }

@@ -72,7 +72,12 @@ fn main() {
     );
 
     // Switch to desktop and back
-    println!("Move notepad to first desktop for three seconds, and then return it...");
+    println!("Switch between desktops 1 and this one...");
+
+    // Wait a bit
+    std::thread::sleep(Duration::from_secs(1));
+
+    // Do it!
     println!(
         "Move to first... {:?}",
         service.go_to_desktop(desktops.get(0).unwrap())
