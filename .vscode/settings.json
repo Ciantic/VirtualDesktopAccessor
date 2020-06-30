@@ -1,0 +1,8 @@
+{
+    "editor.formatOnSave": true,
+    "rust-analyzer.procMacro.enable": true,
+    "triggerTaskOnSave.restart": true,
+    "triggerTaskOnSave.tasks": {
+        // "rust: cargo build": ["**/*.rs"]
+    }
+}
