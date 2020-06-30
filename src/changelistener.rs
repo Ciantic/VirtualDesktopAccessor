@@ -127,7 +127,6 @@ impl VirtualDesktopChangeListener {
     ) -> Result<Box<VirtualDesktopChangeListener>, i32> {
         let listener: Box<VirtualDesktopChangeListener> = VirtualDesktopChangeListener::new();
 
-        // let ptr = unsafe { ComPtr::new(listener.__ivirtualdesktopnotificationvptr) };
         // Retrieve interface pointer to IVirtualDesktopNotification
         let mut ipv = ptr::null_mut();
         let res = unsafe { listener.query_interface(&IID_IVirtualDesktopNotification, &mut ipv) };
@@ -142,7 +141,6 @@ impl VirtualDesktopChangeListener {
                 Err(res)
             } else {
                 debug_print!("Register a listener {:?}", cookie);
-                // dbg!(format!("Register a listener {:?}", cookie));
                 listener.service.set(Some(service));
                 listener.cookie.set(cookie);
                 Ok(listener)
