@@ -2,27 +2,10 @@ use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, time::Duration};
 use winapi::shared::windef::HWND;
-use winvirtualdesktops::{initialize, DesktopID, VirtualDesktopService};
-
-// fn fmt_guid(guid: GUID) -> String {
-//     format!(
-//         "{:08X?}-{:04X?}-{:04X?}-{:02X?}{:02X?}-{:02X?}{:02X?}{:02X?}{:02X?}{:02X?}{:02X?}",
-//         guid.Data1,
-//         guid.Data2,
-//         guid.Data3,
-//         guid.Data4[0],
-//         guid.Data4[1],
-//         guid.Data4[2],
-//         guid.Data4[3],
-//         guid.Data4[4],
-//         guid.Data4[5],
-//         guid.Data4[6],
-//         guid.Data4[7]
-//     )
-// }
+use winvirtualdesktops::VirtualDesktopService;
 
 fn main() {
-    let service = initialize().unwrap();
+    let service = VirtualDesktopService::initialize().unwrap();
 
     // Test desktop retrieval methods ----------------------------------------
     let desktops = service.get_desktops().unwrap();
