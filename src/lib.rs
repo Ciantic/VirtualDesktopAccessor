@@ -34,11 +34,12 @@ use comhelpers::create_instance;
 use immersive::{get_immersive_service, get_immersive_service_for_class};
 use interfaces::{
     CLSID_IVirtualNotificationService, CLSID_ImmersiveShell, CLSID_VirtualDesktopManagerInternal,
-    IApplicationView, IID_IVirtualDesktopNotification, IObjectArray, IObjectArrayVTable,
+    IApplicationView, IApplicationViewCollection, IApplicationViewCollectionVTable,
+    IApplicationViewVTable, IID_IVirtualDesktopNotification, IObjectArray, IObjectArrayVTable,
     IServiceProvider, IVirtualDesktop, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
     IVirtualDesktopNotification, IVirtualDesktopNotificationService, IVirtualDesktopVTable,
 };
-use std::{cell::Cell, ffi::c_void};
+use std::{cell::Cell, ffi::c_void, ptr::null_mut};
 
 #[derive(Debug, Clone)]
 pub enum VirtualDesktopError {
@@ -51,14 +52,15 @@ pub struct VirtualDesktopService {
     service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
+    app_view_collection: ComRc<dyn IApplicationViewCollection>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     virtual_desktop_notification_listener: Box<VirtualDesktopChangeListener>,
 }
 
+// TODO: Remove all unwraps!
+
 impl VirtualDesktopService {
-    fn get_desktops_internal(
-        &self,
-    ) -> Result<Vec<ComPtr<dyn IVirtualDesktop>>, VirtualDesktopError> {
+    fn _get_desktops(&self) -> Result<Vec<ComPtr<dyn IVirtualDesktop>>, VirtualDesktopError> {
         let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
         let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
         if FAILED(res) {
@@ -96,6 +98,21 @@ impl VirtualDesktopService {
             desktops.push(desktop);
         }
         Ok(desktops)
+    }
+
+    fn _get_desktop_by_id_internal(
+        &self,
+        desktop: &DesktopID,
+    ) -> Option<ComPtr<dyn IVirtualDesktop>> {
+        self._get_desktops()
+            .unwrap()
+            .iter()
+            .find(|v| {
+                let mut id: DesktopID = Default::default();
+                unsafe { ComRc::new(v.clone().clone()).get_id(&mut id) };
+                &id == desktop
+            })
+            .map(|v| v.clone())
     }
 
     /// Get desktops (GUID's)
@@ -247,22 +264,37 @@ impl VirtualDesktopService {
         hwnd: HWND,
         desktop: &DesktopID,
     ) -> Result<(), VirtualDesktopError> {
-        let res = unsafe {
-            self.virtual_desktop_manager
-                .move_window_to_desktop(hwnd, desktop)
-        };
+        let desktop = self._get_desktop_by_id_internal(desktop).unwrap();
+        let ptr: *mut IApplicationViewVTable = std::ptr::null_mut();
+        let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &ptr) };
+        if ptr.is_null() {
+            return Err(VirtualDesktopError::UnknownError);
+        }
         if FAILED(res) {
             return Err(VirtualDesktopError::ComResultError(
                 res,
-                "IVirtualDesktopManager.move_window_to_desktop".into(),
+                "IApplicationView.get_view_for_hwnd".into(),
             ));
         }
+        let view: ComPtr<dyn IApplicationView> = unsafe { ComPtr::new(ptr as *mut _) };
+
+        unsafe {
+            self.virtual_desktop_manager_internal
+                .move_view_to_desktop(view, desktop)
+        };
+
+        // if FAILED(res) {
+        //     return Err(VirtualDesktopError::ComResultError(
+        //         res,
+        //         "IVirtualDesktopManager.move_window_to_desktop".into(),
+        //     ));
+        // }
         Ok(())
     }
 
     /// Go to desktop
     pub fn go_to_desktop(&self, desktop: DesktopID) -> Result<(), VirtualDesktopError> {
-        let desktops = self.get_desktops_internal()?;
+        let desktops = self._get_desktops()?;
         let to_desktop = desktops.iter().find(|v| {
             let mut id: DesktopID = Default::default();
             unsafe { v.get_id(&mut id) };
@@ -365,6 +397,8 @@ pub fn initialize_only_service() -> Result<VirtualDesktopService, VirtualDesktop
     let vd_internale =
         get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopManagerInternal)
             .unwrap();
+    let app_view_collection =
+        get_immersive_service::<IApplicationViewCollection>(&service_provider).unwrap();
 
     let listener =
         VirtualDesktopChangeListener::register(virtualdesktop_notification_service).unwrap();
@@ -373,5 +407,6 @@ pub fn initialize_only_service() -> Result<VirtualDesktopService, VirtualDesktop
         service_provider: service_provider,
         virtual_desktop_notification_listener: listener,
         virtual_desktop_manager_internal: vd_internale,
+        app_view_collection: app_view_collection,
     })
 }
