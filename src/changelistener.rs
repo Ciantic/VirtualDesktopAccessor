@@ -20,67 +20,10 @@ use std::{
     ptr,
 };
 
-/*
-/// Create a new virtual desktop listener
-fn create_change_listener() -> (
-    *mut VirtualDesktopChangeListener,
-    Option<ComPtr<dyn IVirtualDesktopNotification>>,
-) {
-    // TODO: This leaks memory, because when ComPtr reference gets to zero, the
-    // VirtualDesktopChangeListener value in the heap is not deleted. This needs
-    // a new wrapper that can release the memory of VirtualDesktopChangeListener
-    // when ComPtr is dropped.
-    let foo = Box::into_raw(VirtualDesktopChangeListener::new());
-    let hr: Option<ComPtr<dyn IVirtualDesktopNotification>> = {
-        let mut ipv = ptr::null_mut();
-        let res = unsafe { (*foo).query_interface(&IID_IVirtualDesktopNotification, &mut ipv) };
-        if FAILED(res) || ipv.is_null() {
-            None
-        } else {
-            Some(unsafe { ComPtr::new(ipv as *mut *mut _) })
-        }
-    };
-    return (foo, hr);
-}
-
-pub fn register_change_listener(
-    virtualdesktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
-) -> Box<dyn Fn() -> ()> {
-    let (ptr, hr) = create_change_listener();
-    let mut cookiee: DWORD = 0;
-    let res: i32 =
-        unsafe { virtualdesktop_notification_service.register(hr.unwrap(), &mut cookiee) };
-    if FAILED(res) {
-        println!("Failure to register {:?} {:?}", res as u32, cookiee);
-    } else {
-        println!("Registered listener {:?}", cookiee);
-        unsafe {
-            println!("Listener ptr ref count {:?}", (*ptr).__refcnt.clone());
-        }
-    }
-    // Box::new(move || {
-    //     unsafe {
-    //         virtualdesktop_notification_service.unregister(cookiee);
-    //         unsafe {
-    //             println!("Listener ptr ref count {:?}", (*ptr).__refcnt.clone());
-    //         }
-
-    //         // This probably does not work correctly, but it's a first try
-    //         // Idea is to cleanup the Box created in create_change_listener
-    //         if (*ptr).__refcnt == 0.into() {
-    //             Box::from_raw(ptr);
-    //         }
-    //     }
-    //     ()
-    // })
-}
-*/
-
 #[co_class(implements(IVirtualDesktopNotification))]
 pub struct VirtualDesktopChangeListener {
     service: Cell<Option<ComRc<dyn IVirtualDesktopNotificationService>>>,
     cookie: Cell<u32>,
-    receiver: u32,
     _on_desktop_change: RefCell<Option<Box<dyn Fn(DesktopID, DesktopID) -> ()>>>,
     _on_desktop_created: RefCell<Option<Box<dyn Fn(DesktopID) -> ()>>>,
     _on_desktop_destroyed: RefCell<Option<Box<dyn Fn(DesktopID) -> ()>>>,
@@ -213,7 +156,6 @@ impl VirtualDesktopChangeListener {
         VirtualDesktopChangeListener::allocate(
             Cell::new(None),
             Cell::new(0),
-            0,
             RefCell::new(None),
             RefCell::new(None),
             RefCell::new(None),

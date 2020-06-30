@@ -2,24 +2,24 @@ use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, time::Duration};
 use winapi::shared::windef::HWND;
-use winvirtualdesktops::VirtualDesktopService;
+use winvd::VirtualDesktopService;
 
 fn main() {
-    let service = VirtualDesktopService::initialize().unwrap();
+    let service = VirtualDesktopService::create_with_com().unwrap();
 
-    service.events.on_desktop_change(Box::new(|old, new| {
+    service.on_desktop_change(Box::new(|old, new| {
         println!("Desktop changed from {:?} to {:?}", old, new);
     }));
 
-    service.events.on_window_change(Box::new(|hwnd| {
+    service.on_window_change(Box::new(|hwnd| {
         println!("Window changed {:?} ", hwnd);
     }));
 
-    service.events.on_desktop_created(Box::new(|desktop| {
+    service.on_desktop_created(Box::new(|desktop| {
         println!("Created desktop {:?} ", desktop);
     }));
 
-    service.events.on_desktop_destroyed(Box::new(|desktop| {
+    service.on_desktop_destroyed(Box::new(|desktop| {
         println!("Desktop destroyed {:?} ", desktop);
     }));
 
@@ -120,71 +120,4 @@ fn main() {
 
     println!("Press enter key to close...");
     std::io::stdin().read_line(&mut String::new()).unwrap();
-
-    /*
-    // init_apartment(ApartmentType::Multithreaded).unwrap();
-    let notepad_hwnd: HWND = unsafe {
-        FindWindowW(
-            "notepad\0".encode_utf16().collect::<Vec<_>>().as_ptr(),
-            null(),
-        )
-    };
-
-    let mut service_provider =
-        create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell).unwrap();
-    let virtual_desktop_manager =
-        get_immersive_service::<dyn IVirtualDesktopManager>(&service_provider).unwrap();
-    let virtualdesktop_notification_service =
-        get_immersive_service_for_class::<dyn IVirtualDesktopNotificationService>(
-            &service_provider,
-            CLSID_IVirtualNotificationService,
-        )
-        .unwrap();
-
-    println!("IServiceProvider: {:?}", &service_provider as *const _);
-    println!(
-        "IVirtualDesktopManager: {:?}",
-        &virtual_desktop_manager as *const _
-    );
-
-    if (notepad_hwnd as u32) == 0 {
-        println!("You must start notepad to run this.");
-        return;
-    }
-
-    println!("notepad {:?}", notepad_hwnd);
-    let desktop_id: GUID = unsafe {
-        let mut desktop_id_mut = empty_guid();
-
-        virtual_desktop_manager.get_window_desktop_id(notepad_hwnd, &mut desktop_id_mut as *mut _);
-        desktop_id_mut
-    };
-    println!("Desktop ID for Notepad {:?}", desktop_id);
-
-    let ptr = create_change_listener().unwrap();
-
-    let cookie = {
-        let mut cookiee: DWORD = 0;
-        let res: i32 = unsafe { virtualdesktop_notification_service.register(ptr, &mut cookiee) };
-        if FAILED(res) {
-            println!("Failure to register {:?} {:?}", res as u32, cookiee);
-        } else {
-            println!("Registered listener {:?}", cookiee);
-        }
-        cookiee
-    };
-
-    let mut stdin = io::stdin();
-    // let mut stdout = io::stdout();
-    println!("Press enter key to continue...");
-    // write!(stdout, "Press any key to continue...").unwrap();
-    // stdout.flush().unwrap();
-    // Read a single byte and discard
-    stdin.read_line(&mut String::new()).unwrap();
-    // let _ = stdin.read(&mut [0u8]).unwrap();
-    unsafe {
-        virtualdesktop_notification_service.unregister(cookie);
-    }
-    // deinit_apartment();
-    */
 }

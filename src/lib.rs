@@ -44,6 +44,7 @@ use std::{cell::Cell, ffi::c_void, ptr::null_mut};
 
 #[derive(Debug, Clone)]
 pub enum Error {
+    InitializationError(HRESULT),
     UnknownError,
     WindowNotFound,
     DesktopNotFound,
@@ -51,6 +52,12 @@ pub enum Error {
     ComResultError(HRESULT, String),
 }
 
+/// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
+/// functions.
+///
+/// If you don't use other COM objects in your project, you have to use
+/// `VirtualDesktopService::create_with_com()` constructor.
+///
 pub struct VirtualDesktopService {
     on_drop_deinit_apartment: Cell<bool>,
     service_provider: ComRc<dyn IServiceProvider>,
@@ -59,12 +66,88 @@ pub struct VirtualDesktopService {
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
-    pub events: Box<VirtualDesktopChangeListener>,
+    events: Box<VirtualDesktopChangeListener>,
 }
 
-// TODO: Remove all unwraps!
-
 impl VirtualDesktopService {
+    /// Initialize service and COM apartment. If you don't use other COM API's,
+    /// you have to use this initialization.
+    pub fn create_with_com() -> Result<VirtualDesktopService, Error> {
+        // init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
+        init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
+        let service = VirtualDesktopService::create()?;
+        service.on_drop_deinit_apartment.set(true);
+        Ok(service)
+    }
+
+    /// Initialize only the service, must be-created on TaskbarCreated message
+    pub fn create() -> Result<VirtualDesktopService, Error> {
+        let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)
+            .map_err(|hr| Error::InitializationError(hr))?;
+
+        let virtual_desktop_manager = get_immersive_service::<dyn IVirtualDesktopManager>(
+            &service_provider,
+        )
+        .map_err(|err| {
+            Error::ComResultError(
+                err,
+                "IServiceProvider.query_service IVirtualDesktopManager".into(),
+            )
+        })?;
+
+        let virtualdesktop_notification_service =
+            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)
+                .map_err(|err| {
+                Error::ComResultError(
+                    err,
+                    "IServiceProvider.query_service IVirtualDesktopNotificationService".into(),
+                )
+            })?;
+
+        let vd_manager_internal =
+            get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopManagerInternal)
+                .map_err(|err| {
+                    Error::ComResultError(
+                        err,
+                        "IServiceProvider.query_service IVirtualDesktopManagerInternal".into(),
+                    )
+                })?;
+
+        let app_view_collection = get_immersive_service(&service_provider).map_err(|err| {
+            Error::ComResultError(
+                err,
+                "IServiceProvider.query_service IApplicationViewCollection".into(),
+            )
+        })?;
+
+        let pinned_apps =
+            get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)
+                .map_err(|err| {
+                    Error::ComResultError(
+                        err,
+                        "IServiceProvider.query_service IVirtualDesktopPinnedApps".into(),
+                    )
+                })?;
+
+        let listener = VirtualDesktopChangeListener::register(virtualdesktop_notification_service)
+            .map_err(|err| {
+                Error::ComResultError(
+                    err,
+                    "IServiceProvider.query_service VirtualDesktopChangeListener".into(),
+                )
+            })?;
+
+        Ok(VirtualDesktopService {
+            on_drop_deinit_apartment: Cell::new(false),
+            virtual_desktop_manager: virtual_desktop_manager,
+            service_provider: service_provider,
+            events: listener,
+            virtual_desktop_manager_internal: vd_manager_internal,
+            app_view_collection: app_view_collection,
+            pinned_apps: pinned_apps,
+        })
+    }
+
     /// Get raw desktop list
     fn _get_desktops(&self) -> Result<Vec<ComPtr<dyn IVirtualDesktop>>, Error> {
         let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
@@ -105,8 +188,7 @@ impl VirtualDesktopService {
         desktop: &DesktopID,
     ) -> Result<ComPtr<dyn IVirtualDesktop>, Error> {
         // TODO: Is this safe? https://github.com/microsoft/com-rs/issues/141
-        self._get_desktops()
-            .unwrap()
+        self._get_desktops()?
             .iter()
             .find(|v| {
                 let mut id: DesktopID = Default::default();
@@ -329,6 +411,31 @@ impl VirtualDesktopService {
         Ok(())
     }
 
+    /// Callback for desktop change event, callback gets old desktop id, and new desktop id
+    pub fn on_desktop_change(&self, callback: Box<dyn Fn(DesktopID, DesktopID) -> ()>) {
+        self.events.on_desktop_change(callback);
+    }
+
+    /// Callback for desktop creation, callback recieves new desktop id
+    pub fn on_desktop_created(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+        self.events.on_desktop_created(callback);
+    }
+
+    /// Callback for on desktop destroy event, callback recieves old desktop id
+    pub fn on_desktop_destroyed(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+        self.events.on_desktop_destroyed(callback);
+    }
+
+    /// Callback for window changes, e.g. if window changes to different
+    /// desktop, or window gets destroyed. Callback recieves HWND of thumbnail
+    /// window (most likely top level window HWND).
+    ///
+    /// *Note* This can be a very chatty callback, and may have some false
+    /// positives.
+    pub fn on_window_change(&self, callback: Box<dyn Fn(HWND) -> ()>) {
+        self.events.on_window_change(callback);
+    }
+
     /*
     /// Is pinned app
     pub fn is_pinned_app(&self, hwnd: HWND) -> Result<(), Error> {
@@ -380,54 +487,6 @@ impl VirtualDesktopService {
         Err(VirtualDesktopError::UnknownError)
     }
     */
-
-    /// Initialize service and COM apartment. If you don't use other COM API's,
-    /// you may use this initialization.
-    pub fn initialize() -> Result<VirtualDesktopService, Error> {
-        // init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
-        init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
-        let service = VirtualDesktopService::initialize_only_service()?;
-        service.on_drop_deinit_apartment.set(true);
-        Ok(service)
-    }
-
-    /// Initialize only ImmersiveShell provider service, must be re-called on
-    /// TaskbarCreated message
-    pub fn initialize_only_service() -> Result<VirtualDesktopService, Error> {
-        let service_provider =
-            create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell).unwrap();
-        let virtual_desktop_manager =
-            get_immersive_service::<dyn IVirtualDesktopManager>(&service_provider).unwrap();
-        let virtualdesktop_notification_service =
-            get_immersive_service_for_class::<dyn IVirtualDesktopNotificationService>(
-                &service_provider,
-                CLSID_IVirtualNotificationService,
-            )
-            .unwrap();
-        let vd_manager_internal =
-            get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopManagerInternal)
-                .unwrap();
-        let app_view_collection =
-            get_immersive_service::<dyn IApplicationViewCollection>(&service_provider).unwrap();
-
-        let pinned_apps = get_immersive_service_for_class::<dyn IVirtualDesktopPinnedApps>(
-            &service_provider,
-            CLSID_VirtualDesktopPinnedApps,
-        )
-        .unwrap();
-
-        let listener =
-            VirtualDesktopChangeListener::register(virtualdesktop_notification_service).unwrap();
-        Ok(VirtualDesktopService {
-            on_drop_deinit_apartment: Cell::new(false),
-            virtual_desktop_manager: virtual_desktop_manager,
-            service_provider: service_provider,
-            events: listener,
-            virtual_desktop_manager_internal: vd_manager_internal,
-            app_view_collection: app_view_collection,
-            pinned_apps: pinned_apps,
-        })
-    }
 }
 
 impl Drop for VirtualDesktopService {
