@@ -6,7 +6,7 @@ use com::com_interface;
 use com::{
     interfaces::IUnknown,
     sys::{CLSID, HRESULT},
-    ComPtr, IID,
+    ComRc, IID,
 };
 use std::ffi::c_void;
 
@@ -232,7 +232,7 @@ pub trait IObjectArray: IUnknown {
 pub trait IVirtualDesktop: IUnknown {
     unsafe fn is_view_visible(
         &self,
-        pView: ComPtr<dyn IApplicationView>,
+        pView: ComRc<dyn IApplicationView>,
         outBool: *mut u32,
     ) -> HRESULT;
     unsafe fn get_id(&self, outGuid: *mut DesktopID) -> HRESULT;
@@ -285,32 +285,32 @@ pub trait IApplicationViewCollection: IUnknown {
 
 #[com_interface("C179334C-4295-40D3-BEA1-C654D965605A")]
 pub trait IVirtualDesktopNotification: IUnknown {
-    unsafe fn virtual_desktop_created(&self, desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT;
+    unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
-        desktopDestroyed: ComPtr<dyn IVirtualDesktop>,
-        desktopFallback: ComPtr<dyn IVirtualDesktop>,
+        desktopDestroyed: ComRc<dyn IVirtualDesktop>,
+        desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
-        desktopDestroyed: ComPtr<dyn IVirtualDesktop>,
-        desktopFallback: ComPtr<dyn IVirtualDesktop>,
+        desktopDestroyed: ComRc<dyn IVirtualDesktop>,
+        desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroyed(
         &self,
-        desktopDestroyed: ComPtr<dyn IVirtualDesktop>,
-        desktopFallback: ComPtr<dyn IVirtualDesktop>,
+        desktopDestroyed: ComRc<dyn IVirtualDesktop>,
+        desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 
-    unsafe fn view_virtual_desktop_changed(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT;
+    unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT;
 
     unsafe fn current_virtual_desktop_changed(
         &self,
-        desktopOld: ComPtr<dyn IVirtualDesktop>,
-        desktopNew: ComPtr<dyn IVirtualDesktop>,
+        desktopOld: ComRc<dyn IVirtualDesktop>,
+        desktopNew: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 }
 
@@ -318,7 +318,7 @@ pub trait IVirtualDesktopNotification: IUnknown {
 pub trait IVirtualDesktopNotificationService: IUnknown {
     unsafe fn register(
         &self,
-        notification: ComPtr<dyn IVirtualDesktopNotification>,
+        notification: ComRc<dyn IVirtualDesktopNotification>,
         outCookie: *mut DWORD,
     ) -> HRESULT;
 
@@ -330,12 +330,12 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
     unsafe fn get_count(&self, outCount: *mut UINT) -> HRESULT;
     unsafe fn move_view_to_desktop(
         &self,
-        view: ComPtr<dyn IApplicationView>,
-        desktop: ComPtr<dyn IVirtualDesktop>,
+        view: ComRc<dyn IApplicationView>,
+        desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
     unsafe fn can_move_view_between_desktops(
         &self,
-        view: ComPtr<dyn IApplicationView>,
+        view: ComRc<dyn IApplicationView>,
         canMove: *mut i32,
     ) -> HRESULT;
     // unsafe fn get_current_desktop(&self, outDesktop: *mut *mut IVirtualDesktopVTable) -> HRESULT;
@@ -343,10 +343,10 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
     unsafe fn get_desktops(&self, outDesktops: *const *mut IObjectArrayVTable) -> HRESULT;
     unsafe fn get_adjacent_desktop(
         &self,
-        inDesktop: ComPtr<dyn IVirtualDesktop>,
+        inDesktop: ComRc<dyn IVirtualDesktop>,
         outDesktop: *const *mut IVirtualDesktopVTable,
     ) -> HRESULT;
-    unsafe fn switch_desktop(&self, desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT;
+    unsafe fn switch_desktop(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
 
     /*
 
@@ -372,11 +372,8 @@ pub trait IVirtualDesktopPinnedApps: IUnknown {
     unsafe fn pin_app(&self, appId: PCWSTR) -> HRESULT;
     unsafe fn unpin_app(&self, appId: PCWSTR) -> HRESULT;
 
-    unsafe fn is_view_pinned(
-        &self,
-        view: ComPtr<dyn IApplicationView>,
-        outIs: *mut bool,
-    ) -> HRESULT;
-    unsafe fn pin_view(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT;
-    unsafe fn unpin_view(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT;
+    unsafe fn is_view_pinned(&self, view: ComRc<dyn IApplicationView>, outIs: *mut bool)
+        -> HRESULT;
+    unsafe fn pin_view(&self, view: ComRc<dyn IApplicationView>) -> HRESULT;
+    unsafe fn unpin_view(&self, view: ComRc<dyn IApplicationView>) -> HRESULT;
 }

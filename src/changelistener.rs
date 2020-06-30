@@ -2,7 +2,7 @@ use com::{
     co_class,
     interfaces::IUnknown,
     sys::{FAILED, HRESULT, S_OK},
-    ComPtr, ComRc,
+    ComRc,
 };
 
 use winapi::shared::minwindef::DWORD;
@@ -46,7 +46,7 @@ impl VirtualDesktopChangeListener {
 }
 
 impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
-    unsafe fn virtual_desktop_created(&self, desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT {
+    unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT {
         if let Some(cb) = self._on_desktop_created.borrow().as_deref() {
             let mut id: DesktopID = Default::default();
             desktop.get_id(&mut id);
@@ -56,22 +56,22 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     }
     unsafe fn virtual_desktop_destroy_begin(
         &self,
-        _destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
-        _fallback_desktop: ComPtr<dyn IVirtualDesktop>,
+        _destroyed_desktop: ComRc<dyn IVirtualDesktop>,
+        _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
         S_OK
     }
     unsafe fn virtual_desktop_destroy_failed(
         &self,
-        _destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
-        _fallback_desktop: ComPtr<dyn IVirtualDesktop>,
+        _destroyed_desktop: ComRc<dyn IVirtualDesktop>,
+        _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
         S_OK
     }
     unsafe fn virtual_desktop_destroyed(
         &self,
-        destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
-        _fallback_desktop: ComPtr<dyn IVirtualDesktop>,
+        destroyed_desktop: ComRc<dyn IVirtualDesktop>,
+        _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
         if let Some(cb) = self._on_desktop_destroyed.borrow().as_deref() {
             let mut id: DesktopID = Default::default();
@@ -80,7 +80,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         }
         S_OK
     }
-    unsafe fn view_virtual_desktop_changed(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT {
+    unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT {
         if let Some(cb) = self._on_window_change.borrow().as_deref() {
             let mut hwnd: HWND = 0 as HWND;
             view.get_thumbnail_window(&mut hwnd);
@@ -90,8 +90,8 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     }
     unsafe fn current_virtual_desktop_changed(
         &self,
-        old_desktop: ComPtr<dyn IVirtualDesktop>,
-        new_desktop: ComPtr<dyn IVirtualDesktop>,
+        old_desktop: ComRc<dyn IVirtualDesktop>,
+        new_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
         if let Some(cb) = self._on_desktop_change.borrow().as_deref() {
             let mut old_id: DesktopID = Default::default();
@@ -132,8 +132,8 @@ impl VirtualDesktopChangeListener {
         let mut ipv = ptr::null_mut();
         let res = unsafe { listener.query_interface(&IID_IVirtualDesktopNotification, &mut ipv) };
         if !FAILED(res) && !ipv.is_null() {
-            let ptr: ComPtr<dyn IVirtualDesktopNotification> =
-                unsafe { ComPtr::new(ipv as *mut *mut _) };
+            let ptr: ComRc<dyn IVirtualDesktopNotification> =
+                unsafe { ComRc::from_raw(ipv as *mut *mut _) };
 
             // Register the IVirtualDesktopNotification to the service
             let mut cookie: DWORD = 0;

@@ -1,7 +1,7 @@
 use crate::interfaces::IServiceProvider;
 use com::{
     sys::{FAILED, GUID, HRESULT},
-    ComInterface, ComPtr, ComRc,
+    ComInterface, ComRc,
 };
 use std::ffi::c_void;
 
@@ -22,5 +22,5 @@ pub fn get_immersive_service_for_class<T: ComInterface + ?Sized>(
         return Err(res);
     }
 
-    unsafe { Ok(ComRc::new(ComPtr::new(obj as *mut _))) }
+    unsafe { Ok(ComRc::from_raw(obj as *mut _)) }
 }
