@@ -16,17 +16,12 @@ mod guid;
 mod immersive;
 mod interfaces;
 // mod utils;
-use com::runtime::{
-    deinit_apartment, get_class_object, init_apartment, init_runtime, ApartmentType,
-};
+use com::runtime::{init_apartment, ApartmentType};
 use com::{
-    co_class,
-    interfaces::IUnknown,
-    sys::{CoCreateInstance, CLSCTX_INPROC_SERVER, FAILED, HRESULT, S_OK},
-    ComInterface, ComPtr, ComRc, IID,
+    sys::{FAILED, HRESULT},
+    ComInterface, ComPtr, ComRc,
 };
 pub use guid::DesktopID;
-use std::iter::FilterMap;
 use winapi::shared::windef::HWND;
 
 use changelistener::VirtualDesktopChangeListener;
@@ -35,12 +30,11 @@ use immersive::{get_immersive_service, get_immersive_service_for_class};
 use interfaces::{
     CLSID_IVirtualNotificationService, CLSID_ImmersiveShell, CLSID_VirtualDesktopManagerInternal,
     CLSID_VirtualDesktopPinnedApps, IApplicationView, IApplicationViewCollection,
-    IApplicationViewCollectionVTable, IApplicationViewVTable, IID_IVirtualDesktopNotification,
-    IObjectArray, IObjectArrayVTable, IServiceProvider, IVirtualDesktop, IVirtualDesktopManager,
-    IVirtualDesktopManagerInternal, IVirtualDesktopNotification,
-    IVirtualDesktopNotificationService, IVirtualDesktopPinnedApps, IVirtualDesktopVTable,
+    IApplicationViewVTable, IObjectArray, IObjectArrayVTable, IServiceProvider, IVirtualDesktop,
+    IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopPinnedApps,
+    IVirtualDesktopVTable,
 };
-use std::{cell::Cell, ffi::c_void, ptr::null_mut};
+use std::cell::Cell;
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -60,6 +54,7 @@ pub enum Error {
 ///
 pub struct VirtualDesktopService {
     on_drop_deinit_apartment: Cell<bool>,
+    #[allow(dead_code)]
     service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
@@ -374,15 +369,15 @@ impl VirtualDesktopService {
     /// Is window pinned?
     pub fn is_pinned_window(&self, hwnd: HWND) -> Result<bool, Error> {
         let view = self._get_application_view_for_hwnd(hwnd)?;
-        let mut isIt: bool = false;
-        let res = unsafe { self.pinned_apps.is_view_pinned(view, &mut isIt) };
+        let mut test: bool = false;
+        let res = unsafe { self.pinned_apps.is_view_pinned(view, &mut test) };
         if FAILED(res) {
             return Err(Error::ComResultError(
                 res,
                 "IVirtualDesktopPinnedApps.is_view_pinned".into(),
             ));
         }
-        Ok(isIt)
+        Ok(test)
     }
 
     /// Pin window

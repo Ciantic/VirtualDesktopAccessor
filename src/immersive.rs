@@ -1,10 +1,9 @@
 use crate::interfaces::IServiceProvider;
 use com::{
-    sys::{CoCreateInstance, FAILED, GUID, HRESULT},
-    ComInterface, ComPtr, ComRc, CLSID, IID,
+    sys::{FAILED, GUID, HRESULT},
+    ComInterface, ComPtr, ComRc,
 };
 use std::ffi::c_void;
-use winapi::shared::wtypesbase::CLSCTX_LOCAL_SERVER;
 
 pub fn get_immersive_service<T: ComInterface + ?Sized>(
     service_provider: &ComRc<dyn IServiceProvider>,
@@ -24,18 +23,4 @@ pub fn get_immersive_service_for_class<T: ComInterface + ?Sized>(
     }
 
     unsafe { Ok(ComRc::new(ComPtr::new(obj as *mut _))) }
-}
-
-struct ImmersiveService {
-    provider: ComRc<dyn IServiceProvider>,
-}
-
-impl ImmersiveService {
-    pub fn get_virtual_desktop_manager() -> bool {
-        true
-    }
-
-    pub fn get_virtual_desktop_notification_service() -> bool {
-        true
-    }
 }

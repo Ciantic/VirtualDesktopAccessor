@@ -51,15 +51,17 @@ pub const CLSID_VirtualDesktopPinnedApps: IID = IID {
 };
 
 // Ignore following API's:
+// type IShellPositionerPriority = UINT;
 type IAsyncCallback = UINT;
 type IImmersiveMonitor = UINT;
-type APPLICATION_VIEW_COMPATIBILITY_POLICY = UINT;
-type IShellPositionerPriority = UINT;
 type IApplicationViewOperation = UINT;
-type APPLICATION_VIEW_CLOAK_TYPE = UINT;
 type IApplicationViewPosition = UINT;
 type IImmersiveApplication = UINT;
 type IApplicationViewChangeListener = UINT;
+#[allow(non_camel_case_types)]
+type APPLICATION_VIEW_COMPATIBILITY_POLICY = UINT;
+#[allow(non_camel_case_types)]
+type APPLICATION_VIEW_CLOAK_TYPE = UINT;
 
 /*
 Notepad++ replaces for fn PascalCase -> fn pascal_case
@@ -89,7 +91,7 @@ pub trait IServiceProvider: IUnknown {
         &self,
         guidService: *const DesktopID,
         riid: *const IID,
-        ppvObject: *mut *mut IUnknown,
+        ppvObject: *mut *mut c_void,
     ) -> HRESULT;
 }
 

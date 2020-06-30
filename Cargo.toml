@@ -3,7 +3,6 @@ name = "winvd"
 version = "0.0.1"
 authors = ["Jari Otto Oskari Pennanen"]
 license = "MIT"
-license-file = "LICENSE.txt"
 edition = "2018"
 description = "Provides functions for accessin Windows 10 virtual desktop API"
 readme = "README.md"
