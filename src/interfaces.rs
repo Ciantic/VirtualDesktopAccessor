@@ -331,6 +331,12 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
     // unsafe fn get_current_desktop(&self, outDesktop: *mut *mut IVirtualDesktopVTable) -> HRESULT;
     unsafe fn get_current_desktop(&self, outDesktop: *const *mut IVirtualDesktopVTable) -> HRESULT;
     unsafe fn get_desktops(&self, outDesktops: *const *mut IObjectArrayVTable) -> HRESULT;
+    unsafe fn get_adjacent_desktop(
+        &self,
+        inDesktop: ComPtr<dyn IVirtualDesktop>,
+        outDesktop: *const *mut IVirtualDesktopVTable,
+    ) -> HRESULT;
+    unsafe fn switch_desktop(&self, desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT;
 }
 
 /*

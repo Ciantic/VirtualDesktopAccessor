@@ -56,6 +56,48 @@ pub struct VirtualDesktopService {
 }
 
 impl VirtualDesktopService {
+    fn get_desktops_internal(
+        &self,
+    ) -> Result<Vec<ComPtr<dyn IVirtualDesktop>>, VirtualDesktopError> {
+        let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
+        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
+        if FAILED(res) {
+            return Err(VirtualDesktopError::ComResultError(
+                res,
+                "IVirtualDesktopManagerInternal.get_desktops".into(),
+            ));
+        }
+
+        let dc: ComRc<dyn IObjectArray> = ComRc::new(unsafe { ComPtr::new(ptr as *mut _) });
+        let mut count = 0;
+        let res = unsafe { dc.get_count(&mut count) };
+        if FAILED(res) {
+            return Err(VirtualDesktopError::ComResultError(
+                res,
+                "IObjectArray.get_count".into(),
+            ));
+        }
+
+        let mut desktops: Vec<ComPtr<dyn IVirtualDesktop>> = vec![];
+
+        for i in 0..(count - 1) {
+            let ptr = std::ptr::null_mut();
+            let res = unsafe { dc.get_at(i, &IVirtualDesktop::IID, &ptr) };
+            if FAILED(res) {
+                return Err(VirtualDesktopError::ComResultError(
+                    res,
+                    "IObjectArray.get_at".into(),
+                ));
+            }
+
+            // TODO: How long does the ptr is guarenteed to be alive?
+            let desktop: ComPtr<dyn IVirtualDesktop> = unsafe { ComPtr::new(ptr as *mut _) };
+
+            desktops.push(desktop);
+        }
+        Ok(desktops)
+    }
+
     /// Get desktops (GUID's)
     pub fn get_desktops(&self) -> Result<Vec<DesktopID>, VirtualDesktopError> {
         let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
@@ -205,11 +247,33 @@ impl VirtualDesktopService {
         hwnd: HWND,
         desktop: &DesktopID,
     ) -> Result<(), VirtualDesktopError> {
-        Err(VirtualDesktopError::UnknownError)
+        let res = unsafe {
+            self.virtual_desktop_manager
+                .move_window_to_desktop(hwnd, desktop)
+        };
+        if FAILED(res) {
+            return Err(VirtualDesktopError::ComResultError(
+                res,
+                "IVirtualDesktopManager.move_window_to_desktop".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Go to desktop
-    pub fn go_to_desktop(desktop: DesktopID) -> Result<(), VirtualDesktopError> {
+    pub fn go_to_desktop(&self, desktop: DesktopID) -> Result<(), VirtualDesktopError> {
+        let desktops = self.get_desktops_internal()?;
+        let to_desktop = desktops.iter().find(|v| {
+            let mut id: DesktopID = Default::default();
+            unsafe { v.get_id(&mut id) };
+            id == desktop
+        });
+        if let Some(d) = to_desktop {
+            let res = unsafe {
+                self.virtual_desktop_manager_internal
+                    .switch_desktop(d.clone())
+            };
+        }
         Err(VirtualDesktopError::UnknownError)
     }
 
