@@ -59,7 +59,7 @@ pub struct VirtualDesktopService {
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
-    virtual_desktop_notification_listener: Box<VirtualDesktopChangeListener>,
+    pub events: Box<VirtualDesktopChangeListener>,
 }
 
 // TODO: Remove all unwraps!
@@ -422,7 +422,7 @@ impl VirtualDesktopService {
             on_drop_deinit_apartment: Cell::new(false),
             virtual_desktop_manager: virtual_desktop_manager,
             service_provider: service_provider,
-            virtual_desktop_notification_listener: listener,
+            events: listener,
             virtual_desktop_manager_internal: vd_manager_internal,
             app_view_collection: app_view_collection,
             pinned_apps: pinned_apps,

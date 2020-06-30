@@ -7,6 +7,22 @@ use winvirtualdesktops::VirtualDesktopService;
 fn main() {
     let service = VirtualDesktopService::initialize().unwrap();
 
+    service.events.on_desktop_change(Box::new(|old, new| {
+        println!("Desktop changed from {:?} to {:?}", old, new);
+    }));
+
+    service.events.on_window_change(Box::new(|hwnd| {
+        println!("Window changed {:?} ", hwnd);
+    }));
+
+    service.events.on_desktop_created(Box::new(|desktop| {
+        println!("Created desktop {:?} ", desktop);
+    }));
+
+    service.events.on_desktop_destroyed(Box::new(|desktop| {
+        println!("Desktop destroyed {:?} ", desktop);
+    }));
+
     // Test desktop retrieval methods ----------------------------------------
     let desktops = service.get_desktops().unwrap();
     println!("All desktops {:?}", desktops);
@@ -32,7 +48,10 @@ fn main() {
     }
 
     let notepad_desktop = service.get_desktop_by_window(notepad_hwnd);
-    println!("Desktop of notepad: {:?}", notepad_desktop);
+    println!(
+        "Desktop of notepad: {:?}, hwnd: {:?}",
+        notepad_desktop, notepad_hwnd
+    );
 
     // Is on current desktop
     let notepad_is_on_current_desktop = service.is_window_on_current_virtual_desktop(notepad_hwnd);

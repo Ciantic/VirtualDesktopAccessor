@@ -140,6 +140,7 @@ pub trait IApplicationView: IUnknown {
     unsafe fn get_app_user_model_id(&self, id: *mut PWSTR) -> HRESULT; // Proc17
     unsafe fn set_app_user_model_id(&self, id: PCWSTR) -> HRESULT;
     unsafe fn is_equal_by_app_user_model_id(&self, id: PCWSTR, outResult: *mut INT) -> HRESULT;
+
     /*** IApplicationView methods ***/
     unsafe fn get_view_state(&self, outState: *mut UINT) -> HRESULT; // Proc20
     unsafe fn set_view_state(&self, state: UINT) -> HRESULT; // Proc21

@@ -6,6 +6,7 @@ use com::{
 };
 
 use winapi::shared::minwindef::DWORD;
+use winapi::shared::windef::HWND;
 
 use crate::{
     interfaces::{
@@ -14,7 +15,10 @@ use crate::{
     },
     DesktopID,
 };
-use std::{cell::Cell, ptr};
+use std::{
+    cell::{Cell, RefCell},
+    ptr,
+};
 
 /*
 /// Create a new virtual desktop listener
@@ -77,12 +81,34 @@ pub struct VirtualDesktopChangeListener {
     service: Cell<Option<ComRc<dyn IVirtualDesktopNotificationService>>>,
     cookie: Cell<u32>,
     receiver: u32,
+    _on_desktop_change: RefCell<Option<Box<dyn Fn(DesktopID, DesktopID) -> ()>>>,
+    _on_desktop_created: RefCell<Option<Box<dyn Fn(DesktopID) -> ()>>>,
+    _on_desktop_destroyed: RefCell<Option<Box<dyn Fn(DesktopID) -> ()>>>,
+    _on_window_change: RefCell<Option<Box<dyn Fn(HWND) -> ()>>>,
+}
+
+impl VirtualDesktopChangeListener {
+    pub fn on_desktop_change(&self, callback: Box<dyn Fn(DesktopID, DesktopID) -> ()>) {
+        self._on_desktop_change.replace(Some(callback));
+    }
+    pub fn on_desktop_created(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+        self._on_desktop_created.replace(Some(callback));
+    }
+    pub fn on_desktop_destroyed(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+        self._on_desktop_destroyed.replace(Some(callback));
+    }
+    pub fn on_window_change(&self, callback: Box<dyn Fn(HWND) -> ()>) {
+        self._on_window_change.replace(Some(callback));
+    }
 }
 
 impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
-    unsafe fn virtual_desktop_created(&self, _desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT {
-        // todo!()
-        debug_print!("Desktop destroy created.");
+    unsafe fn virtual_desktop_created(&self, desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT {
+        if let Some(cb) = self._on_desktop_created.borrow().as_deref() {
+            let mut id: DesktopID = Default::default();
+            desktop.get_id(&mut id);
+            cb(id);
+        }
         S_OK
     }
     unsafe fn virtual_desktop_destroy_begin(
@@ -90,8 +116,6 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         _destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
         _fallback_desktop: ComPtr<dyn IVirtualDesktop>,
     ) -> HRESULT {
-        // todo!()
-        debug_print!("Desktop destroy begin.");
         S_OK
     }
     unsafe fn virtual_desktop_destroy_failed(
@@ -99,22 +123,26 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         _destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
         _fallback_desktop: ComPtr<dyn IVirtualDesktop>,
     ) -> HRESULT {
-        // todo!()
-        debug_print!("Desktop destroy failed.");
         S_OK
     }
     unsafe fn virtual_desktop_destroyed(
         &self,
-        _destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
+        destroyed_desktop: ComPtr<dyn IVirtualDesktop>,
         _fallback_desktop: ComPtr<dyn IVirtualDesktop>,
     ) -> HRESULT {
-        // todo!()
-        debug_print!("Desktop destroyed.");
+        if let Some(cb) = self._on_desktop_destroyed.borrow().as_deref() {
+            let mut id: DesktopID = Default::default();
+            destroyed_desktop.get_id(&mut id);
+            cb(id);
+        }
         S_OK
     }
     unsafe fn view_virtual_desktop_changed(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT {
-        // todo!()
-        debug_print!("View changed in desktop.");
+        if let Some(cb) = self._on_window_change.borrow().as_deref() {
+            let mut hwnd: HWND = 0 as HWND;
+            view.get_thumbnail_window(&mut hwnd);
+            cb(hwnd);
+        }
         S_OK
     }
     unsafe fn current_virtual_desktop_changed(
@@ -122,12 +150,13 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         old_desktop: ComPtr<dyn IVirtualDesktop>,
         new_desktop: ComPtr<dyn IVirtualDesktop>,
     ) -> HRESULT {
-        // todo!()
-        let mut g: DesktopID = Default::default();
-        old_desktop.get_id(&mut g);
-        // debug_print!("Desktop changed, old: {:?}", g);
-        new_desktop.get_id(&mut g);
-        // debug_print!("Desktop changed, new: {:?}", g);
+        if let Some(cb) = self._on_desktop_change.borrow().as_deref() {
+            let mut old_id: DesktopID = Default::default();
+            let mut new_id: DesktopID = Default::default();
+            old_desktop.get_id(&mut old_id);
+            new_desktop.get_id(&mut new_id);
+            cb(old_id, new_id);
+        }
         S_OK
     }
 }
@@ -181,6 +210,14 @@ impl VirtualDesktopChangeListener {
     }
 
     fn new() -> Box<VirtualDesktopChangeListener> {
-        VirtualDesktopChangeListener::allocate(Cell::new(None), Cell::new(0), 0)
+        VirtualDesktopChangeListener::allocate(
+            Cell::new(None),
+            Cell::new(0),
+            0,
+            RefCell::new(None),
+            RefCell::new(None),
+            RefCell::new(None),
+            RefCell::new(None),
+        )
     }
 }
