@@ -1,15 +1,18 @@
 use com::{
     co_class,
     interfaces::IUnknown,
-    sys::{FAILED, GUID, HRESULT, S_OK},
+    sys::{FAILED, HRESULT, S_OK},
     ComPtr, ComRc,
 };
 
 use winapi::shared::minwindef::DWORD;
 
-use crate::interfaces::{
-    IApplicationView, IID_IVirtualDesktopNotification, IVirtualDesktop,
-    IVirtualDesktopNotification, IVirtualDesktopNotificationService,
+use crate::{
+    interfaces::{
+        IApplicationView, IID_IVirtualDesktopNotification, IVirtualDesktop,
+        IVirtualDesktopNotification, IVirtualDesktopNotificationService,
+    },
+    DesktopID,
 };
 use std::{cell::Cell, ptr};
 
@@ -120,16 +123,11 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         new_desktop: ComPtr<dyn IVirtualDesktop>,
     ) -> HRESULT {
         // todo!()
-        let mut g = GUID {
-            data1: 0,
-            data2: 0,
-            data3: 0,
-            data4: [0, 0, 0, 0, 0, 0, 0, 0],
-        };
+        let mut g: DesktopID = Default::default();
         old_desktop.get_id(&mut g);
-        debug_print!("Desktop changed, old: {:?}", g);
+        // debug_print!("Desktop changed, old: {:?}", g);
         new_desktop.get_id(&mut g);
-        debug_print!("Desktop changed, new: {:?}", g);
+        // debug_print!("Desktop changed, new: {:?}", g);
         S_OK
     }
 }

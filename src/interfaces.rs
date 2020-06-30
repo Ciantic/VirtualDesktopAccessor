@@ -1,11 +1,12 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
+use crate::guid::DesktopID;
 use com::com_interface;
 use com::{
     interfaces::IUnknown,
-    sys::{CLSID, GUID, HRESULT},
-    ComInterface, ComPtr, ComRc, IID,
+    sys::{CLSID, HRESULT},
+    ComPtr, IID,
 };
 use std::ffi::c_void;
 
@@ -73,13 +74,13 @@ fn $1
 pub trait IServiceProvider: IUnknown {
     unsafe fn query_service(
         &self,
-        guidService: *const GUID,
+        guidService: *const com::sys::GUID,
         riid: *const IID,
         ppvObject: *mut *mut c_void,
     ) -> HRESULT;
     unsafe fn remote_query_service(
         &self,
-        guidService: *const GUID,
+        guidService: *const DesktopID,
         riid: *const IID,
         ppvObject: *mut *mut IUnknown,
     ) -> HRESULT;
@@ -87,20 +88,20 @@ pub trait IServiceProvider: IUnknown {
 
 #[com_interface("a5cd92ff-29be-454c-8d04-d82879fb3f1b")]
 pub trait IVirtualDesktopManager: IUnknown {
-    unsafe fn is_window_on_current_virtual_desktop(
+    unsafe fn is_window_on_current_desktop(
         &self,
         topLevelWindow: HWND,
         outOnCurrentDesktop: *mut bool,
     ) -> HRESULT;
-    unsafe fn get_window_desktop_id(
+    unsafe fn get_desktop_by_window(
         &self,
         topLevelWindow: HWND,
-        outDesktopId: *mut GUID,
+        outDesktopId: *mut DesktopID,
     ) -> HRESULT;
     unsafe fn move_window_to_desktop(
         &self,
         topLevelWindow: HWND,
-        desktopId: *const GUID,
+        desktopId: *const DesktopID,
     ) -> HRESULT;
 }
 
@@ -138,8 +139,8 @@ pub trait IApplicationView: IUnknown {
     unsafe fn get_neediness(&self, outNeediness: *mut INT) -> HRESULT; // Proc22
     unsafe fn get_last_activation_timestamp(&self, outTimestamp: *mut ULONGLONG) -> HRESULT;
     unsafe fn set_last_activation_timestamp(&self, timestamp: ULONGLONG) -> HRESULT;
-    unsafe fn get_virtual_desktop_id(&self, outDesktopGuid: *mut GUID) -> HRESULT;
-    unsafe fn set_virtual_desktop_id(&self, desktopGuid: *const GUID) -> HRESULT;
+    unsafe fn get_virtual_desktop_id(&self, outDesktopGuid: *mut DesktopID) -> HRESULT;
+    unsafe fn set_virtual_desktop_id(&self, desktopGuid: *const DesktopID) -> HRESULT;
     unsafe fn get_show_in_switchers(&self, outShow: *mut INT) -> HRESULT;
     unsafe fn set_show_in_switchers(&self, show: INT) -> HRESULT;
     unsafe fn get_scale_factor(&self, outScaleFactor: *mut INT) -> HRESULT;
@@ -209,7 +210,12 @@ pub trait IApplicationView: IUnknown {
 #[com_interface("92ca9dcd-5622-4bba-a805-5e9f541bd8c9")]
 pub trait IObjectArray: IUnknown {
     unsafe fn get_count(&self, outPcObjects: *mut UINT) -> HRESULT;
-    unsafe fn get_at(&self, uiIndex: UINT, riid: *const IID, outArray: *mut LPVOID) -> HRESULT;
+    unsafe fn get_at(
+        &self,
+        uiIndex: UINT,
+        riid: *const IID,
+        outValue: *const *mut c_void,
+    ) -> HRESULT;
 }
 
 #[com_interface("ff72ffdd-be7e-43fc-9c03-ad81681e88e4")]
@@ -219,7 +225,7 @@ pub trait IVirtualDesktop: IUnknown {
         pView: ComPtr<dyn IApplicationView>,
         outBool: *mut u32,
     ) -> HRESULT;
-    unsafe fn get_id(&self, outGuid: *mut GUID) -> HRESULT;
+    unsafe fn get_id(&self, outGuid: *mut DesktopID) -> HRESULT;
 }
 
 #[com_interface("1841c6d7-4f9d-42c0-af41-8747538f10e5")]
@@ -324,6 +330,7 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
     ) -> HRESULT;
     // unsafe fn get_current_desktop(&self, outDesktop: *mut *mut IVirtualDesktopVTable) -> HRESULT;
     unsafe fn get_current_desktop(&self, outDesktop: *const *mut IVirtualDesktopVTable) -> HRESULT;
+    unsafe fn get_desktops(&self, outDesktops: *const *mut IObjectArrayVTable) -> HRESULT;
 }
 
 /*
@@ -334,9 +341,6 @@ IVirtualDesktopManagerInternal : public IUnknown
 {
 public:
 
-
-    virtual HRESULT STDMETHODCALLTYPE GetCurrentDesktop(
-        IVirtualDesktop** desktop) = 0;
 
     virtual HRESULT STDMETHODCALLTYPE GetDesktops(
         IObjectArray **ppDesktops) = 0;
