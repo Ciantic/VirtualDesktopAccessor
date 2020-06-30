@@ -71,6 +71,11 @@ fn main() {
         service.move_window_to_desktop(notepad_hwnd, &current_desktop_id)
     );
 
+    println!(
+        "Pin the notepad window {:?}",
+        service.pin_window(notepad_hwnd)
+    );
+
     // Switch to desktop and back
     println!("Switch between desktops 1 and this one...");
 
@@ -87,6 +92,11 @@ fn main() {
     println!(
         "Move back to this desktop {:?}",
         service.go_to_desktop(&current_desktop_id)
+    );
+
+    println!(
+        "Unpin the notepad window {:?}",
+        service.unpin_window(notepad_hwnd)
     );
 
     println!("Press enter key to close...");

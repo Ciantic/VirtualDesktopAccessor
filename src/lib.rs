@@ -34,10 +34,11 @@ use comhelpers::create_instance;
 use immersive::{get_immersive_service, get_immersive_service_for_class};
 use interfaces::{
     CLSID_IVirtualNotificationService, CLSID_ImmersiveShell, CLSID_VirtualDesktopManagerInternal,
-    IApplicationView, IApplicationViewCollection, IApplicationViewCollectionVTable,
-    IApplicationViewVTable, IID_IVirtualDesktopNotification, IObjectArray, IObjectArrayVTable,
-    IServiceProvider, IVirtualDesktop, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
-    IVirtualDesktopNotification, IVirtualDesktopNotificationService, IVirtualDesktopVTable,
+    CLSID_VirtualDesktopPinnedApps, IApplicationView, IApplicationViewCollection,
+    IApplicationViewCollectionVTable, IApplicationViewVTable, IID_IVirtualDesktopNotification,
+    IObjectArray, IObjectArrayVTable, IServiceProvider, IVirtualDesktop, IVirtualDesktopManager,
+    IVirtualDesktopManagerInternal, IVirtualDesktopNotification,
+    IVirtualDesktopNotificationService, IVirtualDesktopPinnedApps, IVirtualDesktopVTable,
 };
 use std::{cell::Cell, ffi::c_void, ptr::null_mut};
 
@@ -56,6 +57,7 @@ pub struct VirtualDesktopService {
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
+    pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     virtual_desktop_notification_listener: Box<VirtualDesktopChangeListener>,
 }
@@ -63,6 +65,7 @@ pub struct VirtualDesktopService {
 // TODO: Remove all unwraps!
 
 impl VirtualDesktopService {
+    /// Get raw desktop list
     fn _get_desktops(&self) -> Result<Vec<ComPtr<dyn IVirtualDesktop>>, Error> {
         let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
         let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
@@ -88,8 +91,7 @@ impl VirtualDesktopService {
             if FAILED(res) {
                 return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
             }
-
-            // TODO: How long does the ptr is guarenteed to be alive?
+            // TODO: How long does the ptr is guarenteed to be alive? https://github.com/microsoft/com-rs/issues/141
             let desktop: ComPtr<dyn IVirtualDesktop> = unsafe { ComPtr::new(ptr as *mut _) };
 
             desktops.push(desktop);
@@ -97,10 +99,12 @@ impl VirtualDesktopService {
         Ok(desktops)
     }
 
+    /// Get raw desktop by ID
     fn _get_desktop_by_id(
         &self,
         desktop: &DesktopID,
     ) -> Result<ComPtr<dyn IVirtualDesktop>, Error> {
+        // TODO: Is this safe? https://github.com/microsoft/com-rs/issues/141
         self._get_desktops()
             .unwrap()
             .iter()
@@ -111,6 +115,25 @@ impl VirtualDesktopService {
             })
             .map(|v| v.clone())
             .ok_or(Error::DesktopNotFound)
+    }
+
+    /// Get application view for raw window
+    fn _get_application_view_for_hwnd(
+        &self,
+        hwnd: HWND,
+    ) -> Result<ComPtr<dyn IApplicationView>, Error> {
+        let ptr: *mut IApplicationViewVTable = std::ptr::null_mut();
+        let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &ptr) };
+        if ptr.is_null() {
+            return Err(Error::WindowNotFound);
+        }
+        if FAILED(res) {
+            return Err(Error::ComResultError(
+                res,
+                "IApplicationView.get_view_for_hwnd".into(),
+            ));
+        }
+        return Ok(unsafe { ComPtr::new(ptr as *mut _) });
     }
 
     /// Get desktops (GUID's)
@@ -239,19 +262,7 @@ impl VirtualDesktopService {
     /// Move window to desktop
     pub fn move_window_to_desktop(&self, hwnd: HWND, desktop: &DesktopID) -> Result<(), Error> {
         let desktop = self._get_desktop_by_id(desktop)?;
-        let ptr: *mut IApplicationViewVTable = std::ptr::null_mut();
-        let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &ptr) };
-        if ptr.is_null() {
-            return Err(Error::WindowNotFound);
-        }
-        if FAILED(res) {
-            return Err(Error::ComResultError(
-                res,
-                "IApplicationView.get_view_for_hwnd".into(),
-            ));
-        }
-        let view: ComPtr<dyn IApplicationView> = unsafe { ComPtr::new(ptr as *mut _) };
-
+        let view = self._get_application_view_for_hwnd(hwnd)?;
         let res = unsafe {
             self.virtual_desktop_manager_internal
                 .move_view_to_desktop(view, desktop)
@@ -280,19 +291,45 @@ impl VirtualDesktopService {
 
     /// Is window pinned?
     pub fn is_pinned_window(&self, hwnd: HWND) -> Result<bool, Error> {
-        Err(Error::UnknownError)
+        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let mut isIt: bool = false;
+        let res = unsafe { self.pinned_apps.is_view_pinned(view, &mut isIt) };
+        if FAILED(res) {
+            return Err(Error::ComResultError(
+                res,
+                "IVirtualDesktopPinnedApps.is_view_pinned".into(),
+            ));
+        }
+        Ok(isIt)
     }
 
     /// Pin window
     pub fn pin_window(&self, hwnd: HWND) -> Result<(), Error> {
-        Err(Error::UnknownError)
+        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let res = unsafe { self.pinned_apps.pin_view(view) };
+        if FAILED(res) {
+            return Err(Error::ComResultError(
+                res,
+                "IVirtualDesktopPinnedApps.pin_view".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Unpin window
     pub fn unpin_window(&self, hwnd: HWND) -> Result<(), Error> {
-        Err(Error::UnknownError)
+        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let res = unsafe { self.pinned_apps.unpin_view(view) };
+        if FAILED(res) {
+            return Err(Error::ComResultError(
+                res,
+                "IVirtualDesktopPinnedApps.unpin_view".into(),
+            ));
+        }
+        Ok(())
     }
 
+    /*
     /// Is pinned app
     pub fn is_pinned_app(&self, hwnd: HWND) -> Result<(), Error> {
         Err(Error::UnknownError)
@@ -307,6 +344,7 @@ impl VirtualDesktopService {
     pub fn unpin_app(&self, hwnd: HWND) -> Result<(), Error> {
         Err(Error::UnknownError)
     }
+    */
 
     /*
     /// Get desktop by desktop number
@@ -346,8 +384,8 @@ impl VirtualDesktopService {
     /// Initialize service and COM apartment. If you don't use other COM API's,
     /// you may use this initialization.
     pub fn initialize() -> Result<VirtualDesktopService, Error> {
-        init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
-        // init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
+        // init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
+        init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
         let service = VirtualDesktopService::initialize_only_service()?;
         service.on_drop_deinit_apartment.set(true);
         Ok(service)
@@ -366,11 +404,17 @@ impl VirtualDesktopService {
                 CLSID_IVirtualNotificationService,
             )
             .unwrap();
-        let vd_internale =
+        let vd_manager_internal =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopManagerInternal)
                 .unwrap();
         let app_view_collection =
             get_immersive_service::<dyn IApplicationViewCollection>(&service_provider).unwrap();
+
+        let pinned_apps = get_immersive_service_for_class::<dyn IVirtualDesktopPinnedApps>(
+            &service_provider,
+            CLSID_VirtualDesktopPinnedApps,
+        )
+        .unwrap();
 
         let listener =
             VirtualDesktopChangeListener::register(virtualdesktop_notification_service).unwrap();
@@ -379,14 +423,17 @@ impl VirtualDesktopService {
             virtual_desktop_manager: virtual_desktop_manager,
             service_provider: service_provider,
             virtual_desktop_notification_listener: listener,
-            virtual_desktop_manager_internal: vd_internale,
+            virtual_desktop_manager_internal: vd_manager_internal,
             app_view_collection: app_view_collection,
+            pinned_apps: pinned_apps,
         })
     }
 }
 
 impl Drop for VirtualDesktopService {
     fn drop(&mut self) {
-        if self.on_drop_deinit_apartment.get() {}
+        if self.on_drop_deinit_apartment.get() {
+            // deinit_apartment() // TODO: This panics for me in tests, why?
+        }
     }
 }

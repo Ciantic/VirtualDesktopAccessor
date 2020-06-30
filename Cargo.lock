@@ -61,6 +61,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "testbin"
+version = "0.0.1"
+dependencies = [
+ "winapi",
+ "winvirtualdesktops",
+]
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -94,12 +102,4 @@ version = "0.0.1"
 dependencies = [
  "com",
  "winapi",
-]
-
-[[package]]
-name = "winvirtualdesktopstestbin"
-version = "0.0.1"
-dependencies = [
- "winapi",
- "winvirtualdesktops",
 ]

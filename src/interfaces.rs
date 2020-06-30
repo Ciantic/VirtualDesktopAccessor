@@ -43,6 +43,13 @@ pub const CLSID_VirtualDesktopManagerInternal: IID = IID {
     data4: [0x9F, 0xC4, 0xD9, 0x39, 0x75, 0xCC, 0x46, 0x7B],
 };
 
+pub const CLSID_VirtualDesktopPinnedApps: IID = IID {
+    data1: 0xb5a399e7,
+    data2: 0x1c87,
+    data3: 0x46b8,
+    data4: [0x88, 0xe9, 0xfc, 0x57, 0x47, 0xb1, 0x71, 0xbd],
+};
+
 // Ignore following API's:
 type IAsyncCallback = UINT;
 type IImmersiveMonitor = UINT;
@@ -337,39 +344,36 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
         outDesktop: *const *mut IVirtualDesktopVTable,
     ) -> HRESULT;
     unsafe fn switch_desktop(&self, desktop: ComPtr<dyn IVirtualDesktop>) -> HRESULT;
+
+    /*
+
+        virtual HRESULT STDMETHODCALLTYPE CreateDesktopW(
+            IVirtualDesktop **ppNewDesktop) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE RemoveDesktop(
+            IVirtualDesktop *pRemove,
+            IVirtualDesktop *pFallbackDesktop) = 0;
+
+        // Since build 10240
+        virtual HRESULT STDMETHODCALLTYPE FindDesktop(
+            GUID *desktopId,
+            IVirtualDesktop **ppDesktop) = 0;
+    };
+
+    */
 }
 
-/*
+#[com_interface("4ce81583-1e4c-4632-a621-07a53543148f")]
+pub trait IVirtualDesktopPinnedApps: IUnknown {
+    unsafe fn is_app_pinned(&self, appId: PCWSTR, outIs: *mut bool) -> HRESULT;
+    unsafe fn pin_app(&self, appId: PCWSTR) -> HRESULT;
+    unsafe fn unpin_app(&self, appId: PCWSTR) -> HRESULT;
 
-// HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Interface\{F31574D6-B682-4CDC-BD56-1827860ABEC6}
-MIDL_INTERFACE("f31574d6-b682-4cdc-bd56-1827860abec6")
-IVirtualDesktopManagerInternal : public IUnknown
-{
-public:
-
-
-    virtual HRESULT STDMETHODCALLTYPE GetDesktops(
-        IObjectArray **ppDesktops) = 0;
-
-    virtual HRESULT STDMETHODCALLTYPE GetAdjacentDesktop(
-        IVirtualDesktop *pDesktopReference,
-        AdjacentDesktop uDirection,
-        IVirtualDesktop **ppAdjacentDesktop) = 0;
-
-    virtual HRESULT STDMETHODCALLTYPE SwitchDesktop(
-        IVirtualDesktop *pDesktop) = 0;
-
-    virtual HRESULT STDMETHODCALLTYPE CreateDesktopW(
-        IVirtualDesktop **ppNewDesktop) = 0;
-
-    virtual HRESULT STDMETHODCALLTYPE RemoveDesktop(
-        IVirtualDesktop *pRemove,
-        IVirtualDesktop *pFallbackDesktop) = 0;
-
-    // Since build 10240
-    virtual HRESULT STDMETHODCALLTYPE FindDesktop(
-        GUID *desktopId,
-        IVirtualDesktop **ppDesktop) = 0;
-};
-
-*/
+    unsafe fn is_view_pinned(
+        &self,
+        view: ComPtr<dyn IApplicationView>,
+        outIs: *mut bool,
+    ) -> HRESULT;
+    unsafe fn pin_view(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT;
+    unsafe fn unpin_view(&self, view: ComPtr<dyn IApplicationView>) -> HRESULT;
+}
