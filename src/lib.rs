@@ -188,7 +188,7 @@ impl VirtualDesktopService {
         }
     }
 
-    /// Get desktops (GUID's)
+    /// Get desktop IDs
     pub fn get_desktops(&self) -> Result<Vec<DesktopID>, Error> {
         self._get_desktops()?
             .iter()
@@ -212,7 +212,7 @@ impl VirtualDesktopService {
         }
     }
 
-    /// Get current desktop GUID
+    /// Get current desktop ID
     pub fn get_current_desktop(&self) -> Result<DesktopID, Error> {
         let mut ptr = None;
         Result::from(unsafe {
