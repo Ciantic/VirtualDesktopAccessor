@@ -268,7 +268,6 @@ impl VirtualDesktopService {
         }
         match ptr {
             Some(desktop) => {
-                // let desktop = ptr.upgrade();
                 let mut desktopid = Default::default();
                 unsafe { desktop.get_id(&mut desktopid) };
                 Ok(desktopid)
