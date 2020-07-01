@@ -6,7 +6,7 @@ use com::com_interface;
 use com::{
     interfaces::IUnknown,
     sys::{CLSID, HRESULT},
-    ComRc, IID,
+    ComPtr, ComRc, IID,
 };
 use std::ffi::c_void;
 
@@ -196,9 +196,12 @@ pub trait IApplicationView: IUnknown {
     unsafe fn flash(&self) -> HRESULT;
     unsafe fn get_root_switchable_owner(
         &self,
-        appView: *const *mut IApplicationViewVTable,
+        appView: *const Option<ComPtr<dyn IApplicationView>>,
     ) -> HRESULT; // proc45
-    unsafe fn enumerate_ownership_tree(&self, objects: *const *mut IObjectArrayVTable) -> HRESULT; // proc46
+    unsafe fn enumerate_ownership_tree(
+        &self,
+        objects: *const Option<ComPtr<dyn IObjectArray>>,
+    ) -> HRESULT; // proc46
 
     unsafe fn get_enterprise_id(&self, outId: *mut PWSTR) -> HRESULT; // proc47
     unsafe fn is_mirrored(&self, outIs: *mut BOOL) -> HRESULT; //
@@ -240,37 +243,43 @@ pub trait IVirtualDesktop: IUnknown {
 
 #[com_interface("1841c6d7-4f9d-42c0-af41-8747538f10e5")]
 pub trait IApplicationViewCollection: IUnknown {
-    unsafe fn get_views(&self, outViews: *const *mut IObjectArrayVTable) -> HRESULT;
+    unsafe fn get_views(&self, outViews: *const Option<ComPtr<dyn IObjectArray>>) -> HRESULT;
 
-    unsafe fn get_views_by_zorder(&self, outViews: *const *mut IObjectArrayVTable) -> HRESULT;
+    unsafe fn get_views_by_zorder(
+        &self,
+        outViews: *const Option<ComPtr<dyn IObjectArray>>,
+    ) -> HRESULT;
 
     unsafe fn get_views_by_app_user_model_id(
         &self,
         id: PCWSTR,
-        outViews: *const *mut IObjectArrayVTable,
+        outViews: *const Option<ComPtr<dyn IObjectArray>>,
     ) -> HRESULT;
 
     unsafe fn get_view_for_hwnd(
         &self,
         window: HWND,
-        outViews: *const *mut IApplicationViewVTable,
+        outView: *const Option<ComPtr<dyn IApplicationView>>,
     ) -> HRESULT;
 
     unsafe fn get_view_for_application(
         &self,
         app: *const IImmersiveApplication,
-        outViews: *const *mut IApplicationViewVTable,
+        outView: *const Option<ComPtr<dyn IApplicationView>>,
     ) -> HRESULT;
 
     unsafe fn get_view_for_app_user_model_id(
         &self,
         id: PCWSTR,
-        outViews: *const *mut IApplicationViewVTable,
+        outView: *const Option<ComPtr<dyn IApplicationView>>,
     ) -> HRESULT;
 
-    unsafe fn get_view_in_focus(&self, outViews: *const *mut IApplicationViewVTable) -> HRESULT;
+    unsafe fn get_view_in_focus(
+        &self,
+        outView: *const Option<ComPtr<dyn IApplicationView>>,
+    ) -> HRESULT;
 
-    unsafe fn unknown1(&self, outViews: *const *mut IApplicationViewVTable) -> HRESULT;
+    unsafe fn unknown1(&self, outView: *const Option<ComPtr<dyn IApplicationView>>) -> HRESULT;
 
     unsafe fn refresh_collection(&self) -> HRESULT;
 
@@ -338,13 +347,15 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
         view: ComRc<dyn IApplicationView>,
         canMove: *mut i32,
     ) -> HRESULT;
-    // unsafe fn get_current_desktop(&self, outDesktop: *mut *mut IVirtualDesktopVTable) -> HRESULT;
-    unsafe fn get_current_desktop(&self, outDesktop: *const *mut IVirtualDesktopVTable) -> HRESULT;
-    unsafe fn get_desktops(&self, outDesktops: *const *mut IObjectArrayVTable) -> HRESULT;
+    unsafe fn get_current_desktop(
+        &self,
+        outDesktop: *const Option<ComPtr<dyn IVirtualDesktop>>,
+    ) -> HRESULT;
+    unsafe fn get_desktops(&self, outDesktops: *const Option<ComPtr<dyn IObjectArray>>) -> HRESULT;
     unsafe fn get_adjacent_desktop(
         &self,
         inDesktop: ComRc<dyn IVirtualDesktop>,
-        outDesktop: *const *mut IVirtualDesktopVTable,
+        outDesktop: *const Option<ComPtr<dyn IVirtualDesktop>>,
     ) -> HRESULT;
     unsafe fn switch_desktop(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
 

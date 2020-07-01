@@ -19,7 +19,7 @@ mod interfaces;
 use com::runtime::{init_apartment, ApartmentType};
 use com::{
     sys::{FAILED, HRESULT},
-    ComInterface, ComRc,
+    ComInterface, ComPtr, ComRc,
 };
 pub use guid::DesktopID;
 use winapi::shared::windef::HWND;
@@ -29,10 +29,9 @@ use comhelpers::create_instance;
 use immersive::{get_immersive_service, get_immersive_service_for_class};
 use interfaces::{
     CLSID_IVirtualNotificationService, CLSID_ImmersiveShell, CLSID_VirtualDesktopManagerInternal,
-    CLSID_VirtualDesktopPinnedApps, IApplicationView, IApplicationViewCollection,
-    IApplicationViewVTable, IObjectArray, IObjectArrayVTable, IServiceProvider, IVirtualDesktop,
-    IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopPinnedApps,
-    IVirtualDesktopVTable,
+    CLSID_VirtualDesktopPinnedApps, IApplicationView, IApplicationViewCollection, IObjectArray,
+    IServiceProvider, IVirtualDesktop, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
+    IVirtualDesktopPinnedApps,
 };
 use std::cell::Cell;
 
@@ -40,6 +39,7 @@ use std::cell::Cell;
 pub enum Error {
     InitializationError(HRESULT),
     UnknownError,
+    NullPtr,
     WindowNotFound,
     DesktopNotFound,
     ApartmentInitError(HRESULT),
@@ -145,7 +145,7 @@ impl VirtualDesktopService {
 
     /// Get raw desktop list
     fn _get_desktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
-        let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
+        let ptr: Option<ComPtr<dyn IObjectArray>> = None;
         let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
         if FAILED(res) {
             return Err(Error::ComResultError(
@@ -153,28 +153,32 @@ impl VirtualDesktopService {
                 "IVirtualDesktopManagerInternal.get_desktops".into(),
             ));
         }
+        match ptr {
+            Some(ptr) => {
+                let dc: ComRc<dyn IObjectArray> = ptr.upgrade();
+                let mut count = 0;
+                let res = unsafe { dc.get_count(&mut count) };
+                if FAILED(res) {
+                    return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
+                }
 
-        let dc: ComRc<dyn IObjectArray> = unsafe { ComRc::from_raw(ptr as *mut *mut _) };
-        let mut count = 0;
-        let res = unsafe { dc.get_count(&mut count) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
-        }
+                let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
 
-        let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
+                for i in 0..(count - 1) {
+                    let ptr = std::ptr::null_mut();
+                    let res = unsafe { dc.get_at(i, &IVirtualDesktop::IID, &ptr) };
+                    if FAILED(res) {
+                        return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
+                    }
+                    // TODO: How long does the ptr is guarenteed to be alive? https://github.com/microsoft/com-rs/issues/141
+                    let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
 
-        for i in 0..(count - 1) {
-            let ptr = std::ptr::null_mut();
-            let res = unsafe { dc.get_at(i, &IVirtualDesktop::IID, &ptr) };
-            if FAILED(res) {
-                return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
+                    desktops.push(desktop);
+                }
+                Ok(desktops)
             }
-            // TODO: How long does the ptr is guarenteed to be alive? https://github.com/microsoft/com-rs/issues/141
-            let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
-
-            desktops.push(desktop);
+            None => Err(Error::NullPtr),
         }
-        Ok(desktops)
     }
 
     /// Get raw desktop by ID
@@ -198,63 +202,39 @@ impl VirtualDesktopService {
         &self,
         hwnd: HWND,
     ) -> Result<ComRc<dyn IApplicationView>, Error> {
-        let ptr: *mut IApplicationViewVTable = std::ptr::null_mut();
+        let ptr = None;
         let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &ptr) };
-        if ptr.is_null() {
-            return Err(Error::WindowNotFound);
-        }
         if FAILED(res) {
             return Err(Error::ComResultError(
                 res,
                 "IApplicationView.get_view_for_hwnd".into(),
             ));
         }
-        return Ok(unsafe { ComRc::from_raw(ptr as *mut _) });
+        match ptr {
+            Some(ptr) => Ok(ptr.upgrade()),
+            None => Err(Error::NullPtr),
+        }
     }
 
     /// Get desktops (GUID's)
     pub fn get_desktops(&self) -> Result<Vec<DesktopID>, Error> {
-        let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
-        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
-                res,
-                "IVirtualDesktopManagerInternal.get_desktops".into(),
-            ));
-        }
+        self._get_desktops()?
+            .iter()
+            .map(|f| {
+                let mut desktopid = Default::default();
+                let res = unsafe { f.get_id(&mut desktopid) };
 
-        let dc: ComRc<dyn IObjectArray> = unsafe { ComRc::from_raw(ptr as *mut _) };
-        let mut count = 0;
-        let res = unsafe { dc.get_count(&mut count) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
-        }
-
-        let mut desktops: Vec<DesktopID> = vec![];
-
-        for i in 0..(count - 1) {
-            let ptr = std::ptr::null_mut();
-            let res = unsafe { dc.get_at(i, &IVirtualDesktop::IID, &ptr) };
-            if FAILED(res) {
-                return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
-            }
-            let desktop: ComRc<dyn IVirtualDesktop> = unsafe { ComRc::from_raw(ptr as *mut _) };
-
-            let mut desktopid = Default::default();
-            let res = unsafe { desktop.get_id(&mut desktopid) };
-
-            if FAILED(res) {
-                return Err(Error::ComResultError(res, "IVirtualDesktop.get_id".into()));
-            }
-            desktops.push(desktopid);
-        }
-
-        Ok(desktops)
+                if FAILED(res) {
+                    return Err(Error::ComResultError(res, "IVirtualDesktop.get_id".into()));
+                }
+                Ok(desktopid)
+            })
+            .collect()
     }
 
     /// Get number of desktops
     pub fn get_desktop_count(&self) -> Result<u32, Error> {
-        let ptr: *mut IObjectArrayVTable = std::ptr::null_mut();
+        let ptr: Option<ComPtr<dyn IObjectArray>> = None;
         let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
         if FAILED(res) {
             return Err(Error::ComResultError(
@@ -262,20 +242,23 @@ impl VirtualDesktopService {
                 "IVirtualDesktopManagerInternal.get_desktops".into(),
             ));
         }
-
-        let dc: ComRc<dyn IObjectArray> = unsafe { ComRc::from_raw(ptr as *mut _) };
-        let mut count = 0;
-        let res = unsafe { dc.get_count(&mut count) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
+        match ptr {
+            Some(ptr) => {
+                let dc: ComRc<dyn IObjectArray> = ptr.upgrade();
+                let mut count = 0;
+                let res = unsafe { dc.get_count(&mut count) };
+                if FAILED(res) {
+                    return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
+                }
+                Ok(count)
+            }
+            None => Err(Error::NullPtr),
         }
-        Ok(count)
     }
 
     /// Get current desktop GUID
     pub fn get_current_desktop(&self) -> Result<DesktopID, Error> {
-        let ptr: *mut IVirtualDesktopVTable = std::ptr::null_mut();
-
+        let ptr: Option<ComPtr<dyn IVirtualDesktop>> = None;
         let res = unsafe {
             self.virtual_desktop_manager_internal
                 .get_current_desktop(&ptr)
@@ -287,12 +270,15 @@ impl VirtualDesktopService {
                 "IVirtualDesktopManagerInternal.get_current_desktop".into(),
             ));
         }
-
-        let resultdc: ComRc<dyn IVirtualDesktop> = unsafe { ComRc::from_raw(ptr as *mut _) };
-        let mut desktopid = Default::default();
-        unsafe { resultdc.get_id(&mut desktopid) };
-
-        Ok(desktopid)
+        match ptr {
+            Some(ptr) => {
+                let desktop = ptr.upgrade();
+                let mut desktopid = Default::default();
+                unsafe { desktop.get_id(&mut desktopid) };
+                Ok(desktopid)
+            }
+            None => Err(Error::NullPtr),
+        }
     }
 
     /// Get window desktop ID
