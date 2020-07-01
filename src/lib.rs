@@ -164,8 +164,8 @@ impl VirtualDesktopService {
                 let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
 
                 for i in 0..(count - 1) {
-                    let ptr = std::ptr::null_mut();
-                    let res = unsafe { objectarray.get_at(i, &IVirtualDesktop::IID, &ptr) };
+                    let mut ptr = std::ptr::null_mut();
+                    let res = unsafe { objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr) };
                     if FAILED(res) {
                         return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
                     }

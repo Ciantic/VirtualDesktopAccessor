@@ -223,12 +223,8 @@ pub trait IApplicationView: IUnknown {
 #[com_interface("92ca9dcd-5622-4bba-a805-5e9f541bd8c9")]
 pub trait IObjectArray: IUnknown {
     unsafe fn get_count(&self, outPcObjects: *mut UINT) -> HRESULT;
-    unsafe fn get_at(
-        &self,
-        uiIndex: UINT,
-        riid: *const IID,
-        outValue: *const *mut c_void,
-    ) -> HRESULT;
+    unsafe fn get_at(&self, uiIndex: UINT, riid: *const IID, outValue: *mut *mut c_void)
+        -> HRESULT;
 }
 
 #[com_interface("ff72ffdd-be7e-43fc-9c03-ad81681e88e4")]
