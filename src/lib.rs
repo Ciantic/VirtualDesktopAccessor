@@ -19,7 +19,7 @@ mod interfaces;
 use com::runtime::{init_apartment, ApartmentType};
 use com::{
     sys::{FAILED, HRESULT},
-    ComInterface, ComPtr, ComRc,
+    ComInterface, ComRc,
 };
 pub use guid::DesktopID;
 use winapi::shared::windef::HWND;
@@ -145,8 +145,8 @@ impl VirtualDesktopService {
 
     /// Get raw desktop list
     fn _get_desktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
-        let ptr: Option<ComPtr<dyn IObjectArray>> = None;
-        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
+        let mut ptr = None;
+        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) };
         if FAILED(res) {
             return Err(Error::ComResultError(
                 res,
@@ -154,10 +154,9 @@ impl VirtualDesktopService {
             ));
         }
         match ptr {
-            Some(ptr) => {
-                let dc: ComRc<dyn IObjectArray> = ptr.upgrade();
+            Some(objectarray) => {
                 let mut count = 0;
-                let res = unsafe { dc.get_count(&mut count) };
+                let res = unsafe { objectarray.get_count(&mut count) };
                 if FAILED(res) {
                     return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
                 }
@@ -166,7 +165,7 @@ impl VirtualDesktopService {
 
                 for i in 0..(count - 1) {
                     let ptr = std::ptr::null_mut();
-                    let res = unsafe { dc.get_at(i, &IVirtualDesktop::IID, &ptr) };
+                    let res = unsafe { objectarray.get_at(i, &IVirtualDesktop::IID, &ptr) };
                     if FAILED(res) {
                         return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
                     }
@@ -202,8 +201,8 @@ impl VirtualDesktopService {
         &self,
         hwnd: HWND,
     ) -> Result<ComRc<dyn IApplicationView>, Error> {
-        let ptr = None;
-        let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &ptr) };
+        let mut ptr = None;
+        let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &mut ptr) };
         if FAILED(res) {
             return Err(Error::ComResultError(
                 res,
@@ -211,7 +210,7 @@ impl VirtualDesktopService {
             ));
         }
         match ptr {
-            Some(ptr) => Ok(ptr.upgrade()),
+            Some(ptr) => Ok(ptr),
             None => Err(Error::NullPtr),
         }
     }
@@ -234,8 +233,8 @@ impl VirtualDesktopService {
 
     /// Get number of desktops
     pub fn get_desktop_count(&self) -> Result<u32, Error> {
-        let ptr: Option<ComPtr<dyn IObjectArray>> = None;
-        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&ptr) };
+        let mut ptr = None;
+        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) };
         if FAILED(res) {
             return Err(Error::ComResultError(
                 res,
@@ -243,10 +242,9 @@ impl VirtualDesktopService {
             ));
         }
         match ptr {
-            Some(ptr) => {
-                let dc: ComRc<dyn IObjectArray> = ptr.upgrade();
+            Some(objectarray) => {
                 let mut count = 0;
-                let res = unsafe { dc.get_count(&mut count) };
+                let res = unsafe { objectarray.get_count(&mut count) };
                 if FAILED(res) {
                     return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
                 }
@@ -258,10 +256,10 @@ impl VirtualDesktopService {
 
     /// Get current desktop GUID
     pub fn get_current_desktop(&self) -> Result<DesktopID, Error> {
-        let ptr: Option<ComPtr<dyn IVirtualDesktop>> = None;
+        let mut ptr = None;
         let res = unsafe {
             self.virtual_desktop_manager_internal
-                .get_current_desktop(&ptr)
+                .get_current_desktop(&mut ptr)
         };
         if FAILED(res) {
             debug_print!("get_current_desktop failed {:?}", res);
@@ -271,8 +269,8 @@ impl VirtualDesktopService {
             ));
         }
         match ptr {
-            Some(ptr) => {
-                let desktop = ptr.upgrade();
+            Some(desktop) => {
+                // let desktop = ptr.upgrade();
                 let mut desktopid = Default::default();
                 unsafe { desktop.get_id(&mut desktopid) };
                 Ok(desktopid)
