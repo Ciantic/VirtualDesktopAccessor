@@ -9,12 +9,12 @@ impl HRESULT {
         self < &HRESULT::from_i32(0)
     }
     #[inline]
-    pub fn ok() -> HRESULT {
-        HRESULT(0)
+    pub fn failed_with(&self, u: u32) -> bool {
+        self.0 == u as i32
     }
     #[inline]
-    pub fn from_u32(v: u32) -> HRESULT {
-        HRESULT(v as i32)
+    pub fn ok() -> HRESULT {
+        HRESULT(0)
     }
     #[inline]
     pub fn from_i32(v: i32) -> HRESULT {

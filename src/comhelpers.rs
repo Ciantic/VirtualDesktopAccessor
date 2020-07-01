@@ -1,7 +1,8 @@
 use crate::HRESULT;
 use com::{sys::CoCreateInstance, ComInterface, ComPtr, ComRc, CLSID, IID};
 use std::ffi::c_void;
-use winapi::shared::wtypesbase::CLSCTX_LOCAL_SERVER;
+
+const CLSCTX_LOCAL_SERVER: u32 = 0x4;
 
 // https://github.com/microsoft/com-rs/issues/150
 

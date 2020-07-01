@@ -1,7 +1,7 @@
 use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, time::Duration};
-use winvd::{VirtualDesktopService, HRESULT, HWND};
+use winvd::{VirtualDesktopService, HWND};
 
 fn main() {
     let service = VirtualDesktopService::create_with_com().unwrap();

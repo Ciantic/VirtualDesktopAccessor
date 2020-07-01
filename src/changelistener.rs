@@ -1,7 +1,5 @@
 use com::{co_class, interfaces::IUnknown, ComRc};
 
-use winapi::shared::minwindef::DWORD;
-
 use crate::{
     hresult::HRESULT,
     interfaces::{
@@ -105,7 +103,9 @@ impl Drop for VirtualDesktopChangeListener {
             Some(s) => {
                 if self.cookie.get() != 0 {
                     unsafe {
-                        debug_print!("Unregister a listener {:?}", self.cookie.get());
+                        #[cfg(feature = "debug")]
+                        println!("Unregister a listener {:?}", self.cookie.get());
+
                         s.unregister(self.cookie.get());
                     }
                 }
@@ -132,12 +132,14 @@ impl VirtualDesktopChangeListener {
                 unsafe { ComRc::from_raw(ipv as *mut *mut _) };
 
             // Register the IVirtualDesktopNotification to the service
-            let mut cookie: DWORD = 0;
+            let mut cookie = 0;
             let res2 = unsafe { service.register(ptr, &mut cookie) };
             if res2.failed() {
                 Err(res)
             } else {
-                debug_print!("Register a listener {:?}", cookie);
+                #[cfg(feature = "debug")]
+                println!("Register a listener {:?}", cookie);
+
                 listener.service.set(Some(service));
                 listener.cookie.set(cookie);
                 Ok(listener)

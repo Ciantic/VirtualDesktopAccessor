@@ -1,20 +1,16 @@
 [package]
 name = "winvd"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["Jari Otto Oskari Pennanen"]
 license = "MIT"
 edition = "2018"
-description = "Provides functions for accessin Windows 10 virtual desktop API"
+description = "Provides functions for accessing Windows 10 virtual desktop API"
 readme = "README.md"
 homepage = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 repository = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-winapi = { version = "0.3.9", features = ["winuser", "wtypesbase", "hstring", "guiddef"] }
 com = "0.2.0"
-
 
 [lib]
 name = "winvd"

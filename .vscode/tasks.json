@@ -6,7 +6,7 @@
             "command": "build",
             "problemMatcher": ["$rustc"],
             "group": "build",
-            "label": "rust: cargo build"
+            "label": "build"
         },
         {
             "type": "cargo",
@@ -15,6 +15,14 @@
             "problemMatcher": ["$rustc"],
             "group": "build",
             "label": "testbin"
+        },
+        {
+            "type": "cargo",
+            "command": "run",
+            "args": ["--package", "testbin", "--release"],
+            "problemMatcher": ["$rustc"],
+            "group": "build",
+            "label": "testbin-release"
         }
     ]
 }

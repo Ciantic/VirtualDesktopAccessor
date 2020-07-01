@@ -6,11 +6,6 @@ use com::com_interface;
 use com::{interfaces::IUnknown, sys::CLSID, ComRc, IID};
 use std::ffi::c_void;
 
-use winapi::shared::minwindef::{BOOL, DWORD, INT, LPVOID, UINT, ULONG};
-use winapi::shared::ntdef::{PCWSTR, PWSTR, ULONGLONG};
-use winapi::shared::windef::{HWND, RECT, SIZE};
-use winapi::winrt::hstring::HSTRING;
-
 pub const CLSID_ImmersiveShell: CLSID = CLSID {
     data1: 0xC2F03A33,
     data2: 0x21F5,
@@ -45,6 +40,33 @@ pub const CLSID_VirtualDesktopPinnedApps: IID = IID {
     data3: 0x46b8,
     data4: [0x88, 0xe9, 0xfc, 0x57, 0x47, 0xb1, 0x71, 0xbd],
 };
+
+// primitives
+pub type HWND = u32;
+type BOOL = i32;
+type DWORD = u32;
+type INT = i32;
+type LPVOID = *mut c_void;
+type UINT = u32;
+type ULONG = u32;
+type WCHAR = u16;
+type PCWSTR = *const WCHAR;
+type PWSTR = *mut WCHAR;
+type ULONGLONG = u64;
+type LONG = i32;
+#[allow(dead_code)]
+pub struct RECT {
+    left: LONG,
+    top: LONG,
+    right: LONG,
+    bottom: LONG,
+}
+#[allow(dead_code)]
+pub struct SIZE {
+    cx: LONG,
+    cy: LONG,
+}
+type HSTRING = LPVOID;
 
 // Ignore following API's:
 // type IShellPositionerPriority = UINT;

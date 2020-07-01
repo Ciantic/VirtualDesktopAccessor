@@ -1,15 +1,3 @@
-// The debug version
-#[cfg(feature = "debug")]
-macro_rules! debug_print {
-    ($( $args:expr ),*) => { println!( $( $args ),* ); }
-}
-
-// Non-debug version
-#[cfg(not(feature = "debug"))]
-macro_rules! debug_print {
-    ($( $args:expr ),*) => {};
-}
-
 mod changelistener;
 mod comhelpers;
 mod desktopid;
@@ -30,26 +18,20 @@ use interfaces::{
 use std::cell::Cell;
 
 pub use desktopid::DesktopID;
-pub type HWND = u32;
 pub use hresult::HRESULT;
+pub use interfaces::HWND;
 
 #[derive(Debug, Clone)]
 pub enum Error {
     /// Unable to get the service provider, this is raised for example when
-    /// explorer.exe is not running
+    /// explorer.exe is not running.
     InitializationClassNotRegistered,
-
-    /// Other initialization errors
-    InitializationComError(HRESULT),
 
     /// Window is not found
     WindowNotFound,
 
     /// Desktop with given ID is not found
     DesktopNotFound,
-
-    /// Com apartment initialization failed
-    ComApartmentInitError(HRESULT),
 
     /// Some COM result error
     ComError(HRESULT, String),
@@ -82,7 +64,7 @@ impl VirtualDesktopService {
     pub fn create_with_com() -> Result<VirtualDesktopService, Error> {
         // init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
         init_apartment(ApartmentType::Multithreaded)
-            .map_err(|op| Error::ComApartmentInitError(HRESULT::from_i32(op)))?;
+            .map_err(|op| Error::ComError(HRESULT::from_i32(op), "init_apartment".into()))?;
         let service = VirtualDesktopService::create()?;
         service.on_drop_deinit_apartment.set(true);
         Ok(service)
@@ -92,10 +74,10 @@ impl VirtualDesktopService {
     pub fn create() -> Result<VirtualDesktopService, Error> {
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)
             .map_err(|hr| {
-                if hr == HRESULT::from_u32(0x80040154) {
+                if hr.failed_with(0x80040154) {
                     Error::InitializationClassNotRegistered
                 } else {
-                    Error::InitializationComError(hr)
+                    Error::ComError(hr, "service_provider".into())
                 }
             })?;
 
@@ -282,7 +264,6 @@ impl VirtualDesktopService {
                 .get_current_desktop(&mut ptr)
         };
         if res.failed() {
-            debug_print!("get_current_desktop failed {:?}", res);
             return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManagerInternal.get_current_desktop".into(),
