@@ -96,6 +96,8 @@ fn main() {
         service.pin_window(notepad_hwnd)
     );
 
+    // Test desktop manipulation methods ----------------------------------------
+
     // Switch to desktop and back
     println!("Switch between desktops 1 and this one...");
 
