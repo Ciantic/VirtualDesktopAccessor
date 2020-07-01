@@ -1,13 +1,9 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
-use crate::guid::DesktopID;
+use crate::{desktopid::DesktopID, hresult::HRESULT};
 use com::com_interface;
-use com::{
-    interfaces::IUnknown,
-    sys::{CLSID, HRESULT},
-    ComRc, IID,
-};
+use com::{interfaces::IUnknown, sys::CLSID, ComRc, IID};
 use std::ffi::c_void;
 
 use winapi::shared::minwindef::{BOOL, DWORD, INT, LPVOID, UINT, ULONG};

@@ -28,6 +28,10 @@ fn main() {
 }
 ```
 
+## Notes
+
+-   Apparently if `explorer.exe` is killed, I get `0x800706BA` HRESULT's. This could be an indication I should try to re-register the service.
+
 ## Other
 
 This might deprecate CPP implementation, once I get a DLL also done with Rust.

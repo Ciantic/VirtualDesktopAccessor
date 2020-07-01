@@ -1,8 +1,7 @@
 use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, time::Duration};
-use winapi::shared::windef::HWND;
-use winvd::VirtualDesktopService;
+use winvd::{VirtualDesktopService, HRESULT, HWND};
 
 fn main() {
     let service = VirtualDesktopService::create_with_com().unwrap();
@@ -34,15 +33,17 @@ fn main() {
     println!("Current desktop ID {:?}", current_desktop_id);
 
     // Test window manipulation methods ----------------------------------------
+    println!("Start notepad, and press enter key to continue...");
+    std::io::stdin().read_line(&mut String::new()).unwrap();
 
     // Get notepad
     let notepad_hwnd: HWND = unsafe {
         FindWindowW(
             "notepad\0".encode_utf16().collect::<Vec<_>>().as_ptr(),
             null(),
-        )
+        ) as HWND
     };
-    if (notepad_hwnd as u32) == 0 {
+    if (notepad_hwnd) == 0 {
         println!("You must start notepad to continue tests.");
         return;
     }

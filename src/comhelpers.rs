@@ -1,7 +1,5 @@
-use com::{
-    sys::{CoCreateInstance, FAILED, HRESULT},
-    ComInterface, ComPtr, ComRc, CLSID, IID,
-};
+use crate::HRESULT;
+use com::{sys::CoCreateInstance, ComInterface, ComPtr, ComRc, CLSID, IID};
 use std::ffi::c_void;
 use winapi::shared::wtypesbase::CLSCTX_LOCAL_SERVER;
 
@@ -25,14 +23,14 @@ pub unsafe fn create_raw_instance<T: ComInterface + ?Sized>(
     outer: *mut c_void,
 ) -> Result<ComPtr<T>, HRESULT> {
     let mut instance = std::ptr::null_mut::<c_void>();
-    let hr = CoCreateInstance(
+    let hr = HRESULT::from_i32(CoCreateInstance(
         class_id as *const CLSID,
         outer,
         CLSCTX_LOCAL_SERVER,
         &T::IID as *const IID,
         &mut instance as *mut *mut c_void,
-    );
-    if FAILED(hr) {
+    ));
+    if hr.failed() {
         return Err(hr);
     }
 

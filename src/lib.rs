@@ -12,19 +12,13 @@ macro_rules! debug_print {
 
 mod changelistener;
 mod comhelpers;
-mod guid;
+mod desktopid;
+mod hresult;
 mod immersive;
 mod interfaces;
-// mod utils;
-use com::runtime::{init_apartment, ApartmentType};
-use com::{
-    sys::{FAILED, HRESULT},
-    ComInterface, ComRc,
-};
-pub use guid::DesktopID;
-use winapi::shared::windef::HWND;
-
 use changelistener::VirtualDesktopChangeListener;
+use com::runtime::{init_apartment, ApartmentType};
+use com::{ComInterface, ComRc};
 use comhelpers::create_instance;
 use immersive::{get_immersive_service, get_immersive_service_for_class};
 use interfaces::{
@@ -35,15 +29,33 @@ use interfaces::{
 };
 use std::cell::Cell;
 
+pub use desktopid::DesktopID;
+pub type HWND = u32;
+pub use hresult::HRESULT;
+
 #[derive(Debug, Clone)]
 pub enum Error {
-    InitializationError(HRESULT),
-    UnknownError,
-    NullPtr,
+    /// Unable to get the service provider, this is raised for example when
+    /// explorer.exe is not running
+    InitializationClassNotRegistered,
+
+    /// Other initialization errors
+    InitializationComError(HRESULT),
+
+    /// Window is not found
     WindowNotFound,
+
+    /// Desktop with given ID is not found
     DesktopNotFound,
-    ApartmentInitError(HRESULT),
-    ComResultError(HRESULT, String),
+
+    /// Com apartment initialization failed
+    ComApartmentInitError(HRESULT),
+
+    /// Some COM result error
+    ComError(HRESULT, String),
+
+    /// This should not happen
+    NullPtr,
 }
 
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
@@ -69,7 +81,8 @@ impl VirtualDesktopService {
     /// you have to use this initialization.
     pub fn create_with_com() -> Result<VirtualDesktopService, Error> {
         // init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
-        init_apartment(ApartmentType::Multithreaded).map_err(|op| Error::ApartmentInitError(op))?;
+        init_apartment(ApartmentType::Multithreaded)
+            .map_err(|op| Error::ComApartmentInitError(HRESULT::from_i32(op)))?;
         let service = VirtualDesktopService::create()?;
         service.on_drop_deinit_apartment.set(true);
         Ok(service)
@@ -78,13 +91,19 @@ impl VirtualDesktopService {
     /// Initialize only the service, must be-created on TaskbarCreated message
     pub fn create() -> Result<VirtualDesktopService, Error> {
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)
-            .map_err(|hr| Error::InitializationError(hr))?;
+            .map_err(|hr| {
+                if hr == HRESULT::from_u32(0x80040154) {
+                    Error::InitializationClassNotRegistered
+                } else {
+                    Error::InitializationComError(hr)
+                }
+            })?;
 
         let virtual_desktop_manager = get_immersive_service::<dyn IVirtualDesktopManager>(
             &service_provider,
         )
         .map_err(|err| {
-            Error::ComResultError(
+            Error::ComError(
                 err,
                 "IServiceProvider.query_service IVirtualDesktopManager".into(),
             )
@@ -93,7 +112,7 @@ impl VirtualDesktopService {
         let virtualdesktop_notification_service =
             get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)
                 .map_err(|err| {
-                Error::ComResultError(
+                Error::ComError(
                     err,
                     "IServiceProvider.query_service IVirtualDesktopNotificationService".into(),
                 )
@@ -102,14 +121,14 @@ impl VirtualDesktopService {
         let vd_manager_internal =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopManagerInternal)
                 .map_err(|err| {
-                    Error::ComResultError(
+                    Error::ComError(
                         err,
                         "IServiceProvider.query_service IVirtualDesktopManagerInternal".into(),
                     )
                 })?;
 
         let app_view_collection = get_immersive_service(&service_provider).map_err(|err| {
-            Error::ComResultError(
+            Error::ComError(
                 err,
                 "IServiceProvider.query_service IApplicationViewCollection".into(),
             )
@@ -118,7 +137,7 @@ impl VirtualDesktopService {
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)
                 .map_err(|err| {
-                    Error::ComResultError(
+                    Error::ComError(
                         err,
                         "IServiceProvider.query_service IVirtualDesktopPinnedApps".into(),
                     )
@@ -126,8 +145,8 @@ impl VirtualDesktopService {
 
         let listener = VirtualDesktopChangeListener::register(virtualdesktop_notification_service)
             .map_err(|err| {
-                Error::ComResultError(
-                    err,
+                Error::ComError(
+                    err.into(),
                     "IServiceProvider.query_service VirtualDesktopChangeListener".into(),
                 )
             })?;
@@ -147,8 +166,8 @@ impl VirtualDesktopService {
     fn _get_desktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
         let mut ptr = None;
         let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManagerInternal.get_desktops".into(),
             ));
@@ -157,8 +176,8 @@ impl VirtualDesktopService {
             Some(objectarray) => {
                 let mut count = 0;
                 let res = unsafe { objectarray.get_count(&mut count) };
-                if FAILED(res) {
-                    return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
+                if res.failed() {
+                    return Err(Error::ComError(res, "IObjectArray.get_count".into()));
                 }
 
                 let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
@@ -166,8 +185,8 @@ impl VirtualDesktopService {
                 for i in 0..(count - 1) {
                     let mut ptr = std::ptr::null_mut();
                     let res = unsafe { objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr) };
-                    if FAILED(res) {
-                        return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
+                    if res.failed() {
+                        return Err(Error::ComError(res, "IObjectArray.get_at".into()));
                     }
                     let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
 
@@ -200,9 +219,12 @@ impl VirtualDesktopService {
         hwnd: HWND,
     ) -> Result<ComRc<dyn IApplicationView>, Error> {
         let mut ptr = None;
-        let res = unsafe { self.app_view_collection.get_view_for_hwnd(hwnd, &mut ptr) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        let res = unsafe {
+            self.app_view_collection
+                .get_view_for_hwnd(hwnd as _, &mut ptr)
+        };
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IApplicationView.get_view_for_hwnd".into(),
             ));
@@ -221,8 +243,8 @@ impl VirtualDesktopService {
                 let mut desktopid = Default::default();
                 let res = unsafe { f.get_id(&mut desktopid) };
 
-                if FAILED(res) {
-                    return Err(Error::ComResultError(res, "IVirtualDesktop.get_id".into()));
+                if res.failed() {
+                    return Err(Error::ComError(res, "IVirtualDesktop.get_id".into()));
                 }
                 Ok(desktopid)
             })
@@ -233,8 +255,8 @@ impl VirtualDesktopService {
     pub fn get_desktop_count(&self) -> Result<u32, Error> {
         let mut ptr = None;
         let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManagerInternal.get_desktops".into(),
             ));
@@ -243,8 +265,8 @@ impl VirtualDesktopService {
             Some(objectarray) => {
                 let mut count = 0;
                 let res = unsafe { objectarray.get_count(&mut count) };
-                if FAILED(res) {
-                    return Err(Error::ComResultError(res, "IObjectArray.get_count".into()));
+                if res.failed() {
+                    return Err(Error::ComError(res, "IObjectArray.get_count".into()));
                 }
                 Ok(count)
             }
@@ -259,9 +281,9 @@ impl VirtualDesktopService {
             self.virtual_desktop_manager_internal
                 .get_current_desktop(&mut ptr)
         };
-        if FAILED(res) {
+        if res.failed() {
             debug_print!("get_current_desktop failed {:?}", res);
-            return Err(Error::ComResultError(
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManagerInternal.get_current_desktop".into(),
             ));
@@ -281,10 +303,10 @@ impl VirtualDesktopService {
         let mut desktop = Default::default();
         let res = unsafe {
             self.virtual_desktop_manager
-                .get_desktop_by_window(hwnd, &mut desktop)
+                .get_desktop_by_window(hwnd as _, &mut desktop)
         };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManager.get_desktop_by_window".into(),
             ));
@@ -297,10 +319,10 @@ impl VirtualDesktopService {
         let mut isit = false;
         let res = unsafe {
             self.virtual_desktop_manager
-                .is_window_on_current_desktop(hwnd, &mut isit)
+                .is_window_on_current_desktop(hwnd as _, &mut isit)
         };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManager.is_window_on_current_desktop".into(),
             ));
@@ -325,8 +347,8 @@ impl VirtualDesktopService {
             self.virtual_desktop_manager_internal
                 .move_view_to_desktop(view, ptr)
         };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManager.move_view_to_desktop".into(),
             ));
@@ -338,8 +360,8 @@ impl VirtualDesktopService {
     pub fn go_to_desktop(&self, desktop: &DesktopID) -> Result<(), Error> {
         let d = self._get_desktop_by_id(desktop)?;
         let res = unsafe { self.virtual_desktop_manager_internal.switch_desktop(d) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopManagerInternal.switch_desktop".into(),
             ));
@@ -352,8 +374,8 @@ impl VirtualDesktopService {
         let view = self._get_application_view_for_hwnd(hwnd)?;
         let mut test: bool = false;
         let res = unsafe { self.pinned_apps.is_view_pinned(view, &mut test) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopPinnedApps.is_view_pinned".into(),
             ));
@@ -365,8 +387,8 @@ impl VirtualDesktopService {
     pub fn pin_window(&self, hwnd: HWND) -> Result<(), Error> {
         let view = self._get_application_view_for_hwnd(hwnd)?;
         let res = unsafe { self.pinned_apps.pin_view(view) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopPinnedApps.pin_view".into(),
             ));
@@ -378,8 +400,8 @@ impl VirtualDesktopService {
     pub fn unpin_window(&self, hwnd: HWND) -> Result<(), Error> {
         let view = self._get_application_view_for_hwnd(hwnd)?;
         let res = unsafe { self.pinned_apps.unpin_view(view) };
-        if FAILED(res) {
-            return Err(Error::ComResultError(
+        if res.failed() {
+            return Err(Error::ComError(
                 res,
                 "IVirtualDesktopPinnedApps.unpin_view".into(),
             ));

@@ -1,19 +1,14 @@
-use com::{
-    co_class,
-    interfaces::IUnknown,
-    sys::{FAILED, HRESULT, S_OK},
-    ComRc,
-};
+use com::{co_class, interfaces::IUnknown, ComRc};
 
 use winapi::shared::minwindef::DWORD;
-use winapi::shared::windef::HWND;
 
 use crate::{
+    hresult::HRESULT,
     interfaces::{
         IApplicationView, IID_IVirtualDesktopNotification, IVirtualDesktop,
         IVirtualDesktopNotification, IVirtualDesktopNotificationService,
     },
-    DesktopID,
+    DesktopID, HWND,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -52,21 +47,21 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
             desktop.get_id(&mut id);
             cb(id);
         }
-        S_OK
+        HRESULT::ok()
     }
     unsafe fn virtual_desktop_destroy_begin(
         &self,
         _destroyed_desktop: ComRc<dyn IVirtualDesktop>,
         _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
-        S_OK
+        HRESULT::ok()
     }
     unsafe fn virtual_desktop_destroy_failed(
         &self,
         _destroyed_desktop: ComRc<dyn IVirtualDesktop>,
         _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
-        S_OK
+        HRESULT::ok()
     }
     unsafe fn virtual_desktop_destroyed(
         &self,
@@ -78,15 +73,15 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
             destroyed_desktop.get_id(&mut id);
             cb(id);
         }
-        S_OK
+        HRESULT::ok()
     }
     unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT {
         if let Some(cb) = self._on_window_change.borrow().as_deref() {
-            let mut hwnd: HWND = 0 as HWND;
+            let mut hwnd = 0 as _;
             view.get_thumbnail_window(&mut hwnd);
-            cb(hwnd);
+            cb(hwnd as HWND);
         }
-        S_OK
+        HRESULT::ok()
     }
     unsafe fn current_virtual_desktop_changed(
         &self,
@@ -100,7 +95,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
             new_desktop.get_id(&mut new_id);
             cb(old_id, new_id);
         }
-        S_OK
+        HRESULT::ok()
     }
 }
 
@@ -124,20 +119,22 @@ impl VirtualDesktopChangeListener {
     // Try to create and register a change listener
     pub(crate) fn register(
         service: ComRc<dyn IVirtualDesktopNotificationService>,
-    ) -> Result<Box<VirtualDesktopChangeListener>, i32> {
+    ) -> Result<Box<VirtualDesktopChangeListener>, HRESULT> {
         let listener: Box<VirtualDesktopChangeListener> = VirtualDesktopChangeListener::new();
 
         // Retrieve interface pointer to IVirtualDesktopNotification
         let mut ipv = ptr::null_mut();
-        let res = unsafe { listener.query_interface(&IID_IVirtualDesktopNotification, &mut ipv) };
-        if !FAILED(res) && !ipv.is_null() {
+        let res = HRESULT::from_i32(unsafe {
+            listener.query_interface(&IID_IVirtualDesktopNotification, &mut ipv)
+        });
+        if !res.failed() && !ipv.is_null() {
             let ptr: ComRc<dyn IVirtualDesktopNotification> =
                 unsafe { ComRc::from_raw(ipv as *mut *mut _) };
 
             // Register the IVirtualDesktopNotification to the service
             let mut cookie: DWORD = 0;
-            let res2: i32 = unsafe { service.register(ptr, &mut cookie) };
-            if FAILED(res2) {
+            let res2 = unsafe { service.register(ptr, &mut cookie) };
+            if res2.failed() {
                 Err(res)
             } else {
                 debug_print!("Register a listener {:?}", cookie);

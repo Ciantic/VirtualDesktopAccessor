@@ -7,6 +7,14 @@
             "problemMatcher": ["$rustc"],
             "group": "build",
             "label": "rust: cargo build"
+        },
+        {
+            "type": "cargo",
+            "command": "run",
+            "args": ["--package", "testbin"],
+            "problemMatcher": ["$rustc"],
+            "group": "build",
+            "label": "testbin"
         }
     ]
 }

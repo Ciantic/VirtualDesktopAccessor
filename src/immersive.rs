@@ -1,8 +1,5 @@
-use crate::interfaces::IServiceProvider;
-use com::{
-    sys::{FAILED, GUID, HRESULT},
-    ComInterface, ComRc,
-};
+use crate::{hresult::HRESULT, interfaces::IServiceProvider};
+use com::{sys::GUID, ComInterface, ComRc};
 use std::ffi::c_void;
 
 pub fn get_immersive_service<T: ComInterface + ?Sized>(
@@ -18,7 +15,7 @@ pub fn get_immersive_service_for_class<T: ComInterface + ?Sized>(
     let mut obj = std::ptr::null_mut::<c_void>();
     let res = unsafe { (*service_provider).query_service(&class_id, &T::IID, &mut obj) };
 
-    if FAILED(res) {
+    if res.failed() {
         return Err(res);
     }
 
