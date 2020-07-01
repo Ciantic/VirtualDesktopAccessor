@@ -23,15 +23,20 @@ pub use interfaces::HWND;
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    /// Unable to get the service provider, this is raised for example when
-    /// explorer.exe is not running.
-    InitializationClassNotRegistered,
-
     /// Window is not found
     WindowNotFound,
 
     /// Desktop with given ID is not found
     DesktopNotFound,
+
+    /// Unable to get the service provider, this is raised for example when
+    /// explorer.exe is not running.
+    ComClassNotRegistered,
+
+    /// COM apartment is not initialized, please use appropriate constructor
+    /// `VirtualDesktopService::create_with_com` or initialize with direct call
+    /// to winapi function `CoInitialize`.
+    ComNotInitialized,
 
     /// Some COM result error
     ComError(HRESULT, String),
@@ -75,7 +80,9 @@ impl VirtualDesktopService {
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)
             .map_err(|hr| {
                 if hr.failed_with(0x80040154) {
-                    Error::InitializationClassNotRegistered
+                    Error::ComClassNotRegistered
+                } else if hr.failed_with(0x800401F0) {
+                    Error::ComNotInitialized
                 } else {
                     Error::ComError(hr, "service_provider".into())
                 }

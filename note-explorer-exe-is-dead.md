@@ -1,4 +1,4 @@
-If you didn't start the explorer exe in the first place you will now get: `Err(InitializationClassNotRegistered)` from the `VirtualDesktopService::create_with_com()`.
+If you didn't start the explorer exe in the first place you will now get: `Err(ComClassNotRegistered)` from the `VirtualDesktopService::create_with_com()`.
 
 If you kill the explorer.exe, or restart explorer.exe, the COM API starts to give following results:
 
