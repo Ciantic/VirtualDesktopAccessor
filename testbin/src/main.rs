@@ -1,7 +1,7 @@
 use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, time::Duration};
-use winvd::{VirtualDesktopService, HWND};
+use winvd::{Error, VirtualDesktopService, HWND};
 
 fn main() {
     let service = VirtualDesktopService::create_with_com().unwrap();
@@ -73,9 +73,10 @@ fn main() {
     // Move window between desktops
 
     // Not a real window, testing error
-    println!(
-        "Try to move non existant window... {:?}",
+    println!("Try to move non existant window...",);
+    debug_assert!(
         service.move_window_to_desktop(999999999 as HWND, desktops.get(0).unwrap())
+            == Err(Error::WindowNotFound)
     );
 
     // Move notepad

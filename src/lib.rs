@@ -21,7 +21,7 @@ pub use desktopid::DesktopID;
 pub use hresult::HRESULT;
 pub use interfaces::HWND;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     /// Window is not found
     WindowNotFound,
@@ -46,16 +46,25 @@ pub enum Error {
 }
 
 impl From<HRESULT> for Error {
-    fn from(item: HRESULT) -> Self {
-        if item.failed_with(0x80040154) {
-            Error::ComClassNotRegistered
-        } else if item.failed_with(0x800401F0) {
-            Error::ComNotInitialized
-        } else {
-            Error::ComError(item)
+    fn from(hr: HRESULT) -> Self {
+        match hr {
+            HRESULT(0x80040154) => Error::ComClassNotRegistered,
+            HRESULT(0x800401F0) => Error::ComNotInitialized,
+            _ => Error::ComError(hr),
         }
     }
 }
+impl From<HRESULT> for Result<(), Error> {
+    fn from(item: HRESULT) -> Self {
+        if !item.failed() {
+            Ok(())
+        } else {
+            Err(item.into())
+        }
+    }
+}
+
+// TODO: Implement ops::Try for HRESULT, once it's stable: https://github.com/rust-lang/rust/issues/42327
 
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
 /// functions.
@@ -122,28 +131,19 @@ impl VirtualDesktopService {
     /// Get raw desktop list
     fn _get_desktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
         let mut ptr = None;
-        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
+        Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
         match ptr {
             Some(objectarray) => {
                 let mut count = 0;
-                let res = unsafe { objectarray.get_count(&mut count) };
-                if res.failed() {
-                    return Err(Error::from(res));
-                }
-
+                Result::from(unsafe { objectarray.get_count(&mut count) })?;
                 let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
 
                 for i in 0..(count - 1) {
                     let mut ptr = std::ptr::null_mut();
-                    let res = unsafe { objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr) };
-                    if res.failed() {
-                        return Err(Error::from(res));
-                    }
+                    Result::from(unsafe {
+                        objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr)
+                    })?;
                     let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
-
                     desktops.push(desktop);
                 }
                 Ok(desktops)
@@ -173,13 +173,15 @@ impl VirtualDesktopService {
         hwnd: HWND,
     ) -> Result<ComRc<dyn IApplicationView>, Error> {
         let mut ptr = None;
-        let res = unsafe {
+        Result::from(unsafe {
             self.app_view_collection
                 .get_view_for_hwnd(hwnd as _, &mut ptr)
-        };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
+        })
+        .map_err(|hr| match hr {
+            // View does not exist
+            Error::ComError(HRESULT(0x8002802B)) => Error::WindowNotFound,
+            e => e,
+        })?;
         match ptr {
             Some(ptr) => Ok(ptr),
             None => Err(Error::NullPtr),
@@ -192,12 +194,7 @@ impl VirtualDesktopService {
             .iter()
             .map(|f| {
                 let mut desktopid = Default::default();
-                let res = unsafe { f.get_id(&mut desktopid) };
-
-                if res.failed() {
-                    return Err(Error::from(res));
-                }
-                Ok(desktopid)
+                Result::from(unsafe { f.get_id(&mut desktopid) }).map(|_| desktopid)
             })
             .collect()
     }
@@ -205,18 +202,11 @@ impl VirtualDesktopService {
     /// Get number of desktops
     pub fn get_desktop_count(&self) -> Result<u32, Error> {
         let mut ptr = None;
-        let res = unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
+        Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
         match ptr {
             Some(objectarray) => {
                 let mut count = 0;
-                let res = unsafe { objectarray.get_count(&mut count) };
-                if res.failed() {
-                    return Err(Error::from(res));
-                }
-                Ok(count)
+                Result::from(unsafe { objectarray.get_count(&mut count) }).map(|_| count)
             }
             None => Err(Error::NullPtr),
         }
@@ -225,18 +215,14 @@ impl VirtualDesktopService {
     /// Get current desktop GUID
     pub fn get_current_desktop(&self) -> Result<DesktopID, Error> {
         let mut ptr = None;
-        let res = unsafe {
+        Result::from(unsafe {
             self.virtual_desktop_manager_internal
                 .get_current_desktop(&mut ptr)
-        };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
+        })?;
         match ptr {
             Some(desktop) => {
                 let mut desktopid = Default::default();
-                unsafe { desktop.get_id(&mut desktopid) };
-                Ok(desktopid)
+                Result::from(unsafe { desktop.get_id(&mut desktopid) }).map(|_| desktopid)
             }
             None => Err(Error::NullPtr),
         }
@@ -245,27 +231,21 @@ impl VirtualDesktopService {
     /// Get window desktop ID
     pub fn get_desktop_by_window(&self, hwnd: HWND) -> Result<DesktopID, Error> {
         let mut desktop = Default::default();
-        let res = unsafe {
+        Result::from(unsafe {
             self.virtual_desktop_manager
                 .get_desktop_by_window(hwnd as _, &mut desktop)
-        };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(desktop)
+        })
+        .map(|_| desktop)
     }
 
     /// Is window on current virtual desktop
     pub fn is_window_on_current_virtual_desktop(&self, hwnd: HWND) -> Result<bool, Error> {
         let mut isit = false;
-        let res = unsafe {
+        Result::from(unsafe {
             self.virtual_desktop_manager
                 .is_window_on_current_desktop(hwnd as _, &mut isit)
-        };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(isit)
+        })
+        .map(|_| isit)
     }
 
     /// Is window on desktop
@@ -281,55 +261,35 @@ impl VirtualDesktopService {
             .get_interface::<dyn IVirtualDesktop>()
             .ok_or(Error::DesktopNotFound)?;
         let view = self._get_application_view_for_hwnd(hwnd)?;
-        let res = unsafe {
+        Result::from(unsafe {
             self.virtual_desktop_manager_internal
                 .move_view_to_desktop(view, ptr)
-        };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(())
+        })
     }
 
     /// Go to desktop
     pub fn go_to_desktop(&self, desktop: &DesktopID) -> Result<(), Error> {
         let d = self._get_desktop_by_id(desktop)?;
-        let res = unsafe { self.virtual_desktop_manager_internal.switch_desktop(d) };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(())
+        Result::from(unsafe { self.virtual_desktop_manager_internal.switch_desktop(d) })
     }
 
     /// Is window pinned?
     pub fn is_pinned_window(&self, hwnd: HWND) -> Result<bool, Error> {
         let view = self._get_application_view_for_hwnd(hwnd)?;
         let mut test: bool = false;
-        let res = unsafe { self.pinned_apps.is_view_pinned(view, &mut test) };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(test)
+        Result::from(unsafe { self.pinned_apps.is_view_pinned(view, &mut test) }).map(|_| test)
     }
 
     /// Pin window
     pub fn pin_window(&self, hwnd: HWND) -> Result<(), Error> {
         let view = self._get_application_view_for_hwnd(hwnd)?;
-        let res = unsafe { self.pinned_apps.pin_view(view) };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(())
+        Result::from(unsafe { self.pinned_apps.pin_view(view) })
     }
 
     /// Unpin window
     pub fn unpin_window(&self, hwnd: HWND) -> Result<(), Error> {
         let view = self._get_application_view_for_hwnd(hwnd)?;
-        let res = unsafe { self.pinned_apps.unpin_view(view) };
-        if res.failed() {
-            return Err(Error::from(res));
-        }
-        Ok(())
+        Result::from(unsafe { self.pinned_apps.unpin_view(view) })
     }
 
     /// Callback for desktop change event, callback gets old desktop id, and new desktop id

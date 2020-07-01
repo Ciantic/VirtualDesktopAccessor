@@ -3,22 +3,16 @@ use std::fmt::Debug;
 /// This is wrapper for handling HRESULT values.
 ///
 /// Value is printed in hexadecimal format for convinience, this is usually the
-/// format it's given in MSDN.
+/// format it's given in MSDN. Similarily this can be pattern matched using
+/// hexadecimal format: HRESULT(0x800706BA)
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
-pub struct HRESULT(i32);
+pub struct HRESULT(pub u32);
 
 impl HRESULT {
     /// Is any failure?
     #[inline]
     pub fn failed(&self) -> bool {
-        self.0 < 0
-    }
-
-    /// Test if the HRESULT failed with certain value, e.g.
-    /// hresult.failed_with(0x800706BA)
-    #[inline]
-    pub fn failed_with(&self, u: u32) -> bool {
-        self.0 == u as i32
+        (self.0 as i32) < 0
     }
 
     /// Indicates not a failure
@@ -30,7 +24,7 @@ impl HRESULT {
     /// Create value
     #[inline]
     pub fn from_i32(v: i32) -> HRESULT {
-        HRESULT(v)
+        HRESULT(v as u32)
     }
 }
 
