@@ -169,7 +169,6 @@ impl VirtualDesktopService {
                     if FAILED(res) {
                         return Err(Error::ComResultError(res, "IObjectArray.get_at".into()));
                     }
-                    // TODO: How long does the ptr is guarenteed to be alive? https://github.com/microsoft/com-rs/issues/141
                     let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
 
                     desktops.push(desktop);
@@ -182,7 +181,6 @@ impl VirtualDesktopService {
 
     /// Get raw desktop by ID
     fn _get_desktop_by_id(&self, desktop: &DesktopID) -> Result<ComRc<dyn IVirtualDesktop>, Error> {
-        // TODO: Is this safe? https://github.com/microsoft/com-rs/issues/141
         self._get_desktops()?
             .iter()
             .find(|v| {
