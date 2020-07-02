@@ -1,3 +1,6 @@
+// Some reason the co_class macro uses null comparison
+#![allow(clippy::cmp_null)]
+
 use com::{co_class, interfaces::IUnknown, ComRc};
 
 use crate::{
@@ -11,29 +14,42 @@ use crate::{
 use std::{
     cell::{Cell, RefCell},
     ptr,
+    sync::Arc,
 };
+
+/// Callback for desktop change event, parameters given are old desktop, new desktop
+pub type OnDesktopChange = dyn Fn(DesktopID, DesktopID) -> ();
+
+/// Callback for desktop creation
+pub type OnDesktopCreated = dyn Fn(DesktopID) -> ();
+
+/// Callback for desktop destroying
+pub type OnDesktopDestroyed = dyn Fn(DesktopID) -> ();
+
+/// Callback for desktop window change
+pub type OnDesktopWindowChange = dyn Fn(HWND) -> ();
 
 #[co_class(implements(IVirtualDesktopNotification))]
 pub struct VirtualDesktopChangeListener {
-    service: Cell<Option<ComRc<dyn IVirtualDesktopNotificationService>>>,
-    cookie: Cell<u32>,
-    _on_desktop_change: RefCell<Option<Box<dyn Fn(DesktopID, DesktopID) -> ()>>>,
-    _on_desktop_created: RefCell<Option<Box<dyn Fn(DesktopID) -> ()>>>,
-    _on_desktop_destroyed: RefCell<Option<Box<dyn Fn(DesktopID) -> ()>>>,
-    _on_window_change: RefCell<Option<Box<dyn Fn(HWND) -> ()>>>,
+    service: Arc<Cell<Option<ComRc<dyn IVirtualDesktopNotificationService>>>>,
+    cookie: Arc<Cell<u32>>,
+    _on_desktop_change: RefCell<Option<Box<OnDesktopChange>>>,
+    _on_desktop_created: RefCell<Option<Box<OnDesktopCreated>>>,
+    _on_desktop_destroyed: RefCell<Option<Box<OnDesktopDestroyed>>>,
+    _on_window_change: RefCell<Option<Box<OnDesktopWindowChange>>>,
 }
 
 impl VirtualDesktopChangeListener {
-    pub fn on_desktop_change(&self, callback: Box<dyn Fn(DesktopID, DesktopID) -> ()>) {
+    pub fn on_desktop_change(&self, callback: Box<OnDesktopChange>) {
         self._on_desktop_change.replace(Some(callback));
     }
-    pub fn on_desktop_created(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+    pub fn on_desktop_created(&self, callback: Box<OnDesktopCreated>) {
         self._on_desktop_created.replace(Some(callback));
     }
-    pub fn on_desktop_destroyed(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+    pub fn on_desktop_destroyed(&self, callback: Box<OnDesktopDestroyed>) {
         self._on_desktop_destroyed.replace(Some(callback));
     }
-    pub fn on_window_change(&self, callback: Box<dyn Fn(HWND) -> ()>) {
+    pub fn on_window_change(&self, callback: Box<OnDesktopWindowChange>) {
         self._on_window_change.replace(Some(callback));
     }
 }
@@ -99,18 +115,15 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
 
 impl Drop for VirtualDesktopChangeListener {
     fn drop(&mut self) {
-        match self.service.take() {
-            Some(s) => {
-                if self.cookie.get() != 0 {
-                    unsafe {
-                        #[cfg(feature = "debug")]
-                        println!("Unregister a listener {:?}", self.cookie.get());
-
-                        s.unregister(self.cookie.get());
-                    }
-                }
+        if self.cookie.get() == 0 {
+            return;
+        }
+        if let Some(s) = self.service.take() {
+            #[cfg(feature = "debug")]
+            println!("Unregister a listener {:?}", self.cookie.get());
+            unsafe {
+                s.unregister(self.cookie.get());
             }
-            None => {}
         }
     }
 }
@@ -151,8 +164,8 @@ impl VirtualDesktopChangeListener {
 
     fn new() -> Box<VirtualDesktopChangeListener> {
         VirtualDesktopChangeListener::allocate(
-            Cell::new(None),
-            Cell::new(0),
+            Arc::new(Cell::new(None)),
+            Arc::new(Cell::new(0)),
             RefCell::new(None),
             RefCell::new(None),
             RefCell::new(None),

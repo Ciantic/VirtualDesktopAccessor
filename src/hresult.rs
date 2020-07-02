@@ -45,3 +45,18 @@ impl From<i32> for HRESULT {
         HRESULT::from_i32(item)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ok() {
+        assert_eq!(HRESULT::ok().failed(), false);
+    }
+
+    #[test]
+    fn test_failure() {
+        assert_eq!(HRESULT(0x800706BA).failed(), true);
+    }
+}

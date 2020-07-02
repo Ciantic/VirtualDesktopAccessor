@@ -1,17 +1,32 @@
+use once_cell::sync::Lazy;
 use winapi::um::winuser::FindWindowW;
 
-use std::{ptr::null, time::Duration};
-use winvd::{Error, VirtualDesktopService, HWND};
+use std::{
+    ptr::null,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use winvd::{DesktopID, Error, VirtualDesktopService, HWND};
+
+fn on_desktop_change(old: DesktopID, new: DesktopID) {
+    println!("Desktop changed from {:?} to {:?}", old, new);
+}
+
+static VIRTUAL_DESKTOP_SERVICE: Lazy<VirtualDesktopService> = Lazy::new(|| {
+    // Arc::new(Mutex::new(
+    VirtualDesktopService::create_with_com().unwrap()
+    // ))
+});
 
 fn main() {
-    let service = VirtualDesktopService::create_with_com().unwrap();
+    let service = VIRTUAL_DESKTOP_SERVICE.clone();
 
-    service.on_desktop_change(Box::new(|old, new| {
-        println!("Desktop changed from {:?} to {:?}", old, new);
-    }));
+    service.on_desktop_change(Box::new(on_desktop_change));
 
     service.on_window_change(Box::new(|hwnd| {
-        println!("Window changed {:?} ", hwnd);
+        let service = VIRTUAL_DESKTOP_SERVICE.clone();
+        let d = service.get_current_desktop();
+        println!("Window changed {:?} ", d);
     }));
 
     service.on_desktop_created(Box::new(|desktop| {

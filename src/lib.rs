@@ -15,8 +15,11 @@ use interfaces::{
     IServiceProvider, IVirtualDesktop, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
     IVirtualDesktopPinnedApps,
 };
-use std::cell::Cell;
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
+pub use changelistener::{
+    OnDesktopChange, OnDesktopCreated, OnDesktopDestroyed, OnDesktopWindowChange,
+};
 pub use desktopid::DesktopID;
 pub use hresult::HRESULT;
 pub use interfaces::HWND;
@@ -72,8 +75,9 @@ impl From<HRESULT> for Result<(), Error> {
 /// If you don't use other COM objects in your project, you have to use
 /// `VirtualDesktopService::create_with_com()` constructor.
 ///
+#[derive(Clone)]
 pub struct VirtualDesktopService {
-    on_drop_deinit_apartment: Cell<bool>,
+    // on_drop_deinit_apartment: Cell<bool>,
     #[allow(dead_code)]
     service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
@@ -81,8 +85,13 @@ pub struct VirtualDesktopService {
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
-    events: Box<VirtualDesktopChangeListener>,
+    events: Arc<Box<VirtualDesktopChangeListener>>,
 }
+
+// Let's throw the last of the remaining safety away and implement the send and
+// sync. 🤞
+unsafe impl Sync for VirtualDesktopService {}
+unsafe impl Send for VirtualDesktopService {}
 
 impl VirtualDesktopService {
     /// Initialize service and COM apartment. If you don't use other COM API's,
@@ -91,7 +100,7 @@ impl VirtualDesktopService {
         // init_runtime().map_err(|o| Error::ApartmentInitError(o))?;
         init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
         let service = VirtualDesktopService::create()?;
-        service.on_drop_deinit_apartment.set(true);
+        // service.on_drop_deinit_apartment.set(true);
         Ok(service)
     }
 
@@ -105,7 +114,7 @@ impl VirtualDesktopService {
         let virtualdesktop_notification_service =
             get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
 
-        let vd_manager_internal = get_immersive_service_for_class(
+        let virtual_desktop_manager_internal = get_immersive_service_for_class(
             &service_provider,
             CLSID_VirtualDesktopManagerInternal,
         )?;
@@ -115,16 +124,18 @@ impl VirtualDesktopService {
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
 
-        let listener = VirtualDesktopChangeListener::register(virtualdesktop_notification_service)?;
+        let events = Arc::new(VirtualDesktopChangeListener::register(
+            virtualdesktop_notification_service,
+        )?);
 
         Ok(VirtualDesktopService {
-            on_drop_deinit_apartment: Cell::new(false),
-            virtual_desktop_manager: virtual_desktop_manager,
-            service_provider: service_provider,
-            events: listener,
-            virtual_desktop_manager_internal: vd_manager_internal,
-            app_view_collection: app_view_collection,
-            pinned_apps: pinned_apps,
+            // on_drop_deinit_apartment: Cell::new(false),
+            virtual_desktop_manager,
+            service_provider,
+            events,
+            virtual_desktop_manager_internal,
+            app_view_collection,
+            pinned_apps,
         })
     }
 
@@ -163,7 +174,7 @@ impl VirtualDesktopService {
                 }
                 &id == desktop
             })
-            .map(|v| v.clone())
+            .cloned()
             .ok_or(Error::DesktopNotFound)
     }
 
@@ -293,17 +304,17 @@ impl VirtualDesktopService {
     }
 
     /// Callback for desktop change event, callback gets old desktop id, and new desktop id
-    pub fn on_desktop_change(&self, callback: Box<dyn Fn(DesktopID, DesktopID) -> ()>) {
+    pub fn on_desktop_change(&self, callback: Box<OnDesktopChange>) {
         self.events.on_desktop_change(callback);
     }
 
     /// Callback for desktop creation, callback recieves new desktop id
-    pub fn on_desktop_created(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+    pub fn on_desktop_created(&self, callback: Box<OnDesktopCreated>) {
         self.events.on_desktop_created(callback);
     }
 
     /// Callback for on desktop destroy event, callback recieves old desktop id
-    pub fn on_desktop_destroyed(&self, callback: Box<dyn Fn(DesktopID) -> ()>) {
+    pub fn on_desktop_destroyed(&self, callback: Box<OnDesktopDestroyed>) {
         self.events.on_desktop_destroyed(callback);
     }
 
@@ -313,7 +324,7 @@ impl VirtualDesktopService {
     ///
     /// *Note* This can be a very chatty callback, and may have some false
     /// positives.
-    pub fn on_window_change(&self, callback: Box<dyn Fn(HWND) -> ()>) {
+    pub fn on_window_change(&self, callback: Box<OnDesktopWindowChange>) {
         self.events.on_window_change(callback);
     }
 
@@ -372,8 +383,8 @@ impl VirtualDesktopService {
 
 impl Drop for VirtualDesktopService {
     fn drop(&mut self) {
-        if self.on_drop_deinit_apartment.get() {
-            // deinit_apartment() // TODO: This panics for me in tests, why?
-        }
+        // if self.on_drop_deinit_apartment.get() {
+        // deinit_apartment() // TODO: This panics for me in tests, why?
+        // }
     }
 }
