@@ -11,6 +11,7 @@ repository = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 
 [dependencies]
 com = "0.2.0"
+crossbeam-channel = { version = "0.4.2" }
 
 [lib]
 name = "winvd"
