@@ -1,4 +1,3 @@
-use once_cell::sync::Lazy;
 use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, thread, time::Duration};

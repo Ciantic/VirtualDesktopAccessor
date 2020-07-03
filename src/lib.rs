@@ -8,30 +8,32 @@ mod interfaces;
 mod service;
 use changelistener::EventListener;
 use com::runtime::{init_apartment, ApartmentType};
-use com::{ComInterface, ComRc};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use service::VirtualDesktopService;
 use std::cell::RefCell;
 use std::{
-    cell::Cell,
-    rc::Rc,
-    sync::{Arc, LockResult, Mutex, RwLock},
+    sync::atomic::{AtomicPtr, Ordering},
     thread,
 };
-use thread::JoinHandle;
 
 pub use changelistener::VirtualDesktopEvent;
 pub use desktopid::DesktopID;
 pub use error::Error;
 pub use hresult::HRESULT;
 pub use interfaces::HWND;
+use once_cell::sync::Lazy;
 
 // Notice that VirtualDesktopService, and all ComRc types are not thread-safe,
 // so we must allocate VirtualDesktopService per thread.
 thread_local! {
     static SERVICE: RefCell<Result<VirtualDesktopService, Error>> = RefCell::new(Err(Error::ServiceNotCreated));
 }
+
+static EVENTLISTENER: Lazy<EventListener> = Lazy::new(EventListener::new);
+
+// static EVENTS: Lazy<(Sender<VirtualDesktopEvent>, Receiver<VirtualDesktopEvent>)> =
+//     Lazy::new(unbounded);
 
 fn errorhandler<T, F>(
     service: &RefCell<Result<VirtualDesktopService, Error>>,
@@ -43,15 +45,14 @@ where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
     #[cfg(feature = "debug")]
-    println!("Try to error correcting: {:?}", error);
+    println!("{:?} thread: {:?}", error, std::thread::current().id());
+
     if retry == 0 {
-        return Err(error);
+        return Err(Error::ServiceNotCreated);
     }
     match error {
         Error::ServiceNotCreated => {
-            #[cfg(feature = "debug")]
-            println!("Service is not created ...");
-
+            // Try to reinit
             #[allow(unused_must_use)]
             {
                 service.replace(VirtualDesktopService::create());
@@ -59,23 +60,15 @@ where
             recreate(cb, retry)
         }
         Error::ComNotInitialized => {
-            #[cfg(feature = "debug")]
-            println!("Init com apartment, and retry...");
-
             init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
-
             // Try to reinit
             #[allow(unused_must_use)]
             {
                 service.replace(Err(Error::ServiceNotCreated));
             }
-
             recreate(cb, retry)
         }
         Error::ComRpcUnavailable | Error::ComClassNotRegistered => {
-            #[cfg(feature = "debug")]
-            println!("RPC Went away, try to recreate...");
-
             // Try to reinit
             #[allow(unused_must_use)]
             {
@@ -92,21 +85,19 @@ where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
     SERVICE.with(|service| {
-        let bb = service.borrow();
-        let b = bb.as_ref();
-
-        match b {
+        let last_service = service.borrow();
+        match last_service.as_ref() {
             Err(er) => {
                 let e = er.clone();
-                // Drop is important! Otherwise this will give borrow panics on edge cases
-                drop(bb);
+                // Drop is important! Otherwise this will give borrow panics
+                drop(last_service);
                 errorhandler(service, e, cb, retry - 1)
             }
             Ok(v) => match cb(v) {
                 Ok(v) => Ok(v),
                 Err(er) => {
-                    // Drop is important! Otherwise this will give borrow panics on edge cases
-                    drop(bb);
+                    // Drop is important! Otherwise this will give borrow panics
+                    drop(last_service);
                     errorhandler(service, er, cb, retry - 1)
                 }
             },
@@ -121,12 +112,19 @@ where
     recreate(cb, 6)
 }
 
+/// Should be called when explorer is restarted
 pub fn notify_explorer_restarted() -> Result<(), Error> {
-    recreate(|_| Ok(()), 3)
+    SERVICE.with(|service| {
+        // let f = service.borrow();
+        // let ff = f.as_ref().unwrap();
+        // ff.
+        errorhandler(service, Error::ServiceNotCreated, |_| Ok(()), 6)
+    })
 }
 
 pub fn get_listener() -> Result<Receiver<VirtualDesktopEvent>, Error> {
     Err(Error::ComAllocatedNullPtr)
+    // Ok(EVENTS.1.clone())
 }
 
 /// Get desktops

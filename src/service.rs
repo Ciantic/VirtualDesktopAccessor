@@ -49,7 +49,7 @@ impl VirtualDesktopService {
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
 
         #[cfg(feature = "debug")]
-        println!("Create service");
+        println!("Service created.");
 
         Ok(VirtualDesktopService {
             virtual_desktop_manager,
