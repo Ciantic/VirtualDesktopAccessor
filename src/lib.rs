@@ -121,7 +121,7 @@ where
     recreate(cb, 6)
 }
 
-pub fn recreate_listener() -> Result<(), Error> {
+pub fn notify_explorer_restarted() -> Result<(), Error> {
     recreate(|_| Ok(()), 3)
 }
 
