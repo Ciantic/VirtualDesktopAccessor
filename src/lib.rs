@@ -30,22 +30,115 @@ pub use interfaces::HWND;
 // Notice that VirtualDesktopService, and all ComRc types are not thread-safe,
 // so we must allocate VirtualDesktopService per thread.
 thread_local! {
-    static SERVICE: RefCell<Result<VirtualDesktopService, Error>> = RefCell::new(Err(Error::NullPtr));
+    static SERVICE: RefCell<Result<VirtualDesktopService, Error>> = RefCell::new(Err(Error::ServiceNotCreated));
 }
 
-fn recreate_on_demand<T, F>(cb: F) -> Result<T, Error>
+fn errorhandler<T, F>(
+    service: &RefCell<Result<VirtualDesktopService, Error>>,
+    error: Error,
+    cb: F,
+    retry: u32,
+) -> Result<T, Error>
 where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
-    todo!()
+    println!("Try to error correcting {:?}", error);
+    if retry == 0 {
+        return Err(error);
+    }
+    match error {
+        Error::ServiceNotCreated => {
+            #[cfg(feature = "debug")]
+            println!("Service is not allocated, try to allocate ...");
+
+            #[allow(unused_must_use)]
+            {
+                service.replace(VirtualDesktopService::create());
+            }
+            recreate(cb, retry)
+        }
+        Error::ComNotInitialized => {
+            println!("Init apartment!");
+            init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
+
+            // Try to reinit
+            #[allow(unused_must_use)]
+            {
+                service.replace(Err(Error::ServiceNotCreated));
+            }
+
+            recreate(cb, retry)
+        }
+        Error::ComRpcUnavailable | Error::ComClassNotRegistered => {
+            // Try to reinit
+            #[allow(unused_must_use)]
+            {
+                service.replace(Err(Error::ServiceNotCreated));
+            }
+            recreate(cb, retry)
+        }
+        e => Err(e),
+    }
+}
+
+fn recreate<T, F>(cb: F, retry: u32) -> Result<T, Error>
+where
+    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
+{
+    SERVICE.with(|service| {
+        let bb = service.borrow();
+        let b = bb.as_ref();
+
+        // This first tries to allocate normal VirtualDesktopService, if it
+        // failes it tries to allocate service with COM apartment first
+        match b {
+            Err(er) => {
+                let e = er.clone();
+                drop(bb);
+                errorhandler(service, e, cb, retry - 1)
+            }
+            Ok(v) => cb(v),
+        }
+    })
 }
 
 fn with_service<T, F>(cb: F) -> Result<T, Error>
 where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
+    recreate(cb, 6)
+}
+
+/*
+fn recreate_on_demand<T, F>(
+    service: &RefCell<Result<VirtualDesktopService, Error>>,
+    cb: F,
+) -> Result<T, Error>
+where
+    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
+{
+    let bb = service.borrow();
+
+    // This first tries to allocate normal VirtualDesktopService, if it
+    // failes it tries to allocate service with COM apartment first
+    match bb.as_ref() {
+        Err(Error::ComNotInitialized) => {
+            init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
+            recreate_on_demand(service, cb)
+        }
+        // Err(Error::ComRpcUnavailable) => !todo(),
+        // Err(Error::ServiceNotCreated) => !todo(),
+        Err(e) => Err(e.clone()),
+        Ok(service) => cb(service),
+    }
+}
+*/
+/*
+fn with_service<T, F>(cb: F) -> Result<T, Error>
+where
+    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
+{
     SERVICE.with(|f| {
-        #[allow(unused_must_use)]
         let bb = f.borrow();
 
         // This first tries to allocate normal VirtualDesktopService, if it
@@ -93,6 +186,7 @@ where
         }
     })
 }
+*/
 
 pub fn recreate_listener() -> Result<(), Error> {
     // SOMETHING.store(None);
@@ -100,11 +194,11 @@ pub fn recreate_listener() -> Result<(), Error> {
     //     Ok(v) => Ok(()),
     //     Err(v) => Err(v),
     // }
-    Err(Error::NullPtr)
+    Err(Error::ComAllocatedNullPtr)
 }
 
 pub fn get_listener() -> Result<Receiver<VirtualDesktopEvent>, Error> {
-    Err(Error::NullPtr)
+    Err(Error::ComAllocatedNullPtr)
 }
 
 /// Get desktops

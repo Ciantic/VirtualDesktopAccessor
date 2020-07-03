@@ -80,7 +80,7 @@ impl VirtualDesktopService {
                 }
                 Ok(desktops)
             }
-            None => Err(Error::NullPtr),
+            None => Err(Error::ComAllocatedNullPtr),
         }
     }
 
@@ -116,7 +116,7 @@ impl VirtualDesktopService {
         })?;
         match ptr {
             Some(ptr) => Ok(ptr),
-            None => Err(Error::NullPtr),
+            None => Err(Error::ComAllocatedNullPtr),
         }
     }
 
@@ -140,7 +140,7 @@ impl VirtualDesktopService {
                 let mut count = 0;
                 Result::from(unsafe { objectarray.get_count(&mut count) }).map(|_| count)
             }
-            None => Err(Error::NullPtr),
+            None => Err(Error::ComAllocatedNullPtr),
         }
     }
 
@@ -156,7 +156,7 @@ impl VirtualDesktopService {
                 let mut desktopid = Default::default();
                 Result::from(unsafe { desktop.get_id(&mut desktopid) }).map(|_| desktopid)
             }
-            None => Err(Error::NullPtr),
+            None => Err(Error::ComAllocatedNullPtr),
         }
     }
 

@@ -61,7 +61,7 @@ impl EventListener {
                 v.replace(recreate_listener()?);
                 Ok(())
             }
-            Err(_) => Err(Error::PoisonError),
+            Err(_) => Err(Error::ComAllocatedNullPtr),
         }
     }
 }
