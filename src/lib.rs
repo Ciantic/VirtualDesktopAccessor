@@ -122,7 +122,7 @@ where
 }
 
 pub fn recreate_listener() -> Result<(), Error> {
-    Err(Error::ComAllocatedNullPtr)
+    recreate(|_| Ok(()), 3)
 }
 
 pub fn get_listener() -> Result<Receiver<VirtualDesktopEvent>, Error> {
