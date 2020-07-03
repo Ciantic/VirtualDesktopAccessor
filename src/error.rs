@@ -17,6 +17,10 @@ pub enum Error {
     /// to winapi function `CoInitialize`.
     ComNotInitialized,
 
+    /// When RPC server is not available, this is an indication that explorer
+    /// needs to be restarted
+    ComRpcUnavailable,
+
     /// Some COM result error
     ComError(HRESULT),
 
@@ -32,6 +36,7 @@ impl From<HRESULT> for Error {
         match hr {
             HRESULT(0x80040154) => Error::ComClassNotRegistered,
             HRESULT(0x800401F0) => Error::ComNotInitialized,
+            HRESULT(0x800706BA) => Error::ComRpcUnavailable,
             _ => Error::ComError(hr),
         }
     }

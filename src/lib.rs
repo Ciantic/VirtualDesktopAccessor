@@ -33,6 +33,13 @@ thread_local! {
     static SERVICE: RefCell<Result<VirtualDesktopService, Error>> = RefCell::new(Err(Error::NullPtr));
 }
 
+fn recreate_on_demand<T, F>(cb: F) -> Result<T, Error>
+where
+    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
+{
+    todo!()
+}
+
 fn with_service<T, F>(cb: F) -> Result<T, Error>
 where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
@@ -41,7 +48,8 @@ where
         #[allow(unused_must_use)]
         let bb = f.borrow();
 
-        // This first tries to allocate normal VirtualDesktopService
+        // This first tries to allocate normal VirtualDesktopService, if it
+        // failes it tries to allocate service with COM apartment first
         match bb.as_ref() {
             Err(e) => {
                 // Dropping bb allows to replace the value again
