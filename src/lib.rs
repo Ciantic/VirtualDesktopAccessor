@@ -42,14 +42,15 @@ fn errorhandler<T, F>(
 where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
-    println!("Try to error correcting {:?}", error);
+    #[cfg(feature = "debug")]
+    println!("Try to error correcting: {:?}", error);
     if retry == 0 {
         return Err(error);
     }
     match error {
         Error::ServiceNotCreated => {
             #[cfg(feature = "debug")]
-            println!("Service is not allocated, try to allocate ...");
+            println!("Service is not created ...");
 
             #[allow(unused_must_use)]
             {
@@ -58,7 +59,9 @@ where
             recreate(cb, retry)
         }
         Error::ComNotInitialized => {
-            println!("Init apartment!");
+            #[cfg(feature = "debug")]
+            println!("Init com apartment, and retry...");
+
             init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
 
             // Try to reinit
@@ -70,6 +73,9 @@ where
             recreate(cb, retry)
         }
         Error::ComRpcUnavailable | Error::ComClassNotRegistered => {
+            #[cfg(feature = "debug")]
+            println!("RPC Went away, try to recreate...");
+
             // Try to reinit
             #[allow(unused_must_use)]
             {
@@ -89,15 +95,21 @@ where
         let bb = service.borrow();
         let b = bb.as_ref();
 
-        // This first tries to allocate normal VirtualDesktopService, if it
-        // failes it tries to allocate service with COM apartment first
         match b {
             Err(er) => {
                 let e = er.clone();
+                // Drop is important! Otherwise this will give borrow panics on edge cases
                 drop(bb);
                 errorhandler(service, e, cb, retry - 1)
             }
-            Ok(v) => cb(v),
+            Ok(v) => match cb(v) {
+                Ok(v) => Ok(v),
+                Err(er) => {
+                    // Drop is important! Otherwise this will give borrow panics on edge cases
+                    drop(bb);
+                    errorhandler(service, er, cb, retry - 1)
+                }
+            },
         }
     })
 }
@@ -109,91 +121,7 @@ where
     recreate(cb, 6)
 }
 
-/*
-fn recreate_on_demand<T, F>(
-    service: &RefCell<Result<VirtualDesktopService, Error>>,
-    cb: F,
-) -> Result<T, Error>
-where
-    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
-{
-    let bb = service.borrow();
-
-    // This first tries to allocate normal VirtualDesktopService, if it
-    // failes it tries to allocate service with COM apartment first
-    match bb.as_ref() {
-        Err(Error::ComNotInitialized) => {
-            init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
-            recreate_on_demand(service, cb)
-        }
-        // Err(Error::ComRpcUnavailable) => !todo(),
-        // Err(Error::ServiceNotCreated) => !todo(),
-        Err(e) => Err(e.clone()),
-        Ok(service) => cb(service),
-    }
-}
-*/
-/*
-fn with_service<T, F>(cb: F) -> Result<T, Error>
-where
-    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
-{
-    SERVICE.with(|f| {
-        let bb = f.borrow();
-
-        // This first tries to allocate normal VirtualDesktopService, if it
-        // failes it tries to allocate service with COM apartment first
-        match bb.as_ref() {
-            Err(e) => {
-                // Dropping bb allows to replace the value again
-                drop(bb);
-
-                #[cfg(feature = "debug")]
-                println!("Service is not allocated, try to allocate without COM");
-
-                #[allow(unused_must_use)]
-                {
-                    f.replace(VirtualDesktopService::create());
-                }
-
-                let bb = f.borrow();
-                match bb.as_ref() {
-                    Ok(v) => cb(v),
-                    Err(Error::ComNotInitialized) => {
-                        // Dropping bb allows to replace the value again
-                        drop(bb);
-
-                        #[cfg(feature = "debug")]
-                        println!("Com was not initialized, try to initialize COM first");
-
-                        init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
-
-                        #[allow(unused_must_use)]
-                        {
-                            f.replace(VirtualDesktopService::create());
-                        }
-                        let bb = f.borrow();
-                        let b = bb.as_ref();
-                        match b {
-                            Err(v) => Err(v.clone()),
-                            Ok(v) => cb(v),
-                        }
-                    }
-                    Err(v) => Err(v.clone()),
-                }
-            }
-            Ok(v) => cb(v),
-        }
-    })
-}
-*/
-
 pub fn recreate_listener() -> Result<(), Error> {
-    // SOMETHING.store(None);
-    // match EVENTS {
-    //     Ok(v) => Ok(()),
-    //     Err(v) => Err(v),
-    // }
     Err(Error::ComAllocatedNullPtr)
 }
 

@@ -23,6 +23,7 @@ fn main() {
     thread::spawn(|| {
         thread::sleep(Duration::from_secs(2));
         let desktop_count = get_desktop_count();
+        println!("----------------------------------------------------");
         println!(
             "In separate thread {:?}, call desktop count {:?}",
             thread::current().id(),
