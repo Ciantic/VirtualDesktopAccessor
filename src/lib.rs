@@ -6,15 +6,17 @@ mod hresult;
 mod immersive;
 mod interfaces;
 mod service;
-use changelistener::EventListener;
-use com::runtime::{init_apartment, ApartmentType};
+use com::runtime::{init_apartment, init_runtime, ApartmentType};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use service::VirtualDesktopService;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::{
-    sync::atomic::{AtomicPtr, Ordering},
-    thread,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
+    time::Duration,
 };
 
 pub use changelistener::VirtualDesktopEvent;
@@ -24,107 +26,96 @@ pub use hresult::HRESULT;
 pub use interfaces::HWND;
 use once_cell::sync::Lazy;
 
-// Notice that VirtualDesktopService, and all ComRc types are not thread-safe,
-// so we must allocate VirtualDesktopService per thread.
-thread_local! {
-    static SERVICE: RefCell<Result<VirtualDesktopService, Error>> = RefCell::new(Err(Error::ServiceNotCreated));
-}
+static SERVICE: Lazy<Mutex<RefCell<Result<VirtualDesktopService, Error>>>> =
+    Lazy::new(|| Mutex::new(RefCell::new(Err(Error::ServiceNotCreated))));
 
-static EVENTLISTENER: Lazy<EventListener> = Lazy::new(EventListener::new);
+static EVENTS: Lazy<(Sender<VirtualDesktopEvent>, Receiver<VirtualDesktopEvent>)> =
+    Lazy::new(unbounded);
 
-// static EVENTS: Lazy<(Sender<VirtualDesktopEvent>, Receiver<VirtualDesktopEvent>)> =
-//     Lazy::new(unbounded);
+static HAS_LISTENERS: AtomicBool = AtomicBool::new(false);
 
-fn errorhandler<T, F>(
-    service: &RefCell<Result<VirtualDesktopService, Error>>,
-    error: Error,
-    cb: F,
-    retry: u32,
-) -> Result<T, Error>
-where
-    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
-{
+fn error_side_effect(err: &Error) -> Result<bool, Error> {
     #[cfg(feature = "debug")]
-    println!("{:?} thread: {:?}", error, std::thread::current().id());
+    println!("{:?}", err);
 
-    if retry == 0 {
-        return Err(Error::ServiceNotCreated);
-    }
-    match error {
-        Error::ServiceNotCreated => {
-            // Try to reinit
-            #[allow(unused_must_use)]
-            {
-                service.replace(VirtualDesktopService::create());
-            }
-            recreate(cb, retry)
-        }
+    match err {
         Error::ComNotInitialized => {
+            #[cfg(feature = "debug")]
+            println!("Com initialize");
+            // init_runtime().map_err(HRESULT::from_i32)?;
             init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
-            // Try to reinit
-            #[allow(unused_must_use)]
-            {
-                service.replace(Err(Error::ServiceNotCreated));
-            }
-            recreate(cb, retry)
+            Ok(true)
         }
-        Error::ComRpcUnavailable | Error::ComClassNotRegistered => {
-            // Try to reinit
-            #[allow(unused_must_use)]
-            {
-                service.replace(Err(Error::ServiceNotCreated));
-            }
-            recreate(cb, retry)
+        Error::ServiceNotCreated | Error::ComRpcUnavailable | Error::ComClassNotRegistered => {
+            Ok(true)
         }
-        e => Err(e),
+        _ => Ok(false),
     }
-}
-
-fn recreate<T, F>(cb: F, retry: u32) -> Result<T, Error>
-where
-    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
-{
-    SERVICE.with(|service| {
-        let last_service = service.borrow();
-        match last_service.as_ref() {
-            Err(er) => {
-                let e = er.clone();
-                // Drop is important! Otherwise this will give borrow panics
-                drop(last_service);
-                errorhandler(service, e, cb, retry - 1)
-            }
-            Ok(v) => match cb(v) {
-                Ok(v) => Ok(v),
-                Err(er) => {
-                    // Drop is important! Otherwise this will give borrow panics
-                    drop(last_service);
-                    errorhandler(service, er, cb, retry - 1)
-                }
-            },
-        }
-    })
 }
 
 fn with_service<T, F>(cb: F) -> Result<T, Error>
 where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
-    recreate(cb, 6)
+    match SERVICE.lock() {
+        Ok(cell) => {
+            for _ in 0..6 {
+                let service_ref: Ref<Result<VirtualDesktopService, Error>> = (*cell).borrow();
+                let result = service_ref.as_ref();
+                match result {
+                    Ok(v) => match cb(&v) {
+                        Ok(r) => return Ok(r),
+                        Err(err) => match error_side_effect(&err) {
+                            Ok(false) => return Err(err),
+                            Ok(true) => (),
+                            Err(err) => return Err(err),
+                        },
+                    },
+                    Err(err) => {
+                        // Ignore
+                        #[allow(unused_must_use)]
+                        {
+                            error_side_effect(&err);
+                        }
+                    }
+                }
+                drop(service_ref);
+                #[cfg(feature = "debug")]
+                println!("Try to create");
+                let _ = (*cell).replace(VirtualDesktopService::create());
+            }
+            Err(Error::ServiceNotCreated)
+        }
+        Err(_) => {
+            #[cfg(feature = "debug")]
+            println!("Lock failed?");
+            Err(Error::ServiceNotCreated)
+        }
+    }
 }
 
 /// Should be called when explorer is restarted
 pub fn notify_explorer_restarted() -> Result<(), Error> {
-    SERVICE.with(|service| {
-        // let f = service.borrow();
-        // let ff = f.as_ref().unwrap();
-        // ff.
-        errorhandler(service, Error::ServiceNotCreated, |_| Ok(()), 6)
-    })
+    if let Ok(cell) = SERVICE.lock() {
+        let _ = (*cell).replace(Ok(VirtualDesktopService::create()?));
+        Ok(())
+    } else {
+        Ok(())
+    }
 }
 
-pub fn get_listener() -> Result<Receiver<VirtualDesktopEvent>, Error> {
-    Err(Error::ComAllocatedNullPtr)
-    // Ok(EVENTS.1.clone())
+/// Get event receiver
+pub fn get_event_receiver() -> Receiver<VirtualDesktopEvent> {
+    // std::thread::spawn(|| {
+    //     std::thread::sleep(Duration::from_secs(3));
+    let _res = with_service(|s| {
+        s.get_event_receiver()?;
+        HAS_LISTENERS.store(true, Ordering::SeqCst);
+        Ok(())
+    });
+    // });
+
+    EVENTS.1.clone()
 }
 
 /// Get desktops

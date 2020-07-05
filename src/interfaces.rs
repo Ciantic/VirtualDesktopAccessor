@@ -3,7 +3,7 @@
 
 use crate::{desktopid::DesktopID, hresult::HRESULT};
 use com::com_interface;
-use com::{interfaces::IUnknown, sys::CLSID, ComRc, IID};
+use com::{interfaces::IUnknown, sys::CLSID, ComPtr, ComRc, IID};
 use std::ffi::c_void;
 
 pub const CLSID_ImmersiveShell: CLSID = CLSID {
@@ -304,42 +304,50 @@ pub trait IApplicationViewCollection: IUnknown {
     unsafe fn unregister_for_application_view_changes(&self, id: DWORD) -> HRESULT;
 }
 
-#[com_interface("C179334C-4295-40D3-BEA1-C654D965605A")]
+#[com_interface("c179334c-4295-40d3-bea1-c654d965605a")]
 pub trait IVirtualDesktopNotification: IUnknown {
-    unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
+    unsafe fn virtual_desktop_created(
+        &self,
+        desktop: ComRc<dyn IVirtualDesktop>,
+    ) -> com::sys::HRESULT;
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
+    ) -> com::sys::HRESULT;
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
+    ) -> com::sys::HRESULT;
 
     unsafe fn virtual_desktop_destroyed(
         &self,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
+    ) -> com::sys::HRESULT;
 
-    unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT;
+    unsafe fn view_virtual_desktop_changed(
+        &self,
+        view: ComRc<dyn IApplicationView>,
+    ) -> com::sys::HRESULT;
 
     unsafe fn current_virtual_desktop_changed(
         &self,
         desktopOld: ComRc<dyn IVirtualDesktop>,
         desktopNew: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
+    ) -> com::sys::HRESULT;
 }
 
 #[com_interface("0cd45e71-d927-4f15-8b0a-8fef525337bf")]
 pub trait IVirtualDesktopNotificationService: IUnknown {
     unsafe fn register(
         &self,
+        // notification: ComPtr<dyn IVirtualDesktopNotification>,
         notification: ComRc<dyn IVirtualDesktopNotification>,
+        // notification: *mut c_void,
         outCookie: *mut DWORD,
     ) -> HRESULT;
 

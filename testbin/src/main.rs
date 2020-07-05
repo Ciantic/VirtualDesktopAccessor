@@ -2,23 +2,39 @@ use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, thread, time::Duration};
 use winvd::{
-    get_current_desktop, get_desktop_by_window, get_desktop_count, get_desktops, go_to_desktop,
-    is_window_on_current_virtual_desktop, is_window_on_desktop, move_window_to_desktop, pin_window,
-    unpin_window, Error, HWND,
+    get_current_desktop, get_desktop_by_window, get_desktop_count, get_desktops,
+    get_event_receiver, go_to_desktop, is_window_on_current_virtual_desktop, is_window_on_desktop,
+    move_window_to_desktop, pin_window, unpin_window, Error, VirtualDesktopEvent, HWND,
 };
 
 fn main() {
-    // thread::spawn(|| match DESKTOP_EVENTS.recv() {
-    //     Ok(VirtualDesktopEvent::DesktopChanged(d)) => {
-    //         println!("Desktop changed {:?}", d);
-    //     }
-    //     Ok(VirtualDesktopEvent::DesktopChanged(d)) => {
-    //         println!("Desktop changed {:?}", d);
-    //     }
-    //     _ => {}
-    // });
+    thread::spawn(|| {
+        thread::sleep(Duration::from_secs(1));
+        println!("------------------------------------------------");
+        let _e = get_event_receiver();
+        loop {
+            match _e.recv().unwrap() {
+                VirtualDesktopEvent::DesktopChanged(old, new) => {
+                    println!(
+                        "<- Desktop changed from {:?} to {:?} {:?}",
+                        old,
+                        new,
+                        thread::current().id()
+                    );
+                }
+                VirtualDesktopEvent::DesktopCreated(desk) => {
+                    println!("<- New desktop created {:?}", desk);
+                }
+                VirtualDesktopEvent::DesktopDestroyed(desk) => {
+                    println!("<- Desktop destroyed {:?}", desk);
+                }
+                VirtualDesktopEvent::WindowChanged(hwnd) => {
+                    println!("<- Window changed {:?}", hwnd);
+                }
+            }
+        }
+    });
 
-    // You should see only one "Deallocate VirtualDesktopService in thread." during the execution of this program.
     thread::spawn(|| {
         thread::sleep(Duration::from_secs(2));
         let desktop_count = get_desktop_count();

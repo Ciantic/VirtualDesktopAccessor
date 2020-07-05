@@ -1,15 +1,19 @@
 use crate::comhelpers::create_instance;
 use crate::immersive::{get_immersive_service, get_immersive_service_for_class};
 use crate::{
+    changelistener::RegisteredListener,
     interfaces::{
-        CLSID_ImmersiveShell, CLSID_VirtualDesktopManagerInternal, CLSID_VirtualDesktopPinnedApps,
-        IApplicationView, IApplicationViewCollection, IObjectArray, IServiceProvider,
-        IVirtualDesktop, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
+        CLSID_IVirtualNotificationService, CLSID_ImmersiveShell,
+        CLSID_VirtualDesktopManagerInternal, CLSID_VirtualDesktopPinnedApps, IApplicationView,
+        IApplicationViewCollection, IObjectArray, IServiceProvider, IVirtualDesktop,
+        IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopNotificationService,
         IVirtualDesktopPinnedApps,
     },
-    DesktopID, Error, HRESULT, HWND,
+    DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
 };
 use com::{ComInterface, ComRc};
+use crossbeam_channel::Receiver;
+use std::{cell::RefCell, sync::atomic::Ordering};
 
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
 /// functions.
@@ -18,17 +22,20 @@ use com::{ComInterface, ComRc};
 /// `VirtualDesktopService::create_with_com()` constructor.
 ///
 pub struct VirtualDesktopService {
-    #[allow(dead_code)]
     service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
+    virtualdesktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
+    registered_listener: RefCell<Option<RegisteredListener>>,
 }
 
-// Let's throw the last of the remaining safety away and implement the send 🤞
-// unsafe impl Send for VirtualDesktopService {}
-// unsafe impl Sync for VirtualDesktopService {}
+// Let's throw the last of the remaining safety away and implement the send and
+// sync 🤞. COM pointers are usually thread safe, but accessing them needs to be
+// synced. Access is synced by having Mutex in main Lazy initialization.
+unsafe impl Send for VirtualDesktopService {}
+unsafe impl Sync for VirtualDesktopService {}
 
 impl VirtualDesktopService {
     /// Initialize only the service, must be-created on TaskbarCreated message
@@ -47,15 +54,29 @@ impl VirtualDesktopService {
 
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
+        let virtualdesktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
+            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
 
         #[cfg(feature = "debug")]
-        println!("Service created.");
+        println!("VirtualDesktopService created.");
 
         Ok(VirtualDesktopService {
+            registered_listener: if HAS_LISTENERS.load(Ordering::SeqCst) {
+                #[cfg(feature = "debug")]
+                println!("Has listeners, so try to recreate...");
+                RefCell::new(Some(RegisteredListener::register(
+                    EVENTS.0.clone(),
+                    EVENTS.1.clone(),
+                    virtualdesktop_notification_service.clone(),
+                )?))
+            } else {
+                RefCell::new(None)
+            },
             virtual_desktop_manager,
             service_provider,
             virtual_desktop_manager_internal,
             app_view_collection,
+            virtualdesktop_notification_service,
             pinned_apps,
         })
     }
@@ -117,6 +138,27 @@ impl VirtualDesktopService {
         match ptr {
             Some(ptr) => Ok(ptr),
             None => Err(Error::ComAllocatedNullPtr),
+        }
+    }
+
+    pub fn get_event_receiver(&self) -> Result<Receiver<VirtualDesktopEvent>, Error> {
+        #[cfg(feature = "debug")]
+        println!("Get event receiver...");
+
+        let v = self.registered_listener.borrow();
+        match v.as_ref() {
+            Some(listener) => Ok(listener.get_receiver()),
+            None => {
+                drop(v);
+                let _ = self
+                    .registered_listener
+                    .replace(Some(RegisteredListener::register(
+                        EVENTS.0.clone(),
+                        EVENTS.1.clone(),
+                        self.virtualdesktop_notification_service.clone(),
+                    )?));
+                Ok(EVENTS.1.clone())
+            }
         }
     }
 
@@ -230,8 +272,6 @@ impl VirtualDesktopService {
 impl Drop for VirtualDesktopService {
     fn drop(&mut self) {
         // This panics on debug mode
-        std::panic::catch_unwind(|| {
-            println!("Deallocate VirtualDesktopService in thread.");
-        });
+        println!("Deallocate VirtualDesktopService in thread.");
     }
 }

@@ -14,10 +14,10 @@
             "args": ["--package", "testbin"],
             "problemMatcher": ["$rustc"],
             "group": "build",
-            "label": "testbin"
-            // "env": {
-            //     "RUST_BACKTRACE": "1"
-            // }
+            "label": "testbin",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
         },
         {
             "type": "cargo",
