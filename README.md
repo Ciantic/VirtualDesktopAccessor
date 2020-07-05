@@ -24,10 +24,9 @@ fn main() {
         get_event_receiver().iter().for_each(|msg| match msg {
             VirtualDesktopEvent::DesktopChanged(old, new) => {
                 println!(
-                    "<- Desktop changed from {:?} to {:?} {:?}",
+                    "<- Desktop changed from {:?} to {:?}",
                     old,
-                    new,
-                    thread::current().id()
+                    new
                 );
             }
             VirtualDesktopEvent::DesktopCreated(desk) => {
