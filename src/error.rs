@@ -19,9 +19,7 @@ pub enum Error {
     /// explorer.exe is not running.
     ComClassNotRegistered,
 
-    /// COM apartment is not initialized, please use appropriate constructor
-    /// `VirtualDesktopService::create_with_com` or initialize with direct call
-    /// to winapi function `CoInitialize`.
+    /// COM apartment is not initialized
     ComNotInitialized,
 
     /// When RPC server is not available, this is an indication that explorer
