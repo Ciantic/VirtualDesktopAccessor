@@ -139,6 +139,7 @@ impl VirtualDesktopService {
         }
     }
 
+    /// Get event receiver
     pub fn get_event_receiver(&self) -> Result<Receiver<VirtualDesktopEvent>, Error> {
         #[cfg(feature = "debug")]
         println!("Get event receiver...");
@@ -158,6 +159,22 @@ impl VirtualDesktopService {
                 Ok(EVENTS.1.clone())
             }
         }
+    }
+
+    /// Get desktop index
+    pub fn get_desktop_by_index(&self, desktop: usize) -> Result<DesktopID, Error> {
+        self.get_desktops()?
+            .get(desktop)
+            .cloned()
+            .ok_or(Error::DesktopNotFound)
+    }
+
+    /// Get desktop index
+    pub fn get_index_by_desktop(&self, desktop: DesktopID) -> Result<usize, Error> {
+        self.get_desktops()?
+            .iter()
+            .position(|x| x == &desktop)
+            .ok_or(Error::DesktopNotFound)
     }
 
     /// Get desktop IDs

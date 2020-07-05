@@ -7,6 +7,7 @@ mod immersive;
 mod interfaces;
 mod service;
 use crate::comhelpers::ComError;
+use crate::desktopid::DesktopID;
 use crate::service::VirtualDesktopService;
 use com::runtime::{init_apartment, ApartmentType};
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -17,11 +18,10 @@ use std::sync::{
     Mutex,
 };
 
-pub use changelistener::VirtualDesktopEvent;
-pub use desktopid::DesktopID;
-pub use error::Error;
-pub use hresult::HRESULT;
-pub use interfaces::HWND;
+pub use crate::changelistener::VirtualDesktopEvent;
+pub use crate::error::Error;
+pub use crate::hresult::HRESULT;
+pub use crate::interfaces::HWND;
 
 static SERVICE: Lazy<Mutex<RefCell<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Mutex::new(RefCell::new(Err(Error::ServiceNotCreated))));
@@ -122,8 +122,13 @@ pub fn get_event_receiver() -> Receiver<VirtualDesktopEvent> {
 }
 
 /// Get desktops
-pub fn get_desktops() -> Result<Vec<DesktopID>, Error> {
+pub(crate) fn get_desktops() -> Result<Vec<DesktopID>, Error> {
     with_service(|s| s.get_desktops())
+}
+
+/// Get index of a desktop
+pub(crate) fn get_index_by_desktop(desktop: DesktopID) -> Result<usize, Error> {
+    with_service(|s| s.get_index_by_desktop(desktop))
 }
 
 /// Get number of desktops
@@ -131,14 +136,14 @@ pub fn get_desktop_count() -> Result<u32, Error> {
     with_service(|s| s.get_desktop_count())
 }
 
-/// Get current desktop ID
-pub fn get_current_desktop() -> Result<DesktopID, Error> {
-    with_service(|s| s.get_current_desktop())
+/// Get current desktop number
+pub fn get_current_desktop() -> Result<usize, Error> {
+    with_service(|s| s.get_index_by_desktop(s.get_current_desktop()?))
 }
 
-/// Get window desktop ID
-pub fn get_desktop_by_window(hwnd: HWND) -> Result<DesktopID, Error> {
-    with_service(|s| s.get_desktop_by_window(hwnd))
+/// Get desktop number by window
+pub fn get_desktop_by_window(hwnd: HWND) -> Result<usize, Error> {
+    with_service(|s| s.get_index_by_desktop(s.get_desktop_by_window(hwnd)?))
 }
 
 /// Is window on current virtual desktop
@@ -146,19 +151,19 @@ pub fn is_window_on_current_virtual_desktop(hwnd: HWND) -> Result<bool, Error> {
     with_service(|s| s.is_window_on_current_virtual_desktop(hwnd))
 }
 
-/// Is window on desktop
-pub fn is_window_on_desktop(hwnd: HWND, desktop: &DesktopID) -> Result<bool, Error> {
-    with_service(|s| s.is_window_on_desktop(hwnd, desktop))
+/// Is window on desktop number
+pub fn is_window_on_desktop(hwnd: HWND, desktop: usize) -> Result<bool, Error> {
+    with_service(|s| s.is_window_on_desktop(hwnd, &s.get_desktop_by_index(desktop)?))
 }
 
-/// Move window to desktop
-pub fn move_window_to_desktop(hwnd: HWND, desktop: &DesktopID) -> Result<(), Error> {
-    with_service(|s| s.move_window_to_desktop(hwnd, desktop))
+/// Move window to desktop number
+pub fn move_window_to_desktop(hwnd: HWND, desktop: usize) -> Result<(), Error> {
+    with_service(|s| s.move_window_to_desktop(hwnd, &s.get_desktop_by_index(desktop)?))
 }
 
-/// Go to desktop
-pub fn go_to_desktop(desktop: &DesktopID) -> Result<(), Error> {
-    with_service(|s| s.go_to_desktop(desktop))
+/// Go to desktop number
+pub fn go_to_desktop(desktop: usize) -> Result<(), Error> {
+    with_service(|s| s.go_to_desktop(&s.get_desktop_by_index(desktop)?))
 }
 
 /// Is window pinned?

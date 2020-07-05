@@ -8,16 +8,14 @@ The implementation abstracts the annoying COM API to a simple functions. Accessi
 ## Example
 
 ```rust
-use winvd::{get_desktops, go_to_desktop, get_event_receiver};
+use winvd::{get_desktop_count, go_to_desktop, get_event_receiver};
 
 fn main() {
-    // Show all desktops
-    let desktops = get_desktops().unwrap();
-    println!("Desktops {:?}", desktops);
+    // Desktop count
+    println!("Desktops: {:?}", get_desktop_count());
 
     // Go to second desktop, index = 1
-    let second_desktop = desktops.get(1).unwrap();
-    go_to_desktop(second_desktop).unwrap();
+    go_to_desktop(1).unwrap();
 
     // Listen on interesting events
     std::thread::spawn(|| {

@@ -4,6 +4,7 @@
 use com::{co_class, interfaces::IUnknown, ComRc};
 
 use crate::{
+    get_desktops, get_index_by_desktop,
     hresult::HRESULT,
     interfaces::{
         IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
@@ -14,9 +15,9 @@ use crate::{
 use crossbeam_channel::{Receiver, Sender};
 
 pub enum VirtualDesktopEvent {
-    DesktopCreated(DesktopID),
-    DesktopDestroyed(DesktopID),
-    DesktopChanged(DesktopID, DesktopID),
+    DesktopCreated(usize),
+    DesktopDestroyed(usize),
+    DesktopChanged(usize, usize),
     WindowChanged(HWND),
 }
 
@@ -126,9 +127,11 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT {
         let mut id: DesktopID = Default::default();
         desktop.get_id(&mut id);
-        let _ = self
-            .sender
-            .try_send(VirtualDesktopEvent::DesktopCreated(id));
+        if let Ok(index) = get_index_by_desktop(id) {
+            let _ = self
+                .sender
+                .try_send(VirtualDesktopEvent::DesktopCreated(index));
+        }
         HRESULT::ok()
     }
 
@@ -158,9 +161,13 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     ) -> HRESULT {
         let mut id: DesktopID = Default::default();
         destroyed_desktop.get_id(&mut id);
-        let _ = self
-            .sender
-            .try_send(VirtualDesktopEvent::DesktopDestroyed(id));
+
+        // TODO: Can this work, should I move this to destroy begin?
+        if let Ok(index) = get_index_by_desktop(id) {
+            let _ = self
+                .sender
+                .try_send(VirtualDesktopEvent::DesktopDestroyed(index));
+        }
         HRESULT::ok()
     }
 
@@ -197,9 +204,23 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         #[cfg(feature = "debug")]
         println!("-> Desktop changed {:?}", std::thread::current().id());
 
-        let _ = self
-            .sender
-            .try_send(VirtualDesktopEvent::DesktopChanged(old_id, new_id));
+        // Get desktop indices and notify back
+        if let Ok(desktops) = get_desktops() {
+            let mut old = std::usize::MAX;
+            let mut new = std::usize::MAX;
+            for (i, desktop) in desktops.iter().enumerate() {
+                if desktop == &old_id {
+                    old = i;
+                } else if desktop == &new_id {
+                    new = i;
+                }
+            }
+            if old != std::usize::MAX && new != std::usize::MAX {
+                let _ = self
+                    .sender
+                    .try_send(VirtualDesktopEvent::DesktopChanged(old, new));
+            }
+        }
         HRESULT::ok()
     }
 }
