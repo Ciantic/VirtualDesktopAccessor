@@ -13,7 +13,15 @@ pub fn get_immersive_service_for_class<T: ComInterface + ?Sized>(
     class_id: GUID,
 ) -> Result<ComRc<T>, HRESULT> {
     let mut obj = std::ptr::null_mut::<c_void>();
+    // unsafe {
+    //     use com::interfaces::iunknown::IUnknown;
+    //     service_provider.add_ref();
+    // }
     let res = unsafe { (*service_provider).query_service(&class_id, &T::IID, &mut obj) };
+    // unsafe {
+    //     use com::interfaces::iunknown::IUnknown;
+    //     service_provider.release();
+    // }
 
     if res.failed() {
         return Err(res);

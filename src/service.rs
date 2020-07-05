@@ -39,7 +39,7 @@ unsafe impl Sync for VirtualDesktopService {}
 
 impl VirtualDesktopService {
     /// Initialize only the service, must be-created on TaskbarCreated message
-    pub fn create() -> Result<VirtualDesktopService, Error> {
+    pub fn create() -> Result<Box<VirtualDesktopService>, Error> {
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
 
         let virtual_desktop_manager =
@@ -60,7 +60,7 @@ impl VirtualDesktopService {
         #[cfg(feature = "debug")]
         println!("VirtualDesktopService created.");
 
-        Ok(VirtualDesktopService {
+        Ok(Box::new(VirtualDesktopService {
             registered_listener: if HAS_LISTENERS.load(Ordering::SeqCst) {
                 #[cfg(feature = "debug")]
                 println!("Has listeners, so try to recreate...");
@@ -78,7 +78,7 @@ impl VirtualDesktopService {
             app_view_collection,
             virtualdesktop_notification_service,
             pinned_apps,
-        })
+        }))
     }
 
     /// Get raw desktop list

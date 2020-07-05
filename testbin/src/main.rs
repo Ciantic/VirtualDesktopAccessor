@@ -8,6 +8,8 @@ use winvd::{
 };
 
 fn main() {
+    let _ = get_event_receiver();
+
     thread::spawn(|| {
         thread::sleep(Duration::from_secs(1));
         println!("------------------------------------------------");

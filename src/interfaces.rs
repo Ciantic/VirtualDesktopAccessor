@@ -306,39 +306,33 @@ pub trait IApplicationViewCollection: IUnknown {
 
 #[com_interface("c179334c-4295-40d3-bea1-c654d965605a")]
 pub trait IVirtualDesktopNotification: IUnknown {
-    unsafe fn virtual_desktop_created(
-        &self,
-        desktop: ComRc<dyn IVirtualDesktop>,
-    ) -> com::sys::HRESULT;
+    unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> com::sys::HRESULT;
+    ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> com::sys::HRESULT;
+    ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroyed(
         &self,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> com::sys::HRESULT;
+    ) -> HRESULT;
 
-    unsafe fn view_virtual_desktop_changed(
-        &self,
-        view: ComRc<dyn IApplicationView>,
-    ) -> com::sys::HRESULT;
+    unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT;
 
     unsafe fn current_virtual_desktop_changed(
         &self,
         desktopOld: ComRc<dyn IVirtualDesktop>,
         desktopNew: ComRc<dyn IVirtualDesktop>,
-    ) -> com::sys::HRESULT;
+    ) -> HRESULT;
 }
 
 #[com_interface("0cd45e71-d927-4f15-8b0a-8fef525337bf")]

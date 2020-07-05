@@ -10,7 +10,7 @@ use com::runtime::{init_apartment, init_runtime, ApartmentType};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use service::VirtualDesktopService;
-use std::cell::{Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -26,7 +26,7 @@ pub use hresult::HRESULT;
 pub use interfaces::HWND;
 use once_cell::sync::Lazy;
 
-static SERVICE: Lazy<Mutex<RefCell<Result<VirtualDesktopService, Error>>>> =
+static SERVICE: Lazy<Mutex<RefCell<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Mutex::new(RefCell::new(Err(Error::ServiceNotCreated))));
 
 static EVENTS: Lazy<(Sender<VirtualDesktopEvent>, Receiver<VirtualDesktopEvent>)> =
@@ -60,7 +60,7 @@ where
     match SERVICE.lock() {
         Ok(cell) => {
             for _ in 0..6 {
-                let service_ref: Ref<Result<VirtualDesktopService, Error>> = (*cell).borrow();
+                let service_ref: Ref<Result<Box<VirtualDesktopService>, Error>> = (*cell).borrow();
                 let result = service_ref.as_ref();
                 match result {
                     Ok(v) => match cb(&v) {
@@ -106,14 +106,11 @@ pub fn notify_explorer_restarted() -> Result<(), Error> {
 
 /// Get event receiver
 pub fn get_event_receiver() -> Receiver<VirtualDesktopEvent> {
-    // std::thread::spawn(|| {
-    //     std::thread::sleep(Duration::from_secs(3));
     let _res = with_service(|s| {
         s.get_event_receiver()?;
         HAS_LISTENERS.store(true, Ordering::SeqCst);
         Ok(())
     });
-    // });
 
     EVENTS.1.clone()
 }
