@@ -126,7 +126,9 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT {
         let mut id: DesktopID = Default::default();
         desktop.get_id(&mut id);
-        let _ = self.sender.send(VirtualDesktopEvent::DesktopCreated(id));
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopCreated(id));
         HRESULT::ok()
     }
 
@@ -156,7 +158,9 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     ) -> HRESULT {
         let mut id: DesktopID = Default::default();
         destroyed_desktop.get_id(&mut id);
-        let _ = self.sender.send(VirtualDesktopEvent::DesktopDestroyed(id));
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopDestroyed(id));
         HRESULT::ok()
     }
 
@@ -172,7 +176,9 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
             std::thread::current().id()
         );
 
-        let _ = self.sender.send(VirtualDesktopEvent::WindowChanged(hwnd));
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::WindowChanged(hwnd));
 
         HRESULT::ok()
     }
@@ -193,7 +199,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
 
         let _ = self
             .sender
-            .send(VirtualDesktopEvent::DesktopChanged(old_id, new_id));
+            .try_send(VirtualDesktopEvent::DesktopChanged(old_id, new_id));
         HRESULT::ok()
     }
 }
