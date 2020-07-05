@@ -6,10 +6,11 @@ mod hresult;
 mod immersive;
 mod interfaces;
 mod service;
+use crate::comhelpers::ComError;
+use crate::service::VirtualDesktopService;
 use com::runtime::{init_apartment, ApartmentType};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-
-use service::VirtualDesktopService;
+use once_cell::sync::Lazy;
 use std::cell::{Ref, RefCell};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -21,7 +22,6 @@ pub use desktopid::DesktopID;
 pub use error::Error;
 pub use hresult::HRESULT;
 pub use interfaces::HWND;
-use once_cell::sync::Lazy;
 
 static SERVICE: Lazy<Mutex<RefCell<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Mutex::new(RefCell::new(Err(Error::ServiceNotCreated))));
@@ -32,20 +32,29 @@ static EVENTS: Lazy<(Sender<VirtualDesktopEvent>, Receiver<VirtualDesktopEvent>)
 static HAS_LISTENERS: AtomicBool = AtomicBool::new(false);
 
 fn error_side_effect(err: &Error) -> Result<bool, Error> {
-    #[cfg(feature = "debug")]
-    println!("{:?}", err);
-
     match err {
-        Error::ComNotInitialized => {
+        Error::ComError(hresult) => {
+            let comerror = ComError::from(*hresult);
+
             #[cfg(feature = "debug")]
-            println!("Com initialize");
-            // init_runtime().map_err(HRESULT::from_i32)?;
-            init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
-            Ok(true)
+            println!("ComError::{:?}", comerror);
+
+            match comerror {
+                ComError::NotInitialized => {
+                    #[cfg(feature = "debug")]
+                    println!("Com initialize");
+
+                    // init_runtime().map_err(HRESULT::from_i32)?;
+                    init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
+
+                    Ok(true)
+                }
+                ComError::ClassNotRegistered => Ok(true),
+                ComError::RpcUnavailable => Ok(true),
+                ComError::Unknown(_) => Ok(false),
+            }
         }
-        Error::ServiceNotCreated | Error::ComRpcUnavailable | Error::ComClassNotRegistered => {
-            Ok(true)
-        }
+        Error::ServiceNotCreated => Ok(true),
         _ => Ok(false),
     }
 }

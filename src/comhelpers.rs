@@ -37,3 +37,22 @@ pub unsafe fn create_raw_instance<T: ComInterface + ?Sized>(
 
     Ok(ComPtr::new(instance as *mut _))
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ComError {
+    ClassNotRegistered,
+    NotInitialized,
+    RpcUnavailable,
+    Unknown(HRESULT),
+}
+
+impl From<HRESULT> for ComError {
+    fn from(hr: HRESULT) -> Self {
+        match hr {
+            HRESULT(0x80040154) => ComError::ClassNotRegistered,
+            HRESULT(0x800401F0) => ComError::NotInitialized,
+            HRESULT(0x800706BA) => ComError::RpcUnavailable,
+            _ => ComError::Unknown(hr),
+        }
+    }
+}
