@@ -8,33 +8,26 @@ use winvd::{
 };
 
 fn main() {
-    let _ = get_event_receiver();
-
     thread::spawn(|| {
-        thread::sleep(Duration::from_secs(1));
-        println!("------------------------------------------------");
-        let _e = get_event_receiver();
-        loop {
-            match _e.recv().unwrap() {
-                VirtualDesktopEvent::DesktopChanged(old, new) => {
-                    println!(
-                        "<- Desktop changed from {:?} to {:?} {:?}",
-                        old,
-                        new,
-                        thread::current().id()
-                    );
-                }
-                VirtualDesktopEvent::DesktopCreated(desk) => {
-                    println!("<- New desktop created {:?}", desk);
-                }
-                VirtualDesktopEvent::DesktopDestroyed(desk) => {
-                    println!("<- Desktop destroyed {:?}", desk);
-                }
-                VirtualDesktopEvent::WindowChanged(hwnd) => {
-                    println!("<- Window changed {:?}", hwnd);
-                }
+        get_event_receiver().iter().for_each(|msg| match msg {
+            VirtualDesktopEvent::DesktopChanged(old, new) => {
+                println!(
+                    "<- Desktop changed from {:?} to {:?} {:?}",
+                    old,
+                    new,
+                    thread::current().id()
+                );
             }
-        }
+            VirtualDesktopEvent::DesktopCreated(desk) => {
+                println!("<- New desktop created {:?}", desk);
+            }
+            VirtualDesktopEvent::DesktopDestroyed(desk) => {
+                println!("<- Desktop destroyed {:?}", desk);
+            }
+            VirtualDesktopEvent::WindowChanged(hwnd) => {
+                println!("<- Window changed {:?}", hwnd);
+            }
+        })
     });
 
     thread::spawn(|| {

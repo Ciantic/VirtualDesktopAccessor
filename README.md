@@ -1,36 +1,57 @@
 # winvd - Windows virtual desktop bindings library for Rust
 
-First version available now in: https://crates.io/crates/winvd
+https://crates.io/crates/winvd
+https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/
+
+The implementation abstracts the annoying COM API to a simple functions. Accessing these functions should be thread-safe.
 
 ## Example
 
 ```rust
-use winvd::VirtualDesktopService;
+use winvd::{get_desktops, go_to_desktop, get_event_receiver};
 
 fn main() {
-    let service = VirtualDesktopService::create_with_com().unwrap();
-
     // Show all desktops
-    let desktops = service.get_desktops().unwrap();
+    let desktops = get_desktops().unwrap();
     println!("Desktops {:?}", desktops);
-
-    // Listen on desktop changes
-    service.on_desktop_change(Box::new(|old, new| {
-        println!("Desktop changed from {:?} to {:?}", old, new);
-    }));
 
     // Go to second desktop, index = 1
     let second_desktop = desktops.get(1).unwrap();
-    service.go_to_desktop(second_desktop).unwrap();
+    go_to_desktop(second_desktop).unwrap();
 
-    // See more examples from the testbin
-    // https://github.com/Ciantic/VirtualDesktopAccessor/blob/rust/testbin/src/main.rs
+    // Listen on interesting events
+    std::thread::spawn(|| {
+        get_event_receiver().iter().for_each(|msg| match msg {
+            VirtualDesktopEvent::DesktopChanged(old, new) => {
+                println!(
+                    "<- Desktop changed from {:?} to {:?} {:?}",
+                    old,
+                    new,
+                    thread::current().id()
+                );
+            }
+            VirtualDesktopEvent::DesktopCreated(desk) => {
+                println!("<- New desktop created {:?}", desk);
+            }
+            VirtualDesktopEvent::DesktopDestroyed(desk) => {
+                println!("<- Desktop destroyed {:?}", desk);
+            }
+            VirtualDesktopEvent::WindowChanged(hwnd) => {
+                println!("<- Window changed {:?}", hwnd);
+            }
+        })
+    });
+
 }
 ```
 
-## Notes
+See more examples from the [testbin sources 🢅](https://github.com/Ciantic/VirtualDesktopAccessor/blob/rust/testbin/src/main.rs).
 
--   Apparently if `explorer.exe` is killed, I get `0x800706BA` HRESULT's. This could be an indication I should try to re-register the service.
+## When explorer.exe restarts
+
+In case you want a robust event listener, you need to notify when the
+explorer.exe restarts. Listen on window message loop [for `TaskbarCreated`
+messages 🢅](https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification), and call the `notify_explorer_restarted` to recreate the underlying sender loop.
 
 ## Other
 
