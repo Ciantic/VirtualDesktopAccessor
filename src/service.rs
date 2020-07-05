@@ -22,7 +22,6 @@ use std::{cell::RefCell, sync::atomic::Ordering};
 /// `VirtualDesktopService::create_with_com()` constructor.
 ///
 pub struct VirtualDesktopService {
-    service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
     virtualdesktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
@@ -73,7 +72,6 @@ impl VirtualDesktopService {
                 RefCell::new(None)
             },
             virtual_desktop_manager,
-            service_provider,
             virtual_desktop_manager_internal,
             app_view_collection,
             virtualdesktop_notification_service,

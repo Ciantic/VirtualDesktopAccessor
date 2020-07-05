@@ -1,18 +1,17 @@
 // Some reason the co_class macro uses null comparison
 #![allow(clippy::cmp_null)]
 
-use com::{co_class, interfaces::IUnknown, ComPtr, ComRc};
+use com::{co_class, interfaces::IUnknown, ComRc};
 
 use crate::{
     hresult::HRESULT,
     interfaces::{
-        IApplicationView, IID_IVirtualDesktopNotification, IVirtualDesktop,
-        IVirtualDesktopNotification, IVirtualDesktopNotificationService,
+        IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
+        IVirtualDesktopNotificationService,
     },
-    DesktopID, Error, HWND,
+    DesktopID, HWND,
 };
 use crossbeam_channel::{Receiver, Sender};
-use std::{ffi::c_void, ptr};
 
 pub enum VirtualDesktopEvent {
     DesktopCreated(DesktopID),
@@ -167,10 +166,11 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         view.get_thumbnail_window(&mut hwnd);
 
         #[cfg(feature = "debug")]
-        println!("-> Window changed {:?}", std::thread::current().id());
-
-        #[cfg(feature = "debug")]
-        println!("-> self ptr {:?}", self.__refcnt);
+        println!(
+            "-> Window changed {:?} {:?}",
+            hwnd,
+            std::thread::current().id()
+        );
 
         let _ = self.sender.send(VirtualDesktopEvent::WindowChanged(hwnd));
 
@@ -189,7 +189,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         new_desktop.get_id(&mut new_id);
 
         #[cfg(feature = "debug")]
-        println!("-> Desktop change {:?}", std::thread::current().id());
+        println!("-> Desktop changed {:?}", std::thread::current().id());
 
         let _ = self
             .sender

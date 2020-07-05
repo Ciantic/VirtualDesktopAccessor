@@ -3,7 +3,7 @@
 
 use crate::{desktopid::DesktopID, hresult::HRESULT};
 use com::com_interface;
-use com::{interfaces::IUnknown, sys::CLSID, ComPtr, ComRc, IID};
+use com::{interfaces::IUnknown, sys::CLSID, ComRc, IID};
 use std::ffi::c_void;
 
 pub const CLSID_ImmersiveShell: CLSID = CLSID {
@@ -20,12 +20,14 @@ pub const CLSID_IVirtualNotificationService: CLSID = CLSID {
     data4: [0xAE, 0x4E, 0x1B, 0x9C, 0x21, 0xB8, 0x49, 0x18],
 };
 
+/*
 pub const IID_IVirtualDesktopNotification: IID = IID {
     data1: 0xC179334C,
     data2: 0x4295,
     data3: 0x40D3,
     data4: [0xBE, 0xA1, 0xC6, 0x54, 0xD9, 0x65, 0x60, 0x5A],
 };
+*/
 
 pub const CLSID_VirtualDesktopManagerInternal: IID = IID {
     data1: 0xC5E0CDCA,

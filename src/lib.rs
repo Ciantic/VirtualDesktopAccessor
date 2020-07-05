@@ -6,17 +6,14 @@ mod hresult;
 mod immersive;
 mod interfaces;
 mod service;
-use com::runtime::{init_apartment, init_runtime, ApartmentType};
+use com::runtime::{init_apartment, ApartmentType};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use service::VirtualDesktopService;
-use std::cell::{Cell, Ref, RefCell};
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
-    time::Duration,
+use std::cell::{Ref, RefCell};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
 };
 
 pub use changelistener::VirtualDesktopEvent;
