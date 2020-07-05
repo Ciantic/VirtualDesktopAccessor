@@ -14,6 +14,7 @@ pub enum Error {
     /// Some unhandled COM result error
     ComError(HRESULT),
 
+    // TODO: Deprecate following errors
     /// Unable to get the service provider, this is raised for example when
     /// explorer.exe is not running.
     ComClassNotRegistered,
