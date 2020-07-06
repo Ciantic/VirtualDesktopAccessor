@@ -8,8 +8,8 @@ use crate::{
         CLSID_VirtualDesktopManagerInternal, CLSID_VirtualDesktopPinnedApps, IApplicationView,
         IApplicationViewCollection, IObjectArray, IServiceProvider, IVirtualDesktop,
         IVirtualDesktop2, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
-        IVirtualDesktopManagerInternal2, IVirtualDesktopNotification2,
-        IVirtualDesktopNotificationService, IVirtualDesktopPinnedApps,
+        IVirtualDesktopManagerInternal2, IVirtualDesktopNotificationService,
+        IVirtualDesktopPinnedApps,
     },
     DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
 };

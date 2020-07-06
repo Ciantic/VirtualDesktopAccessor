@@ -6,7 +6,6 @@ use com::{co_class, interfaces::IUnknown, ComRc};
 use crate::{
     get_desktops, get_index_by_desktop,
     hresult::HRESULT,
-    hstring::HSTRING,
     interfaces::{
         IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
         IVirtualDesktopNotificationService,
