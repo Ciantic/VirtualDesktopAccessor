@@ -1,61 +1,76 @@
-use crate::HRESULT;
-use std::ffi::{c_void, OsStr};
+// Dependency free HSTRING implementation
 
-type WCHAR = u16;
-type PCWSTR = *const WCHAR;
-type LPCWSTR = *const WCHAR;
-type PCNZWCH = LPCWSTR;
+use std::ffi::OsStr;
+use std::ffi::OsString;
+use std::os::windows::ffi::OsStrExt;
+use std::{os::windows::ffi::OsStringExt, ptr::NonNull};
+
+type LPCWSTR = *const u16;
+type HRESULT = i32;
 
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
-pub struct HSTRING(*const u32);
+#[repr(transparent)]
+pub struct HSTRING(NonNull<i32>);
+
+impl HSTRING {
+    pub fn create(s: &str) -> Result<HSTRING, HRESULT> {
+        let utf16bytes: Vec<u16> = OsStr::new(s)
+            .encode_wide()
+            // Null termination
+            .chain(Some(0).into_iter())
+            .collect();
+        let lpwstr = utf16bytes.as_ptr();
+        let mut hstring: Option<HSTRING> = None;
+
+        // Length minus the zero terminator
+        let length = utf16bytes.len() - 1;
+
+        let res = unsafe { WindowsCreateString(lpwstr, length, &mut hstring) };
+        if res < 0 {
+            Err(res)
+        } else if let Some(hstr) = hstring {
+            Ok(hstr)
+        } else {
+            Err(1)
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get(self) -> Option<String> {
+        let mut len: usize = 0;
+
+        let str = unsafe { WindowsGetStringRawBuffer(self, &mut len) };
+        println!("str len {:?}", len);
+        let strr = unsafe { std::slice::from_raw_parts(str, len) };
+        let f = OsString::from_wide(strr);
+        if let Ok(s) = f.into_string() {
+            Some(s)
+        } else {
+            None
+        }
+    }
+}
 
 impl Drop for HSTRING {
     fn drop(&mut self) {
-        let _res = unsafe { WindowsDeleteString(self) };
+        let _res = unsafe { WindowsDeleteString(self.clone()) };
 
         #[cfg(feature = "debug")]
-        if _res.failed() {
+        if _res < 0 {
             panic!()
         }
     }
 }
 
-impl HSTRING {
-    pub fn create(s: &str) -> Result<HSTRING, HRESULT> {
-        /*
-        let text: Vec<u16> = OsStr::new(text).encode_wide(). chain(Some(0).into_iter()).collect();
-        let lp_wstr = text.as_ptr(); //The LPCWSTR
-        */
-        let strr: String = s.to_string() + "\0";
-        let mut hstr: HSTRING = HSTRING(&0);
-        // OsStr::new(s).encode_wide();
-        let u16str = strr.encode_utf16().collect::<Vec<_>>();
-        let length = u16str.len() as u32 - 1;
-        println!("Send hstring {:?}", hstr);
-        let res = unsafe { WindowsCreateString(u16str.as_ptr(), length, &mut hstr) };
-        if res.failed() {
-            Err(res)
-        } else {
-            println!("Got hstring {:?}", hstr);
-            Ok(hstr)
-        }
-    }
-
-    pub fn get(&self) -> String {
-        let mut len = 0;
-        let str = unsafe { WindowsGetStringRawBuffer(self, &mut len) };
-        // OsStr::from()
-        // String::from_utf16(str).unwrap()
-        "".to_string()
-    }
-}
-
 #[link(name = "MinCore")]
 extern "system" {
-    pub fn WindowsCreateString(sourceString: PCNZWCH, length: u32, string: *mut HSTRING)
-        -> HRESULT;
-    pub fn WindowsDeleteString(hstring: *const HSTRING) -> HRESULT;
-    pub fn WindowsGetStringRawBuffer(hstring: *const HSTRING, len: *const u32) -> PCWSTR;
+    pub fn WindowsCreateString(
+        sourceString: LPCWSTR,
+        length: usize,
+        string: &mut Option<HSTRING>,
+    ) -> HRESULT;
+    pub fn WindowsDeleteString(hstring: HSTRING) -> HRESULT;
+    pub fn WindowsGetStringRawBuffer(hstring: HSTRING, len: *mut usize) -> LPCWSTR;
 }
 
 #[cfg(test)]
@@ -64,12 +79,18 @@ mod tests {
 
     #[test]
     fn test_hstring_creation() {
-        let hstr = HSTRING::create("Foolio test").unwrap();
-        assert_eq!(hstr.get(), "Foolio test".to_string());
+        HSTRING::create("Hello World!").unwrap();
     }
 
     #[test]
-    fn test_failure() {
-        assert_eq!(HRESULT(0x800706BA).failed(), true);
+    fn test_hstring_get() {
+        let hstr = HSTRING::create("Hello World!").unwrap();
+        assert_eq!(hstr.get(), Some("Hello World!".to_string()));
+    }
+
+    #[test]
+    fn test_hstring_drop() {
+        let hstr = HSTRING::create("Hello World!").unwrap();
+        drop(hstr);
     }
 }

@@ -2,14 +2,15 @@ use winapi::um::winuser::FindWindowW;
 
 use std::{ptr::null, thread, time::Duration};
 use winvd::{
-    get_current_desktop, get_desktop_by_window, get_desktop_count, get_event_receiver,
-    go_to_desktop, is_window_on_current_virtual_desktop, is_window_on_desktop,
+    get_current_desktop, get_desktop_by_window, get_desktop_count, get_desktop_names,
+    get_event_receiver, go_to_desktop, is_window_on_current_virtual_desktop, is_window_on_desktop,
     move_window_to_desktop, pin_window, rename_desktop, unpin_window, Error, VirtualDesktopEvent,
     HWND,
 };
 
 fn main() {
-    rename_desktop(0, "LEEEEEEEEEEEEEEEEEET").unwrap();
+    rename_desktop(0, "First!").unwrap();
+    println!("Names {:?}", get_desktop_names());
 
     thread::spawn(|| {
         get_event_receiver().iter().for_each(|msg| match msg {

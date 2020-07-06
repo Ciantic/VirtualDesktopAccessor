@@ -6,6 +6,7 @@ use std::fmt::Debug;
 /// format it's given in MSDN. Similarily this can be pattern matched using
 /// hexadecimal format: HRESULT(0x800706BA)
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
+#[repr(C)]
 pub struct HRESULT(pub u32);
 
 impl HRESULT {

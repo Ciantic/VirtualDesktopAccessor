@@ -132,6 +132,11 @@ pub(crate) fn get_index_by_desktop(desktop: DesktopID) -> Result<usize, Error> {
     with_service(|s| s.get_index_by_desktop(desktop))
 }
 
+/// Get desktop names
+pub fn get_desktop_names() -> Result<Vec<String>, Error> {
+    with_service(|s| s.get_desktop_names())
+}
+
 /// Get number of desktops
 pub fn get_desktop_count() -> Result<u32, Error> {
     with_service(|s| s.get_desktop_count())

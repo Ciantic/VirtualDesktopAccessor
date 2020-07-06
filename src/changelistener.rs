@@ -6,6 +6,7 @@ use com::{co_class, interfaces::IUnknown, ComRc};
 use crate::{
     get_desktops, get_index_by_desktop,
     hresult::HRESULT,
+    hstring::HSTRING,
     interfaces::{
         IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
         IVirtualDesktopNotificationService,
@@ -223,4 +224,13 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         }
         HRESULT::ok()
     }
+
+    // // Virtual desktop was renamed
+    // unsafe fn virtual_desktop_renamed(
+    //     &self,
+    //     desktop: ComRc<dyn IVirtualDesktop>,
+    //     newName: HSTRING,
+    // ) -> HRESULT {
+    //     HRESULT::ok()
+    // }
 }
