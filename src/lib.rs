@@ -3,6 +3,7 @@ mod comhelpers;
 mod desktopid;
 mod error;
 mod hresult;
+mod hstring;
 mod immersive;
 mod interfaces;
 mod service;
@@ -154,6 +155,11 @@ pub fn is_window_on_current_virtual_desktop(hwnd: HWND) -> Result<bool, Error> {
 /// Is window on desktop number
 pub fn is_window_on_desktop(hwnd: HWND, desktop: usize) -> Result<bool, Error> {
     with_service(|s| s.is_window_on_desktop(hwnd, &s.get_desktop_by_index(desktop)?))
+}
+
+/// Rename desktop
+pub fn rename_desktop(desktop: usize, name: &str) -> Result<(), Error> {
+    with_service(|s| s.rename_desktop(s.get_desktop_by_index(desktop)?, name))
 }
 
 /// Move window to desktop number

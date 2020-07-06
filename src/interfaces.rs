@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
-use crate::{desktopid::DesktopID, hresult::HRESULT};
+use crate::{desktopid::DesktopID, hresult::HRESULT, hstring::HSTRING};
 use com::com_interface;
 use com::{interfaces::IUnknown, sys::CLSID, ComRc, IID};
 use std::ffi::c_void;
@@ -68,7 +68,7 @@ pub struct SIZE {
     cx: LONG,
     cy: LONG,
 }
-type HSTRING = LPVOID;
+// type HSTRING = LPVOID;
 
 // Ignore following API's:
 // type IShellPositionerPriority = UINT;
@@ -352,45 +352,76 @@ pub trait IVirtualDesktopNotificationService: IUnknown {
 
 #[com_interface("f31574d6-b682-4cdc-bd56-1827860abec6")]
 pub trait IVirtualDesktopManagerInternal: IUnknown {
+    // Proc3
     unsafe fn get_count(&self, outCount: *mut UINT) -> HRESULT;
+
+    // Proc4
     unsafe fn move_view_to_desktop(
         &self,
         view: ComRc<dyn IApplicationView>,
         desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
+
+    // Proc5
     unsafe fn can_move_view_between_desktops(
         &self,
         view: ComRc<dyn IApplicationView>,
         canMove: *mut i32,
     ) -> HRESULT;
+
+    // Proc6
     unsafe fn get_current_desktop(
         &self,
         outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>,
     ) -> HRESULT;
+
+    // Proc7
     unsafe fn get_desktops(&self, outDesktops: *mut Option<ComRc<dyn IObjectArray>>) -> HRESULT;
+
+    // Proc8
     unsafe fn get_adjacent_desktop(
         &self,
         inDesktop: ComRc<dyn IVirtualDesktop>,
         outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>,
     ) -> HRESULT;
+
+    // Proc9
     unsafe fn switch_desktop(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
 
-    /*
+    // Proc10
+    unsafe fn create_desktop(&self, outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>)
+        -> HRESULT;
 
-        virtual HRESULT STDMETHODCALLTYPE CreateDesktopW(
-            IVirtualDesktop **ppNewDesktop) = 0;
+    // Proc11
+    unsafe fn remove_desktop(
+        &self,
+        destroyDesktop: ComRc<dyn IVirtualDesktop>,
+        fallbackDesktop: ComRc<dyn IVirtualDesktop>,
+    ) -> HRESULT;
 
-        virtual HRESULT STDMETHODCALLTYPE RemoveDesktop(
-            IVirtualDesktop *pRemove,
-            IVirtualDesktop *pFallbackDesktop) = 0;
+    // Proc12
+    unsafe fn find_desktop(
+        &self,
+        guid: *const DesktopID,
+        outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>,
+    ) -> HRESULT;
 
-        // Since build 10240
-        virtual HRESULT STDMETHODCALLTYPE FindDesktop(
-            GUID *desktopId,
-            IVirtualDesktop **ppDesktop) = 0;
-    };
-
-    */
+    // Proc13
+    unsafe fn unknown(
+        &self,
+        desktop: ComRc<dyn IVirtualDesktop>,
+        out1: *mut Option<ComRc<dyn IObjectArray>>,
+        out2: *mut Option<ComRc<dyn IObjectArray>>,
+    ) -> HRESULT;
+}
+#[com_interface("0f3a72b0-4566-487e-9a33-4ed302f6d6ce")]
+pub trait IVirtualDesktopManagerInternal2: IVirtualDesktopManagerInternal {
+    // Proc12
+    unsafe fn rename_desktop(
+        &self,
+        inDesktop: ComRc<dyn IVirtualDesktop>,
+        name: *const HSTRING,
+    ) -> HRESULT;
 }
 
 #[com_interface("4ce81583-1e4c-4632-a621-07a53543148f")]

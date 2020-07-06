@@ -2,12 +2,13 @@ use crate::comhelpers::create_instance;
 use crate::immersive::{get_immersive_service, get_immersive_service_for_class};
 use crate::{
     changelistener::RegisteredListener,
+    hstring::HSTRING,
     interfaces::{
         CLSID_IVirtualNotificationService, CLSID_ImmersiveShell,
         CLSID_VirtualDesktopManagerInternal, CLSID_VirtualDesktopPinnedApps, IApplicationView,
         IApplicationViewCollection, IObjectArray, IServiceProvider, IVirtualDesktop,
-        IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopNotificationService,
-        IVirtualDesktopPinnedApps,
+        IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopManagerInternal2,
+        IVirtualDesktopNotificationService, IVirtualDesktopPinnedApps,
     },
     DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
 };
@@ -24,7 +25,8 @@ use std::{cell::RefCell, sync::atomic::Ordering};
 pub struct VirtualDesktopService {
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
-    virtualdesktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
+    virtual_desktop_manager_internal2: ComRc<dyn IVirtualDesktopManagerInternal2>,
+    virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
     registered_listener: RefCell<Option<RegisteredListener>>,
@@ -49,11 +51,18 @@ impl VirtualDesktopService {
             CLSID_VirtualDesktopManagerInternal,
         )?;
 
+        let virtual_desktop_manager_internal2: ComRc<dyn IVirtualDesktopManagerInternal2> =
+            get_immersive_service_for_class(
+                &service_provider,
+                CLSID_VirtualDesktopManagerInternal,
+            )?;
+
         let app_view_collection = get_immersive_service(&service_provider)?;
 
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
-        let virtualdesktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
+
+        let virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
             get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
 
         #[cfg(feature = "debug")]
@@ -66,15 +75,16 @@ impl VirtualDesktopService {
                 RefCell::new(Some(RegisteredListener::register(
                     EVENTS.0.clone(),
                     EVENTS.1.clone(),
-                    virtualdesktop_notification_service.clone(),
+                    virtual_desktop_notification_service.clone(),
                 )?))
             } else {
                 RefCell::new(None)
             },
             virtual_desktop_manager,
             virtual_desktop_manager_internal,
+            virtual_desktop_manager_internal2,
             app_view_collection,
-            virtualdesktop_notification_service,
+            virtual_desktop_notification_service,
             pinned_apps,
         }))
     }
@@ -82,7 +92,10 @@ impl VirtualDesktopService {
     /// Get raw desktop list
     fn _get_desktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
         let mut ptr = None;
-        Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
+        Result::from(unsafe {
+            self.virtual_desktop_manager_internal2
+                .get_desktops(&mut ptr)
+        })?;
         match ptr {
             Some(objectarray) => {
                 let mut count = 0;
@@ -154,7 +167,7 @@ impl VirtualDesktopService {
                     .replace(Some(RegisteredListener::register(
                         EVENTS.0.clone(),
                         EVENTS.1.clone(),
-                        self.virtualdesktop_notification_service.clone(),
+                        self.virtual_desktop_notification_service.clone(),
                     )?));
                 Ok(EVENTS.1.clone())
             }
@@ -175,6 +188,18 @@ impl VirtualDesktopService {
             .iter()
             .position(|x| x == &desktop)
             .ok_or(Error::DesktopNotFound)
+    }
+
+    /// Rename desktop
+    pub fn rename_desktop(&self, desktop: DesktopID, name: &str) -> Result<(), Error> {
+        let desktop = self._get_desktop_by_id(&desktop)?;
+        let strr = HSTRING::create(name)?;
+        println!("Ok here?");
+        Result::from(unsafe {
+            self.virtual_desktop_manager_internal2
+                .rename_desktop(desktop, &strr)
+        })?;
+        Ok(())
     }
 
     /// Get desktop IDs
