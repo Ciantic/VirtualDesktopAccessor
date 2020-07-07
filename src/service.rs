@@ -19,10 +19,6 @@ use std::{cell::RefCell, sync::atomic::Ordering};
 
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
 /// functions.
-///
-/// If you don't use other COM objects in your project, you have to use
-/// `VirtualDesktopService::create_with_com()` constructor.
-///
 pub struct VirtualDesktopService {
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
@@ -120,6 +116,11 @@ impl VirtualDesktopService {
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
                 .find_desktop(desktop, &mut o)
+        })
+        .map_err(|hr| match hr {
+            // Does not exist
+            Error::ComError(HRESULT(0x8002802B)) => Error::DesktopNotFound,
+            e => e,
         })?;
 
         if let Some(d) = o {
@@ -349,11 +350,11 @@ impl VirtualDesktopService {
     }
 }
 
-#[cfg(debug_assertions)]
-#[cfg(feature = "debug")]
-impl Drop for VirtualDesktopService {
-    fn drop(&mut self) {
-        // This panics on debug mode
-        println!("Deallocate VirtualDesktopService in thread.");
-    }
-}
+// #[cfg(debug_assertions)]
+// #[cfg(feature = "debug")]
+// impl Drop for VirtualDesktopService {
+//     fn drop(&mut self) {
+//         // This panics on debug mode
+//         println!("Deallocate VirtualDesktopService in thread.");
+//     }
+// }

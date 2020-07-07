@@ -35,15 +35,21 @@ fn main() {
     });
 
     thread::spawn(|| {
-        thread::sleep(Duration::from_secs(2));
-        let desktop_count = get_desktop_count();
-        println!("----------------------------------------------------");
-        println!(
-            "In separate thread {:?}, call desktop count {:?}",
-            thread::current().id(),
-            desktop_count
-        );
-    });
+        println!("Run threading test...");
+        let get_count = || {
+            get_desktop_count().unwrap();
+        };
+        let mut threads = vec![];
+        for _ in 0..16 {
+            threads.push(std::thread::spawn(get_count));
+        }
+        for t in threads {
+            t.join().unwrap();
+        }
+        println!("Threading test complete");
+    })
+    .join()
+    .unwrap();
 
     // Test desktop retrieval methods ----------------------------------------
     let desktop_count = get_desktop_count();
@@ -53,6 +59,15 @@ fn main() {
     println!("Current desktop ID {:?}", current_desktop_id);
 
     // Test window manipulation methods ----------------------------------------
+
+    // Not a real window, testing error
+    println!("Try to move non existant window...",);
+    debug_assert!(move_window_to_desktop(999999999 as HWND, 0) == Err(Error::WindowNotFound));
+
+    // Not a real desktop, testing error
+    println!("Try to go to non existant desktop...",);
+    debug_assert!(go_to_desktop(999999999) == Err(Error::DesktopNotFound));
+
     println!("Start notepad, and press enter key to continue...");
     std::io::stdin().read_line(&mut String::new()).unwrap();
 
@@ -90,10 +105,6 @@ fn main() {
     );
 
     // Move window between desktops
-
-    // Not a real window, testing error
-    println!("Try to move non existant window...",);
-    debug_assert!(move_window_to_desktop(999999999 as HWND, 0) == Err(Error::WindowNotFound));
 
     // Move notepad
     println!("Move notepad to first desktop for three seconds, and then return it...");

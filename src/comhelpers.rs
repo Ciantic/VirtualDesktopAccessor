@@ -43,6 +43,7 @@ pub enum ComError {
     ClassNotRegistered,
     NotInitialized,
     RpcUnavailable,
+    ObjectNotConnected,
     Unknown(HRESULT),
 }
 
@@ -52,6 +53,7 @@ impl From<HRESULT> for ComError {
             HRESULT(0x80040154) => ComError::ClassNotRegistered,
             HRESULT(0x800401F0) => ComError::NotInitialized,
             HRESULT(0x800706BA) => ComError::RpcUnavailable,
+            HRESULT(0x800401FD) => ComError::ObjectNotConnected,
             _ => ComError::Unknown(hr),
         }
     }

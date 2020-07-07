@@ -40,7 +40,6 @@ impl HSTRING {
         let mut len: usize = 0;
 
         let str = unsafe { WindowsGetStringRawBuffer(self, &mut len) };
-        println!("str len {:?}", len);
         let strr = unsafe { std::slice::from_raw_parts(str, len) };
         let f = OsString::from_wide(strr);
         if let Ok(s) = f.into_string() {

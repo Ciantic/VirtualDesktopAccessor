@@ -52,6 +52,7 @@ fn error_side_effect(err: &Error) -> Result<bool, Error> {
                 }
                 ComError::ClassNotRegistered => Ok(true),
                 ComError::RpcUnavailable => Ok(true),
+                ComError::ObjectNotConnected => Ok(true),
                 ComError::Unknown(_) => Ok(false),
             }
         }
@@ -67,7 +68,7 @@ where
     match SERVICE.lock() {
         Ok(cell) => {
             for _ in 0..6 {
-                let service_ref: Ref<Result<Box<VirtualDesktopService>, Error>> = (*cell).borrow();
+                let service_ref: Ref<Result<Box<VirtualDesktopService>, Error>> = cell.borrow();
                 let result = service_ref.as_ref();
                 match result {
                     Ok(v) => match cb(&v) {
@@ -89,7 +90,7 @@ where
                 drop(service_ref);
                 #[cfg(feature = "debug")]
                 println!("Try to create");
-                let _ = (*cell).replace(VirtualDesktopService::create());
+                let _ = cell.replace(VirtualDesktopService::create());
             }
             Err(Error::ServiceNotCreated)
         }
@@ -190,4 +191,52 @@ pub fn pin_window(hwnd: HWND) -> Result<(), Error> {
 /// Unpin window
 pub fn unpin_window(hwnd: HWND) -> Result<(), Error> {
     with_service(|s| s.unpin_window(hwnd))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // TODO: I don't understand why following gives STATUS_ACCESS_VIOLATION most
+    // of the time when ran with Rust's testing framework, however, it works
+    // just fine in the testbin!
+    #[test]
+    fn test_threads() {
+        std::thread::spawn(|| {
+            let get_count = || {
+                get_desktop_count().unwrap();
+            };
+            let mut threads = vec![];
+            for _ in 0..16 {
+                threads.push(std::thread::spawn(get_count));
+            }
+            for t in threads {
+                t.join().unwrap();
+            }
+        })
+        .join()
+        .unwrap();
+    }
+
+    /*
+    #[test]
+    fn test_desktop_moves() {
+        let current_desktop = get_current_desktop().unwrap();
+
+        // Go to desktop 0, ensure it worked
+        go_to_desktop(0).unwrap();
+        assert_eq!(get_current_desktop().unwrap(), 0);
+        std::thread::sleep(Duration::from_secs(1));
+
+        // Go to desktop 1, ensure it worked
+        go_to_desktop(1).unwrap();
+        assert_eq!(get_current_desktop().unwrap(), 1);
+        std::thread::sleep(Duration::from_secs(1));
+
+        // Go to desktop where it was, ensure it worked
+        go_to_desktop(current_desktop).unwrap();
+        assert_eq!(get_current_desktop().unwrap(), current_desktop);
+        std::thread::sleep(Duration::from_secs(1));
+    }
+    */
 }
