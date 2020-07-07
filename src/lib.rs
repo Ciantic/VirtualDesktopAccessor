@@ -10,7 +10,7 @@ mod service;
 use crate::comhelpers::ComError;
 use crate::desktopid::DesktopID;
 use crate::service::VirtualDesktopService;
-use com::runtime::{init_apartment, ApartmentType};
+use com::runtime::init_runtime;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use once_cell::sync::Lazy;
 use std::cell::{Ref, RefCell};
@@ -45,8 +45,8 @@ fn error_side_effect(err: &Error) -> Result<bool, Error> {
                     #[cfg(feature = "debug")]
                     println!("Com initialize");
 
-                    // init_runtime().map_err(HRESULT::from_i32)?;
-                    init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
+                    init_runtime().map_err(HRESULT::from_i32)?;
+                    // init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
 
                     Ok(true)
                 }
@@ -196,10 +196,8 @@ pub fn unpin_window(hwnd: HWND) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
-    // TODO: I don't understand why following gives STATUS_ACCESS_VIOLATION most
-    // of the time when ran with Rust's testing framework, however, it works
-    // just fine in the testbin!
     #[test]
     fn test_threads() {
         std::thread::spawn(|| {
@@ -218,7 +216,6 @@ mod tests {
         .unwrap();
     }
 
-    /*
     #[test]
     fn test_desktop_moves() {
         let current_desktop = get_current_desktop().unwrap();
@@ -238,5 +235,4 @@ mod tests {
         assert_eq!(get_current_desktop().unwrap(), current_desktop);
         std::thread::sleep(Duration::from_secs(1));
     }
-    */
 }
