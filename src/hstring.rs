@@ -82,6 +82,11 @@ mod tests {
     }
 
     #[test]
+    fn test_hstring_creation_empty() {
+        HSTRING::create("").unwrap();
+    }
+
+    #[test]
     fn test_hstring_get() {
         let hstr = HSTRING::create("Hello World!").unwrap();
         assert_eq!(hstr.get(), Some("Hello World!".to_string()));

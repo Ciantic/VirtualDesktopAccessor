@@ -204,42 +204,165 @@ pub fn unpin_window(hwnd: HWND) -> Result<(), Error> {
 mod tests {
     use super::*;
     use std::time::Duration;
+    use winapi::um::winuser::FindWindowW;
+
+    // Run the tests synchronously
+    fn sync_test<T>(t: T)
+    where
+        T: FnOnce() -> (),
+    {
+        static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+        let _t = SEMAPHORE.lock().unwrap();
+        t()
+    }
 
     #[test]
     fn test_threads() {
-        std::thread::spawn(|| {
-            let get_count = || {
-                get_desktop_count().unwrap();
-            };
-            let mut threads = vec![];
-            for _ in 0..16 {
-                threads.push(std::thread::spawn(get_count));
-            }
-            for t in threads {
-                t.join().unwrap();
-            }
+        sync_test(|| {
+            std::thread::spawn(|| {
+                let get_count = || {
+                    get_desktop_count().unwrap();
+                };
+                let mut threads = vec![];
+                for _ in 0..16 {
+                    threads.push(std::thread::spawn(get_count));
+                }
+                for t in threads {
+                    t.join().unwrap();
+                }
+            })
+            .join()
+            .unwrap();
         })
-        .join()
-        .unwrap();
     }
 
     #[test]
     fn test_desktop_moves() {
-        let current_desktop = get_current_desktop().unwrap();
+        sync_test(|| {
+            let current_desktop = get_current_desktop().unwrap();
 
-        // Go to desktop 0, ensure it worked
-        go_to_desktop(0).unwrap();
-        assert_eq!(get_current_desktop().unwrap(), 0);
-        std::thread::sleep(Duration::from_secs(1));
+            // Go to desktop 0, ensure it worked
+            go_to_desktop(0).unwrap();
+            assert_eq!(get_current_desktop().unwrap(), 0);
+            std::thread::sleep(Duration::from_millis(400));
 
-        // Go to desktop 1, ensure it worked
-        go_to_desktop(1).unwrap();
-        assert_eq!(get_current_desktop().unwrap(), 1);
-        std::thread::sleep(Duration::from_secs(1));
+            // Go to desktop 1, ensure it worked
+            go_to_desktop(1).unwrap();
+            assert_eq!(get_current_desktop().unwrap(), 1);
+            std::thread::sleep(Duration::from_millis(400));
 
-        // Go to desktop where it was, ensure it worked
-        go_to_desktop(current_desktop).unwrap();
-        assert_eq!(get_current_desktop().unwrap(), current_desktop);
-        std::thread::sleep(Duration::from_secs(1));
+            // Go to desktop where it was, ensure it worked
+            go_to_desktop(current_desktop).unwrap();
+            assert_eq!(get_current_desktop().unwrap(), current_desktop);
+            std::thread::sleep(Duration::from_millis(400));
+        })
+    }
+
+    #[test]
+    fn test_move_notepad_between_desktops() {
+        sync_test(|| {
+            // Get notepad
+            let notepad_hwnd: HWND = unsafe {
+                let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
+                FindWindowW(notepad.as_ptr(), std::ptr::null()) as HWND
+            };
+            assert!(
+                notepad_hwnd != 0,
+                "Notepad requires to be running for this test"
+            );
+
+            let current_desktop = get_current_desktop().unwrap();
+            let notepad_is_on_current_desktop =
+                is_window_on_current_virtual_desktop(notepad_hwnd).unwrap();
+            let notepad_is_on_specific_desktop =
+                is_window_on_desktop(notepad_hwnd, current_desktop).unwrap();
+            assert!(
+                notepad_is_on_current_desktop,
+                "Notepad must be on this desktop"
+            );
+            assert!(
+                notepad_is_on_specific_desktop,
+                "Notepad must be on this desktop"
+            );
+
+            // Move notepad current desktop -> 0 -> 1 -> current desktop
+            move_window_to_desktop(notepad_hwnd, 0).unwrap();
+            let notepad_desktop = get_desktop_by_window(notepad_hwnd).unwrap();
+            assert_eq!(notepad_desktop, 0, "Notepad should have moved to desktop 0");
+            std::thread::sleep(Duration::from_millis(300));
+
+            move_window_to_desktop(notepad_hwnd, 1).unwrap();
+            let notepad_desktop = get_desktop_by_window(notepad_hwnd).unwrap();
+            assert_eq!(notepad_desktop, 1, "Notepad should have moved to desktop 1");
+            std::thread::sleep(Duration::from_millis(300));
+
+            move_window_to_desktop(notepad_hwnd, current_desktop).unwrap();
+            let notepad_desktop = get_desktop_by_window(notepad_hwnd).unwrap();
+            assert_eq!(
+                notepad_desktop, current_desktop,
+                "Notepad should have moved to desktop 0"
+            );
+        })
+    }
+
+    #[test]
+    fn test_pin_notepad() {
+        sync_test(|| {
+            // Get notepad
+            let notepad_hwnd: HWND = unsafe {
+                let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
+                FindWindowW(notepad.as_ptr(), std::ptr::null()) as HWND
+            };
+            assert!(
+                notepad_hwnd != 0,
+                "Notepad requires to be running for this test"
+            );
+            assert_eq!(
+                is_window_on_current_virtual_desktop(notepad_hwnd).unwrap(),
+                true,
+                "Notepad must be on current desktop to test this"
+            );
+
+            assert_eq!(
+                is_pinned_window(notepad_hwnd).unwrap(),
+                false,
+                "Notepad must not be pinned at the start of the test"
+            );
+
+            let current_desktop = get_current_desktop().unwrap();
+
+            // Pin notepad and go to desktop 0 and back
+            pin_window(notepad_hwnd).unwrap();
+            go_to_desktop(0).unwrap();
+
+            assert_eq!(is_pinned_window(notepad_hwnd).unwrap(), true);
+            std::thread::sleep(Duration::from_millis(1000));
+
+            go_to_desktop(current_desktop).unwrap();
+            unpin_window(notepad_hwnd).unwrap();
+            assert_eq!(
+                is_window_on_desktop(notepad_hwnd, current_desktop).unwrap(),
+                true
+            );
+            std::thread::sleep(Duration::from_millis(1000));
+        })
+    }
+
+    #[test]
+    fn test_rename_desktop() {
+        let names = get_desktop_names().unwrap();
+        let first_desktop_name_before = names.get(0).unwrap();
+        assert_ne!(
+            first_desktop_name_before, "Foo",
+            "Your first desktop must be something else than foo"
+        );
+
+        rename_desktop(0, "Foo").unwrap();
+
+        let names = get_desktop_names().unwrap();
+        let first_desktop_name_after = names.get(0).unwrap();
+        assert_eq!(first_desktop_name_after, "Foo", "Rename failed");
+
+        rename_desktop(0, first_desktop_name_before).unwrap();
     }
 }

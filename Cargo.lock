@@ -155,4 +155,5 @@ dependencies = [
  "com",
  "crossbeam-channel",
  "once_cell",
+ "winapi",
 ]
