@@ -366,4 +366,23 @@ mod tests {
 
         rename_desktop(0, first_desktop_name_before).unwrap();
     }
+
+    /// Test some errors
+    #[test]
+    fn test_errors() {
+        let err = rename_desktop(99999, "").unwrap_err();
+        assert_eq!(err, Error::DesktopNotFound);
+
+        let err = go_to_desktop(99999).unwrap_err();
+        assert_eq!(err, Error::DesktopNotFound);
+
+        let err = get_desktop_by_window(9999999).unwrap_err();
+        assert_eq!(err, Error::WindowNotFound);
+
+        let err = move_window_to_desktop(0, 99999).unwrap_err();
+        assert_eq!(err, Error::DesktopNotFound);
+
+        let err = move_window_to_desktop(999999, 0).unwrap_err();
+        assert_eq!(err, Error::WindowNotFound);
+    }
 }

@@ -290,6 +290,10 @@ impl VirtualDesktopService {
             self.virtual_desktop_manager
                 .get_desktop_by_window(hwnd as _, &mut desktop)
         })
+        .map_err(|er| match er {
+            Error::ComError(HRESULT(0x8002802B)) => Error::WindowNotFound,
+            e => e,
+        })
         .map(|_| desktop)
     }
 
