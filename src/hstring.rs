@@ -1,16 +1,16 @@
 // Dependency free HSTRING implementation
 
 use std::ffi::OsStr;
-use std::ffi::OsString;
+use std::ffi::{c_void, OsString};
 use std::os::windows::ffi::OsStrExt;
-use std::{os::windows::ffi::OsStringExt, ptr::NonNull};
+use std::os::windows::ffi::OsStringExt;
 
 type LPCWSTR = *const u16;
 type HRESULT = i32;
 
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[repr(transparent)]
-pub struct HSTRING(NonNull<i32>);
+pub struct HSTRING(*mut c_void);
 
 impl HSTRING {
     pub fn create(s: &str) -> Result<HSTRING, HRESULT> {
@@ -20,7 +20,7 @@ impl HSTRING {
             .chain(Some(0).into_iter())
             .collect();
         let lpwstr = utf16bytes.as_ptr();
-        let mut hstring: Option<HSTRING> = None;
+        let mut hstring: HSTRING = HSTRING(std::ptr::null_mut());
 
         // Length minus the zero terminator
         let length = utf16bytes.len() - 1;
@@ -28,10 +28,8 @@ impl HSTRING {
         let res = unsafe { WindowsCreateString(lpwstr, length, &mut hstring) };
         if res < 0 {
             Err(res)
-        } else if let Some(hstr) = hstring {
-            Ok(hstr)
         } else {
-            Err(1)
+            Ok(hstring)
         }
     }
 
@@ -66,7 +64,7 @@ extern "system" {
     pub fn WindowsCreateString(
         sourceString: LPCWSTR,
         length: usize,
-        string: &mut Option<HSTRING>,
+        string: &mut HSTRING,
     ) -> HRESULT;
     pub fn WindowsDeleteString(hstring: HSTRING) -> HRESULT;
     pub fn WindowsGetStringRawBuffer(hstring: HSTRING, len: *mut usize) -> LPCWSTR;
@@ -83,7 +81,8 @@ mod tests {
 
     #[test]
     fn test_hstring_creation_empty() {
-        HSTRING::create("").unwrap();
+        let empty_hstr = HSTRING::create("").unwrap();
+        assert_eq!(empty_hstr.get(), Some("".to_string()));
     }
 
     #[test]

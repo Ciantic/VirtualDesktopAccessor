@@ -217,12 +217,10 @@ impl VirtualDesktopService {
                     })?;
                     let desktop: ComRc<dyn IVirtualDesktop2> =
                         unsafe { ComRc::from_raw(ptr as *mut _) };
-                    let mut hstr = None;
+                    let mut hstr = HSTRING::create("").map_err(HRESULT::from_i32)?;
                     Result::from(unsafe { desktop.get_name(&mut hstr) })?;
-                    if let Some(h) = hstr {
-                        if let Some(s) = h.get() {
-                            desktops.push(s);
-                        }
+                    if let Some(s) = hstr.get() {
+                        desktops.push(s);
                     } else {
                         desktops.push("".to_string());
                     }

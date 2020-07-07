@@ -207,13 +207,13 @@ mod tests {
     use winapi::um::winuser::FindWindowW;
 
     // Run the tests synchronously
-    fn sync_test<T>(t: T)
+    fn sync_test<T>(test: T)
     where
         T: FnOnce() -> (),
     {
         static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
         let _t = SEMAPHORE.lock().unwrap();
-        t()
+        test()
     }
 
     #[test]
@@ -348,6 +348,7 @@ mod tests {
         })
     }
 
+    /// Rename first desktop to Foo, and then back to what it was
     #[test]
     fn test_rename_desktop() {
         let names = get_desktop_names().unwrap();

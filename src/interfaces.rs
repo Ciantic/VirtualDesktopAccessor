@@ -265,7 +265,7 @@ pub trait IVirtualDesktop2: IUnknown {
         outBool: *mut u32,
     ) -> HRESULT;
     unsafe fn get_id(&self, outGuid: *mut DesktopID) -> HRESULT;
-    unsafe fn get_name(&self, outName: *mut Option<HSTRING>) -> HRESULT;
+    unsafe fn get_name(&self, outName: *mut HSTRING) -> HRESULT;
 }
 
 #[com_interface("1841c6d7-4f9d-42c0-af41-8747538f10e5")]
