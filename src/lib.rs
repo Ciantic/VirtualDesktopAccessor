@@ -45,7 +45,14 @@ fn error_side_effect(err: &Error) -> Result<bool, Error> {
                     #[cfg(feature = "debug")]
                     println!("Com initialize");
 
+                    // This is the right initialization, it uses
+                    // CoIncrementMTAUsage inside, and no CoInitialize function
+                    // at all
                     init_runtime().map_err(HRESULT::from_i32)?;
+
+                    // Following gives STATUS_ACCESS_VIOLATION in the threading
+                    // test, it uses CoInitializeEx with COINIT_MULTITHREADED
+                    // inside
                     // init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
 
                     Ok(true)
