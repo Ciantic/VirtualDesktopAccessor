@@ -4,13 +4,12 @@
 use com::{co_class, interfaces::IUnknown, ComRc};
 
 use crate::{
-    get_desktops,
     hresult::HRESULT,
     interfaces::{
         IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
         IVirtualDesktopNotificationService,
     },
-    Desktop, DesktopID, HWND,
+    Desktop, HWND,
 };
 use crossbeam_channel::{Receiver, Sender};
 
