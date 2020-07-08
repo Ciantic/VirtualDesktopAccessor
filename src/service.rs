@@ -11,7 +11,7 @@ use crate::{
         IVirtualDesktopManagerInternal2, IVirtualDesktopNotificationService,
         IVirtualDesktopPinnedApps,
     },
-    DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
+    Desktop, DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
 };
 use com::{ComInterface, ComRc};
 use crossbeam_channel::Receiver;
@@ -87,7 +87,7 @@ impl VirtualDesktopService {
     }
 
     /// Get raw desktop list
-    fn _get_desktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
+    fn _get_idesktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
         let mut ptr = None;
         Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
         match ptr {
@@ -111,7 +111,10 @@ impl VirtualDesktopService {
     }
 
     /// Get raw desktop by ID
-    fn _get_desktop_by_id(&self, desktop: &DesktopID) -> Result<ComRc<dyn IVirtualDesktop>, Error> {
+    fn _get_idesktop_by_id(
+        &self,
+        desktop: &DesktopID,
+    ) -> Result<ComRc<dyn IVirtualDesktop>, Error> {
         let mut o = None;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
@@ -131,7 +134,7 @@ impl VirtualDesktopService {
     }
 
     /// Get application view for raw window
-    fn _get_application_view_for_hwnd(
+    fn _get_iapplication_view_for_hwnd(
         &self,
         hwnd: HWND,
     ) -> Result<ComRc<dyn IApplicationView>, Error> {
@@ -174,87 +177,78 @@ impl VirtualDesktopService {
     }
 
     /// Get desktop index
-    pub fn get_desktop_by_index(&self, desktop: usize) -> Result<DesktopID, Error> {
+    pub fn get_desktop_by_index(&self, index: usize) -> Result<Desktop, Error> {
         self.get_desktops()?
-            .get(desktop)
+            .get(index)
             .cloned()
             .ok_or(Error::DesktopNotFound)
     }
 
     /// Get desktop index
-    pub fn get_index_by_desktop(&self, desktop: DesktopID) -> Result<usize, Error> {
+    pub fn get_index_by_desktop(&self, desktop: &Desktop) -> Result<usize, Error> {
         self.get_desktops()?
             .iter()
-            .position(|x| x == &desktop)
+            .position(|x| x == desktop)
             .ok_or(Error::DesktopNotFound)
     }
 
     /// Rename desktop
-    pub fn rename_desktop(&self, desktop: DesktopID, name: &str) -> Result<(), Error> {
-        let desktop = self._get_desktop_by_id(&desktop)?;
-        let strr = HSTRING::create(name).map_err(HRESULT::from_i32)?;
+    pub fn rename_desktop(&self, desktop: &Desktop, name: &str) -> Result<(), Error> {
+        let idesktop = self._get_idesktop_by_id(&desktop.id)?;
+        let hstring = HSTRING::create(name).map_err(HRESULT::from_i32)?;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal2
-                .rename_desktop(desktop, strr)
+                .rename_desktop(idesktop, hstring)
         })?;
         Ok(())
     }
 
     /// Get desktop name
-    pub fn get_desktop_names(&self) -> Result<Vec<String>, Error> {
+    pub fn get_desktop_name(&self, desktop: &Desktop) -> Result<String, Error> {
         let mut ptr = None;
         Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
         match ptr {
             Some(objectarray) => {
                 let mut count = 0;
                 Result::from(unsafe { objectarray.get_count(&mut count) })?;
-                let mut desktops: Vec<String> = vec![];
-
                 for i in 0..(count - 1) {
                     let mut ptr = std::ptr::null_mut();
                     Result::from(unsafe {
                         objectarray.get_at(i, &IVirtualDesktop2::IID, &mut ptr)
                     })?;
-                    let desktop: ComRc<dyn IVirtualDesktop2> =
+                    let idesktop: ComRc<dyn IVirtualDesktop2> =
                         unsafe { ComRc::from_raw(ptr as *mut _) };
-                    let mut hstr = HSTRING::create("").map_err(HRESULT::from_i32)?;
-                    Result::from(unsafe { desktop.get_name(&mut hstr) })?;
-                    if let Some(s) = hstr.get() {
-                        desktops.push(s);
-                    } else {
-                        desktops.push("".to_string());
+                    let mut cdesktop = Desktop::empty();
+                    Result::from(unsafe { idesktop.get_id(&mut cdesktop.id) })?;
+                    if &cdesktop == desktop {
+                        let mut hstr = HSTRING::create("").map_err(HRESULT::from_i32)?;
+                        Result::from(unsafe { idesktop.get_name(&mut hstr) })?;
+                        if let Some(s) = hstr.get() {
+                            return Ok(s);
+                        } else {
+                            return Ok("".to_string());
+                        }
                     }
                 }
-                Ok(desktops)
+                Err(Error::DesktopNotFound)
             }
             None => Err(Error::ComAllocatedNullPtr),
         }
-
-        // let desktop = self._get_desktop_by_id(&desktop)?;
-        // let mut hstropt: Option<HSTRING> = None;
-        // unsafe {
-        //     desktop.get_name(&mut hstropt);
-        // }
-        // if let Some(hstr) = hstropt {
-        //     if let Some(s) = hstr.get() {
-        //         return Ok(s);
-        //     }
-        // }
-        // Err(Error::DesktopNotFound)
     }
 
     /// Get desktop IDs
-    pub fn get_desktops(&self) -> Result<Vec<DesktopID>, Error> {
-        self._get_desktops()?
+    pub fn get_desktops(&self) -> Result<Vec<Desktop>, Error> {
+        self._get_idesktops()?
             .iter()
             .map(|f| {
-                let mut desktopid = Default::default();
-                Result::from(unsafe { f.get_id(&mut desktopid) }).map(|_| desktopid)
+                let mut desktop = Desktop::empty();
+                Result::from(unsafe { f.get_id(&mut desktop.id) }).map(|_| desktop)
             })
             .collect()
     }
 
     /// Get number of desktops
+    /*
     pub fn get_desktop_count(&self) -> Result<u32, Error> {
         let mut ptr = None;
         Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
@@ -266,29 +260,30 @@ impl VirtualDesktopService {
             None => Err(Error::ComAllocatedNullPtr),
         }
     }
+    */
 
     /// Get current desktop ID
-    pub fn get_current_desktop(&self) -> Result<DesktopID, Error> {
+    pub fn get_current_desktop(&self) -> Result<Desktop, Error> {
         let mut ptr: Option<ComRc<dyn IVirtualDesktop>> = None;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
                 .get_current_desktop(&mut ptr)
         })?;
         match ptr {
-            Some(desktop) => {
-                let mut desktopid = Default::default();
-                Result::from(unsafe { desktop.get_id(&mut desktopid) }).map(|_| desktopid)
+            Some(idesktop) => {
+                let mut desktop = Desktop::empty();
+                Result::from(unsafe { idesktop.get_id(&mut desktop.id) }).map(|_| desktop)
             }
             None => Err(Error::ComAllocatedNullPtr),
         }
     }
 
     /// Get window desktop ID
-    pub fn get_desktop_by_window(&self, hwnd: HWND) -> Result<DesktopID, Error> {
-        let mut desktop = Default::default();
+    pub fn get_desktop_by_window(&self, hwnd: HWND) -> Result<Desktop, Error> {
+        let mut desktop = Desktop::empty();
         Result::from(unsafe {
             self.virtual_desktop_manager
-                .get_desktop_by_window(hwnd as _, &mut desktop)
+                .get_desktop_by_window(hwnd as _, &mut desktop.id)
         })
         .map_err(|er| match er {
             Error::ComError(HRESULT(0x8002802B)) => Error::WindowNotFound,
@@ -308,18 +303,18 @@ impl VirtualDesktopService {
     }
 
     /// Is window on desktop
-    pub fn is_window_on_desktop(&self, hwnd: HWND, desktop: &DesktopID) -> Result<bool, Error> {
+    pub fn is_window_on_desktop(&self, hwnd: HWND, desktop: &Desktop) -> Result<bool, Error> {
         let window_desktop = self.get_desktop_by_window(hwnd)?;
         Ok(&window_desktop == desktop)
     }
 
     /// Move window to desktop
-    pub fn move_window_to_desktop(&self, hwnd: HWND, desktop: &DesktopID) -> Result<(), Error> {
-        let desktop = self._get_desktop_by_id(desktop)?;
-        let ptr = desktop
+    pub fn move_window_to_desktop(&self, hwnd: HWND, desktop: &Desktop) -> Result<(), Error> {
+        let idesktop = self._get_idesktop_by_id(&desktop.id)?;
+        let ptr = idesktop
             .get_interface::<dyn IVirtualDesktop>()
             .ok_or(Error::DesktopNotFound)?;
-        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let view = self._get_iapplication_view_for_hwnd(hwnd)?;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
                 .move_view_to_desktop(view, ptr)
@@ -327,27 +322,30 @@ impl VirtualDesktopService {
     }
 
     /// Go to desktop
-    pub fn go_to_desktop(&self, desktop: &DesktopID) -> Result<(), Error> {
-        let d = self._get_desktop_by_id(desktop)?;
-        Result::from(unsafe { self.virtual_desktop_manager_internal.switch_desktop(d) })
+    pub fn go_to_desktop(&self, desktop: &Desktop) -> Result<(), Error> {
+        let idesktop = self._get_idesktop_by_id(&desktop.id)?;
+        Result::from(unsafe {
+            self.virtual_desktop_manager_internal
+                .switch_desktop(idesktop)
+        })
     }
 
     /// Is window pinned?
     pub fn is_pinned_window(&self, hwnd: HWND) -> Result<bool, Error> {
-        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let view = self._get_iapplication_view_for_hwnd(hwnd)?;
         let mut test: bool = false;
         Result::from(unsafe { self.pinned_apps.is_view_pinned(view, &mut test) }).map(|_| test)
     }
 
     /// Pin window
     pub fn pin_window(&self, hwnd: HWND) -> Result<(), Error> {
-        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let view = self._get_iapplication_view_for_hwnd(hwnd)?;
         Result::from(unsafe { self.pinned_apps.pin_view(view) })
     }
 
     /// Unpin window
     pub fn unpin_window(&self, hwnd: HWND) -> Result<(), Error> {
-        let view = self._get_application_view_for_hwnd(hwnd)?;
+        let view = self._get_iapplication_view_for_hwnd(hwnd)?;
         Result::from(unsafe { self.pinned_apps.unpin_view(view) })
     }
 }

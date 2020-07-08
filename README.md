@@ -3,19 +3,25 @@
 https://crates.io/crates/winvd
 https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/
 
-The implementation abstracts the annoying COM API to a simple functions. Accessing these functions should be thread-safe.
+The implementation abstracts the annoying COM API to a simple functions.
+Accessing these functions should be thread-safe.
 
 ## Example
 
+You may want to use `helpers` sub module in this crate, it is most stable API at
+the moment. It contains almost all the wanted features but with numbered
+helpers.
+
 ```rust
-use winvd::{get_desktop_count, go_to_desktop, get_event_receiver};
+use winvd::helpers::{get_desktop_count, go_to_desktop_number};
+use winvd::{get_event_receiver, VirtualDesktopEvent};
 
 fn main() {
     // Desktop count
     println!("Desktops: {:?}", get_desktop_count());
 
     // Go to second desktop, index = 1
-    go_to_desktop(1).unwrap();
+    go_to_desktop_number(1).unwrap();
 
     // Listen on interesting events
     std::thread::spawn(|| {
@@ -23,8 +29,8 @@ fn main() {
             VirtualDesktopEvent::DesktopChanged(old, new) => {
                 println!(
                     "<- Desktop changed from {:?} to {:?}",
-                    old,
-                    new
+                    old.get_index().unwrap(),
+                    new.get_index().unwrap()
                 );
             }
             VirtualDesktopEvent::DesktopCreated(desk) => {

@@ -1,5 +1,5 @@
 #[derive(PartialEq, Debug, Clone, Copy)]
-pub struct DesktopID(com::sys::GUID);
+pub struct DesktopID(pub(crate) com::sys::GUID);
 
 impl Default for DesktopID {
     fn default() -> Self {
