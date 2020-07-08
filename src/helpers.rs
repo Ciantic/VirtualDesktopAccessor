@@ -1,4 +1,7 @@
-/// This module contains numbered helpers, if you prefer handling your desktops by a number
+//! This module contains numbered helpers, if you prefer handling your desktops by a number.
+//!
+//! This is currently the most stable API.
+
 use crate::{
     get_current_desktop, get_desktop_by_index, get_desktop_by_window, get_desktops,
     get_index_by_desktop, go_to_desktop, is_window_on_desktop, move_window_to_desktop,

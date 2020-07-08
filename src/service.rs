@@ -293,7 +293,7 @@ impl VirtualDesktopService {
     }
 
     /// Is window on current virtual desktop
-    pub fn is_window_on_current_virtual_desktop(&self, hwnd: HWND) -> Result<bool, Error> {
+    pub fn is_window_on_current_desktop(&self, hwnd: HWND) -> Result<bool, Error> {
         let mut isit = false;
         Result::from(unsafe {
             self.virtual_desktop_manager

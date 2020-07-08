@@ -183,9 +183,9 @@ pub fn go_to_desktop(desktop: &Desktop) -> Result<(), Error> {
     with_service(|s| s.go_to_desktop(desktop))
 }
 
-/// Is window on current virtual desktop
-pub fn is_window_on_current_virtual_desktop(hwnd: HWND) -> Result<bool, Error> {
-    with_service(|s| s.is_window_on_current_virtual_desktop(hwnd))
+/// Is window on current  desktop
+pub fn is_window_on_current_desktop(hwnd: HWND) -> Result<bool, Error> {
+    with_service(|s| s.is_window_on_current_desktop(hwnd))
 }
 
 /// Is window pinned?
@@ -276,8 +276,7 @@ mod tests {
             );
 
             let current_desktop = get_current_desktop_number().unwrap();
-            let notepad_is_on_current_desktop =
-                is_window_on_current_virtual_desktop(notepad_hwnd).unwrap();
+            let notepad_is_on_current_desktop = is_window_on_current_desktop(notepad_hwnd).unwrap();
             let notepad_is_on_specific_desktop =
                 is_window_on_desktop_number(notepad_hwnd, current_desktop).unwrap();
             assert!(
@@ -322,7 +321,7 @@ mod tests {
                 "Notepad requires to be running for this test"
             );
             assert_eq!(
-                is_window_on_current_virtual_desktop(notepad_hwnd).unwrap(),
+                is_window_on_current_desktop(notepad_hwnd).unwrap(),
                 true,
                 "Notepad must be on current desktop to test this"
             );
