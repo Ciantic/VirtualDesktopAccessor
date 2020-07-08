@@ -3,7 +3,6 @@ mod comhelpers;
 mod desktop;
 mod desktopid;
 mod error;
-pub mod helpers;
 mod hresult;
 mod hstring;
 mod immersive;
@@ -21,6 +20,7 @@ use std::sync::{
     Mutex,
 };
 
+pub mod helpers;
 pub use crate::changelistener::VirtualDesktopEvent;
 pub use crate::desktop::Desktop;
 pub use crate::error::Error;
