@@ -12,10 +12,12 @@ fn main() {
     // Desktops are:
     println!("Desktops are: {:?}", get_desktops().unwrap());
 
+    // Create and remove a desktop
     let desk = create_desktop().unwrap();
     println!("Create desktop {:?}", desk);
 
-    let _ = remove_desktop(&desk, &get_current_desktop().unwrap());
+    remove_desktop(&desk, &get_current_desktop().unwrap()).unwrap();
+    println!("Deleted desktop {:?}", desk);
 
     thread::spawn(|| {
         get_event_receiver().iter().for_each(|msg| match msg {
