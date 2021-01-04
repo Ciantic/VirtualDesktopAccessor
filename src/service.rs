@@ -96,7 +96,7 @@ impl VirtualDesktopService {
                 Result::from(unsafe { objectarray.get_count(&mut count) })?;
                 let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
 
-                for i in 0..(count - 1) {
+                for i in 0..count {
                     let mut ptr = std::ptr::null_mut();
                     Result::from(unsafe {
                         objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr)
@@ -211,7 +211,7 @@ impl VirtualDesktopService {
             Some(objectarray) => {
                 let mut count = 0;
                 Result::from(unsafe { objectarray.get_count(&mut count) })?;
-                for i in 0..(count - 1) {
+                for i in 0..count {
                     let mut ptr = std::ptr::null_mut();
                     Result::from(unsafe {
                         objectarray.get_at(i, &IVirtualDesktop2::IID, &mut ptr)
