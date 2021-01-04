@@ -346,7 +346,9 @@ impl VirtualDesktopService {
         }
     }
 
-    pub fn remove_desktop(&self) -> Result<(), Error> {}
+    pub fn remove_desktop(&self) -> Result<(), Error> {
+        todo!()
+    }
 
     /// Is window pinned?
     pub fn is_pinned_window(&self, hwnd: HWND) -> Result<bool, Error> {
