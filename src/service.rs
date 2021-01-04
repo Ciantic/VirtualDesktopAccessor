@@ -330,6 +330,22 @@ impl VirtualDesktopService {
         })
     }
 
+    pub fn create_desktop(&self) -> Result<Desktop, Error> {
+        let mut idesk_opt: Option<ComRc<dyn IVirtualDesktop>> = None;
+        unsafe {
+            self.virtual_desktop_manager_internal
+                .create_desktop(&mut idesk_opt);
+        }
+        let idesk = idesk_opt.ok_or(Error::CreateDesktopFailed)?;
+        let mut new_desk = Desktop::empty();
+        Result::from(unsafe { idesk.get_id(&mut new_desk.id) })?;
+        if new_desk.id == DesktopID::default() {
+            Err(Error::CreateDesktopFailed)
+        } else {
+            Ok(new_desk)
+        }
+    }
+
     /// Is window pinned?
     pub fn is_pinned_window(&self, hwnd: HWND) -> Result<bool, Error> {
         let view = self._get_iapplication_view_for_hwnd(hwnd)?;

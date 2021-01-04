@@ -8,6 +8,9 @@ pub enum Error {
     /// Desktop with given ID is not found
     DesktopNotFound,
 
+    /// Creationg of desktop failed
+    CreateDesktopFailed,
+
     /// Unable to create service, ensure that explorer.exe is running
     ServiceNotCreated,
 

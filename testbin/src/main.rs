@@ -1,5 +1,8 @@
 use std::thread;
-use winvd::{get_desktops, get_event_receiver, helpers::get_desktop_count, VirtualDesktopEvent};
+use winvd::{
+    create_desktop, get_desktops, get_event_receiver, helpers::get_desktop_count,
+    VirtualDesktopEvent,
+};
 
 fn main() {
     // Desktop count
@@ -8,6 +11,9 @@ fn main() {
 
     // Desktops are:
     println!("Desktops are: {:?}", get_desktops().unwrap());
+
+    let desk = create_desktop();
+    println!("Create desktop {:?}", desk);
 
     thread::spawn(|| {
         get_event_receiver().iter().for_each(|msg| match msg {
