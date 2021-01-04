@@ -1,4 +1,4 @@
-use std::thread;
+use std::{thread, time::Duration};
 use winvd::{
     create_desktop, get_current_desktop, get_desktops, get_event_receiver,
     helpers::get_desktop_count, remove_desktop, VirtualDesktopEvent,
@@ -11,13 +11,6 @@ fn main() {
 
     // Desktops are:
     println!("Desktops are: {:?}", get_desktops().unwrap());
-
-    // Create and remove a desktop
-    let desk = create_desktop().unwrap();
-    println!("Create desktop {:?}", desk);
-
-    remove_desktop(&desk, &get_current_desktop().unwrap()).unwrap();
-    println!("Deleted desktop {:?}", desk);
 
     thread::spawn(|| {
         get_event_receiver().iter().for_each(|msg| match msg {
@@ -39,6 +32,17 @@ fn main() {
                 println!("<- Window changed {:?}", hwnd);
             }
         })
+    });
+
+    thread::spawn(|| {
+        thread::sleep(Duration::from_secs(2));
+
+        // Create and remove a desktop
+        let desk = create_desktop().unwrap();
+        println!("Create desktop {:?}", desk);
+
+        remove_desktop(&desk, &get_current_desktop().unwrap()).unwrap();
+        println!("Deleted desktop {:?}", desk);
     });
 
     println!("Press enter key to close...");
