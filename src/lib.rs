@@ -178,17 +178,17 @@ pub fn move_window_to_desktop(hwnd: HWND, desktop: &Desktop) -> Result<(), Error
     with_service(|s| s.move_window_to_desktop(hwnd, desktop))
 }
 
-/// Go to desktop number
+/// Go to desktop
 pub fn go_to_desktop(desktop: &Desktop) -> Result<(), Error> {
     with_service(|s| s.go_to_desktop(desktop))
 }
 
-/// Go to desktop number
+/// Create desktop
 pub fn create_desktop() -> Result<Desktop, Error> {
     with_service(|s| s.create_desktop())
 }
 
-/// Go to desktop number
+/// Remove desktop
 pub fn remove_desktop(remove_desktop: &Desktop, fallback_desktop: &Desktop) -> Result<(), Error> {
     with_service(|s| s.remove_desktop(remove_desktop, fallback_desktop))
 }
