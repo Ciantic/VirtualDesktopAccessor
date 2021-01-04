@@ -346,8 +346,14 @@ impl VirtualDesktopService {
         }
     }
 
-    pub fn remove_desktop(&self) -> Result<(), Error> {
-        todo!()
+    pub fn remove_desktop(
+        &self,
+        remove_desktop: &Desktop,
+        fallback_desktop: &Desktop,
+    ) -> Result<(), Error> {
+        let a = self._get_idesktop_by_id(&remove_desktop.id)?;
+        let b = self._get_idesktop_by_id(&fallback_desktop.id)?;
+        Result::from(unsafe { self.virtual_desktop_manager_internal.remove_desktop(a, b) })
     }
 
     /// Is window pinned?

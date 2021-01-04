@@ -11,6 +11,9 @@ pub enum Error {
     /// Creationg of desktop failed
     CreateDesktopFailed,
 
+    /// Remove desktop failed
+    RemoveDesktopFailed,
+
     /// Unable to create service, ensure that explorer.exe is running
     ServiceNotCreated,
 

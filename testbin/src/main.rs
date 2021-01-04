@@ -1,7 +1,7 @@
 use std::thread;
 use winvd::{
-    create_desktop, get_desktops, get_event_receiver, helpers::get_desktop_count,
-    VirtualDesktopEvent,
+    create_desktop, get_current_desktop, get_desktops, get_event_receiver,
+    helpers::get_desktop_count, remove_desktop, VirtualDesktopEvent,
 };
 
 fn main() {
@@ -12,8 +12,10 @@ fn main() {
     // Desktops are:
     println!("Desktops are: {:?}", get_desktops().unwrap());
 
-    let desk = create_desktop();
+    let desk = create_desktop().unwrap();
     println!("Create desktop {:?}", desk);
+
+    let _ = remove_desktop(&desk, &get_current_desktop().unwrap());
 
     thread::spawn(|| {
         get_event_receiver().iter().for_each(|msg| match msg {

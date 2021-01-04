@@ -188,6 +188,11 @@ pub fn create_desktop() -> Result<Desktop, Error> {
     with_service(|s| s.create_desktop())
 }
 
+/// Go to desktop number
+pub fn remove_desktop(remove_desktop: &Desktop, fallback_desktop: &Desktop) -> Result<(), Error> {
+    with_service(|s| s.remove_desktop(remove_desktop, fallback_desktop))
+}
+
 /// Is window on current  desktop
 pub fn is_window_on_current_desktop(hwnd: HWND) -> Result<bool, Error> {
     with_service(|s| s.is_window_on_current_desktop(hwnd))
