@@ -231,3 +231,4 @@ _Pvt_Extensions
 .fake/
 
 !x64/Release/VirtualDesktopAccessor.dll
+**/.ccls-cache
