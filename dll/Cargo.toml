@@ -1,0 +1,15 @@
+[package]
+name = "dll"
+version = "0.1.0"
+authors = ["Jari Pennanen <ciantic@oksidi.com>"]
+edition = "2018"
+publish = false
+
+[lib]
+name = "VirtualDesktopAccessor"
+crate-type = ["cdylib"]
+
+[dependencies]
+winapi = { version = "0.3.9", features = ["winuser", "wtypesbase", "hstring", "guiddef"] }
+winvd = { path = "../", features = ["debug"] }
+

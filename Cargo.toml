@@ -30,4 +30,5 @@ default-target = "x86_64-pc-windows-msvc"
 [workspace]
 members = [
     "testbin",
+    "dll"
 ]
