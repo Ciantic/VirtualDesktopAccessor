@@ -33,3 +33,6 @@ EXPORTS
 	ViewGetFocused @29
 	ViewGetLastActivationTimestamp @30
 	ViewGetByLastActivationOrder @31
+
+    CreateVirtualDesktop @32
+    RemoveVirtualDesktop @33

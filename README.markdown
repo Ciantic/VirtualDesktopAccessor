@@ -8,8 +8,12 @@ You probably first need the [VS 2017 runtimes vc_redist.x64.exe and/or vc_redist
 
 ## Change log
 
+* 16.05.2021:
+
+  Expose `CreateVirtualDesktop` and `RemoveVirtualDesktop` functions.
+
 * 02.06.2019:
-  
+
   Exported the Alt+Tab functions prefixed with `View`, this should allow user of the DLL to create native feeling ALT+Tab switcher, since these functions uses the same `IApplicationView` functions as real Alt+Tab switcher itself.
 
   The function to get Alt+Tab windows is basically `ViewGetByLastActivationOrder`.
@@ -22,7 +26,7 @@ DetectHiddenWindows, On
 hwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
 hwnd+=0x1000<<32
 
-hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, "C:\Source\CandCPP\VirtualDesktopAccessor\x64\Release\VirtualDesktopAccessor.dll", "Ptr") 
+hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, "C:\Source\CandCPP\VirtualDesktopAccessor\x64\Release\VirtualDesktopAccessor.dll", "Ptr")
 GoToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GoToDesktopNumber", "Ptr")
 GetCurrentDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetCurrentDesktopNumber", "Ptr")
 IsWindowOnCurrentVirtualDesktopProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsWindowOnCurrentVirtualDesktop", "Ptr")
@@ -56,7 +60,7 @@ GoToPrevDesktop() {
 	if (current = 0) {
 		GoToDesktopNumber(7)
 	} else {
-		GoToDesktopNumber(current - 1)      
+		GoToDesktopNumber(current - 1)
 	}
 	return
 }
@@ -67,7 +71,7 @@ GoToNextDesktop() {
 	if (current = 7) {
 		GoToDesktopNumber(0)
 	} else {
-		GoToDesktopNumber(current + 1)    
+		GoToDesktopNumber(current + 1)
 	}
 	return
 }
@@ -77,7 +81,7 @@ GoToDesktopNumber(num) {
 
 	; Store the active window of old desktop, if it is not pinned
 	WinGet, activeHwnd, ID, A
-	current := DllCall(GetCurrentDesktopNumberProc, UInt) 
+	current := DllCall(GetCurrentDesktopNumberProc, UInt)
 	isPinned := DllCall(IsPinnedWindowProc, UInt, activeHwnd)
 	if (isPinned == 0) {
 		activeWindowByDesktop[current] := activeHwnd
@@ -100,9 +104,9 @@ VWMess(wParam, lParam, msg, hwnd) {
 	global IsWindowOnCurrentVirtualDesktopProc, IsPinnedWindowProc, activeWindowByDesktop
 
 	desktopNumber := lParam + 1
-	
+
 	; Try to restore active window from memory (if it's still on the desktop and is not pinned)
-	WinGet, activeHwnd, ID, A 
+	WinGet, activeHwnd, ID, A
 	isPinned := DllCall(IsPinnedWindowProc, UInt, activeHwnd)
 	oldHwnd := activeWindowByDesktop[lParam]
 	isOnDesktop := DllCall(IsWindowOnCurrentVirtualDesktopProc, UInt, oldHwnd, Int)
@@ -111,7 +115,7 @@ VWMess(wParam, lParam, msg, hwnd) {
 	}
 
 	; Menu, Tray, Icon, Icons/icon%desktopNumber%.ico
-	
+
 	; When switching to desktop 1, set background pluto.jpg
 	; if (lParam == 0) {
 		; DllCall("SystemParametersInfo", UInt, 0x14, UInt, 0, Str, "C:\Users\Jarppa\Pictures\Backgrounds\saturn.jpg", UInt, 1)
@@ -144,12 +148,12 @@ VWMess(wParam, lParam, msg, hwnd) {
     * int GetCurrentDesktopNumber()
     * int GetDesktopCount()
     * GUID GetDesktopIdByNumber(int number) // Returns zeroed GUID with invalid number found
-    * int GetDesktopNumber(IVirtualDesktop *pDesktop) 
+    * int GetDesktopNumber(IVirtualDesktop *pDesktop)
     * int GetDesktopNumberById(GUID desktopId)
     * GUID GetWindowDesktopId(HWND window)
     * int GetWindowDesktopNumber(HWND window)
     * int IsWindowOnCurrentVirtualDesktop(HWND window)
-    * BOOL MoveWindowToDesktopNumber(HWND window, int number) 
+    * BOOL MoveWindowToDesktopNumber(HWND window, int number)
     * void GoToDesktopNumber(int number)
     * void RegisterPostMessageHook(HWND listener, int messageOffset)
     * void UnregisterPostMessageHook(HWND hwnd)
@@ -159,7 +163,7 @@ VWMess(wParam, lParam, msg, hwnd) {
 	* int IsPinnedApp(HWND hwnd) // Returns 1 if pinned, 0 if not pinned, -1 if not valid
 	* void PinApp(HWND hwnd)
 	* void UnPinApp(HWND hwnd)
-	* int IsWindowOnDesktopNumber(HWND window, int number) / 
+	* int IsWindowOnDesktopNumber(HWND window, int number) /
 	* void RestartVirtualDesktopAccessor() // Call this during taskbar created message
 
 	* int ViewIsShownInSwitchers(HWND hwnd) // Is the window shown in Alt+Tab list?
@@ -174,3 +178,6 @@ VWMess(wParam, lParam, msg, hwnd) {
 
 	* void EnableKeepMinimized() // Deprecated, does nothing
 	* void RestoreMinimized() // Deprecated, does nothing
+
+	* int CreateVirtualDesktop() // Returns new desktop number, -1 if it fails
+	* bool RemoveVirtualDesktop(int number, int fallbackDesktop) // returns true if success, otherwise false

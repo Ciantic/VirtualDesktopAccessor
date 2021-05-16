@@ -84,6 +84,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	RegisterPostMessageHook(hwnd, MESSAGE_OFFSET);
 	std::wcout << "Desktops: " << GetDesktopCount() << "\r\n";
+	int newDesktop = CreateVirtualDesktop();
+	std::wcout << "New desktop: " << newDesktop << std::endl;
+	std::wcout << "Removing new desktop: " << RemoveVirtualDesktop(newDesktop, newDesktop - 1) << std::endl;
 	std::wcout << "Console Window's Desktop Number: " << GetWindowDesktopNumber(GetConsoleWindow()) << std::endl;
 	std::wcout << "Current Desktop Number: " << GetCurrentDesktopNumber() << "\r\n";
 

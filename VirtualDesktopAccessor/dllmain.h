@@ -243,7 +243,6 @@ int DllExport IsWindowOnDesktopNumber(HWND window, int number) {
 	else {
 		return 0;
 	}
-	
 	return -1;
 }
 
@@ -607,7 +606,6 @@ UINT DllExport ViewGetByZOrder(HWND *windows, UINT count, BOOL onlySwitcherWindo
 	for (UINT i = 0; i < count; i++)
 	{
 		HRESULT getAtResult = arr->GetAt(i - 1, IID_IApplicationView, (void**)&view);
-		
 		if (view != nullptr && getAtResult == S_OK) {
 			HWND wnd = 0;
 			BOOL showInSwitchers = false;
@@ -698,7 +696,6 @@ UINT DllExport ViewGetByLastActivationOrder(HWND *windows, UINT count, BOOL only
 		windows[i] = entry.hwnd;
 		i++;
 	}
-	
 	return i;
 }
 
@@ -844,4 +841,33 @@ void DllExport UnregisterPostMessageHook(HWND hwnd) {
 }
 
 VOID _OpenDllWindow(HINSTANCE injModule) {
+}
+
+DllExport int CreateVirtualDesktop()
+{
+	_RegisterService();
+
+	IVirtualDesktop *pDesktop = nullptr;
+	HRESULT hr = pDesktopManagerInternal->CreateDesktopW(&pDesktop);
+
+	if (SUCCEEDED(hr))
+	{
+		return GetDesktopNumber(pDesktop);
+	}
+
+	return -1;
+}
+
+DllExport bool RemoveVirtualDesktop(int number, int fallbackDesktop)
+{
+	_RegisterService();
+
+	IVirtualDesktop *pDesktop = _GetDesktopByNumber(number);
+	IVirtualDesktop *pDesktopFallback = _GetDesktopByNumber(fallbackDesktop);
+	if (pDesktop != nullptr && pDesktopFallback != nullptr)
+	{
+		HRESULT hr = pDesktopManagerInternal->RemoveDesktop(pDesktop, pDesktopFallback);
+		return SUCCEEDED(hr);
+	}
+	return false;
 }
