@@ -154,6 +154,19 @@ impl VirtualDesktopService {
         }
     }
 
+    fn _get_iapplication_id_for_hwnd(
+        &self,
+        hwnd: HWND,
+    ) -> Result<*mut *mut std::ffi::c_void, Error> {
+        let view = self._get_iapplication_view_for_hwnd(hwnd)?;
+
+        // TODO: We probably should convert this to string or slice, so that
+        // it's released normally
+        let mut app_id: *mut *mut std::ffi::c_void = std::ptr::null_mut();
+        Result::from(unsafe { view.get_app_user_model_id(&mut app_id as *mut _ as *mut _) })?;
+        Ok(app_id)
+    }
+
     /// Get event receiver
     pub fn get_event_receiver(&self) -> Result<Receiver<VirtualDesktopEvent>, Error> {
         #[cfg(feature = "debug")]
@@ -373,6 +386,26 @@ impl VirtualDesktopService {
     pub fn unpin_window(&self, hwnd: HWND) -> Result<(), Error> {
         let view = self._get_iapplication_view_for_hwnd(hwnd)?;
         Result::from(unsafe { self.pinned_apps.unpin_view(view) })
+    }
+
+    /// Is pinned app
+    pub fn is_pinned_app(&self, hwnd: HWND) -> Result<bool, Error> {
+        let app_id = self._get_iapplication_id_for_hwnd(hwnd)?;
+        let mut is_it = false;
+        Result::from(unsafe { self.pinned_apps.is_app_pinned(app_id as *mut _, &mut is_it) })?;
+        Ok(is_it)
+    }
+
+    /// Pin app
+    pub fn pin_app(&self, hwnd: HWND) -> Result<(), Error> {
+        let app_id = self._get_iapplication_id_for_hwnd(hwnd)?;
+        Result::from(unsafe { self.pinned_apps.pin_app(app_id as *mut _) })
+    }
+
+    /// Unpin app
+    pub fn unpin_app(&self, hwnd: HWND) -> Result<(), Error> {
+        let app_id = self._get_iapplication_id_for_hwnd(hwnd)?;
+        Result::from(unsafe { self.pinned_apps.unpin_app(app_id as *mut _) })
     }
 }
 

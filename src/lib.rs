@@ -213,6 +213,21 @@ pub fn unpin_window(hwnd: HWND) -> Result<(), Error> {
     with_service(|s| s.unpin_window(hwnd))
 }
 
+/// Is pinned app?
+pub fn is_pinned_app(hwnd: HWND) -> Result<bool, Error> {
+    with_service(|s| s.is_pinned_app(hwnd))
+}
+
+/// Pin entire app and all it's windows
+pub fn pin_app(hwnd: HWND) -> Result<(), Error> {
+    with_service(|s| s.pin_app(hwnd))
+}
+
+/// Unpin entire app and all it's windows
+pub fn unpin_app(hwnd: HWND) -> Result<(), Error> {
+    with_service(|s| s.unpin_app(hwnd))
+}
+
 #[cfg(test)]
 mod tests {
     use super::helpers::*;
@@ -361,6 +376,48 @@ mod tests {
         })
     }
 
+    #[test]
+    fn test_pin_notepad_app() {
+        sync_test(|| {
+            // Get notepad
+            let notepad_hwnd: HWND = unsafe {
+                let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
+                FindWindowW(notepad.as_ptr(), std::ptr::null()) as HWND
+            };
+            assert!(
+                notepad_hwnd != 0,
+                "Notepad requires to be running for this test"
+            );
+            assert_eq!(
+                is_window_on_current_desktop(notepad_hwnd).unwrap(),
+                true,
+                "Notepad must be on current desktop to test this"
+            );
+
+            assert_eq!(
+                is_pinned_app(notepad_hwnd).unwrap(),
+                false,
+                "Notepad must not be pinned at the start of the test"
+            );
+
+            let current_desktop = get_current_desktop_number().unwrap();
+
+            // Pin notepad and go to desktop 0 and back
+            pin_app(notepad_hwnd).unwrap();
+            assert_eq!(is_pinned_app(notepad_hwnd).unwrap(), true);
+
+            go_to_desktop_number(0).unwrap();
+            std::thread::sleep(Duration::from_millis(1000));
+            go_to_desktop_number(current_desktop).unwrap();
+
+            unpin_app(notepad_hwnd).unwrap();
+            assert_eq!(
+                is_window_on_desktop_number(notepad_hwnd, current_desktop).unwrap(),
+                true
+            );
+            std::thread::sleep(Duration::from_millis(1000));
+        })
+    }
     /// Rename first desktop to Foo, and then back to what it was
     #[test]
     fn test_rename_desktop() {
