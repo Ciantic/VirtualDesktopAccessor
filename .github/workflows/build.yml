@@ -1,0 +1,20 @@
+on: [push]
+
+jobs:
+  build:
+    name: Build the library
+    runs-on: windows-2019
+    steps:
+      - name: Checkout the source
+        uses: actions/checkout@v2
+
+      - name: Build the library
+        shell: cmd
+        run: '"%programfiles(x86)%\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\msbuild.exe" /p:Configuration=Release /p:Platform=x64'
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: VirtualDesktopAccessor
+          path: x64/Release/VirtualDesktopAccessor.dll
+          if-no-files-found: error
