@@ -327,22 +327,29 @@ pub trait IApplicationViewCollection: IUnknown {
 
 #[com_interface("CD403E52-DEED-4C13-B437-B98380F2B1E8")]
 pub trait IVirtualDesktopNotification: IUnknown {
-    unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
+    unsafe fn virtual_desktop_created(
+        &self,
+        monitors: ComRc<dyn IObjectArray>,
+        desktop: ComRc<dyn IVirtualDesktop>,
+    ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
+        monitors: ComRc<dyn IObjectArray>,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
+        monitors: ComRc<dyn IObjectArray>,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 
     unsafe fn virtual_desktop_destroyed(
         &self,
+        monitors: ComRc<dyn IObjectArray>,
         desktopDestroyed: ComRc<dyn IVirtualDesktop>,
         desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
@@ -351,6 +358,7 @@ pub trait IVirtualDesktopNotification: IUnknown {
 
     unsafe fn virtual_desktop_moved(
         &self,
+        monitors: ComRc<dyn IObjectArray>,
         desktop: ComRc<dyn IVirtualDesktop>,
         oldIndex: u64,
         newIndex: u64,
@@ -366,8 +374,15 @@ pub trait IVirtualDesktopNotification: IUnknown {
 
     unsafe fn current_virtual_desktop_changed(
         &self,
+        monitors: ComRc<dyn IObjectArray>,
         desktopOld: ComRc<dyn IVirtualDesktop>,
         desktopNew: ComRc<dyn IVirtualDesktop>,
+    ) -> HRESULT;
+
+    unsafe fn virtual_desktop_wallpaper_changed(
+        &self,
+        desktopOld: ComRc<dyn IVirtualDesktop>,
+        name: HSTRING,
     ) -> HRESULT;
 }
 

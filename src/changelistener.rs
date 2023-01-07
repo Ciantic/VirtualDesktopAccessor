@@ -6,7 +6,7 @@ use com::{co_class, interfaces::IUnknown, ComRc};
 use crate::{
     hresult::HRESULT,
     interfaces::{
-        IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
+        IApplicationView, IObjectArray, IVirtualDesktop, IVirtualDesktopNotification,
         IVirtualDesktopNotificationService,
     },
     Desktop, HWND,
@@ -123,7 +123,11 @@ impl Drop for VirtualDesktopChangeListener {
 
 impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     /// On desktop creation
-    unsafe fn virtual_desktop_created(&self, idesktop: ComRc<dyn IVirtualDesktop>) -> HRESULT {
+    unsafe fn virtual_desktop_created(
+        &self,
+        _monitors: ComRc<dyn IObjectArray>,
+        idesktop: ComRc<dyn IVirtualDesktop>,
+    ) -> HRESULT {
         let mut desktop: Desktop = Desktop::empty();
         idesktop.get_id(&mut desktop.id);
         let _ = self
@@ -135,6 +139,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     /// On desktop destroy begin
     unsafe fn virtual_desktop_destroy_begin(
         &self,
+        _monitors: ComRc<dyn IObjectArray>,
         _destroyed_desktop: ComRc<dyn IVirtualDesktop>,
         _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
@@ -144,6 +149,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     /// On desktop destroy failed
     unsafe fn virtual_desktop_destroy_failed(
         &self,
+        _monitors: ComRc<dyn IObjectArray>,
         _destroyed_desktop: ComRc<dyn IVirtualDesktop>,
         _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
@@ -153,6 +159,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     /// On desktop destory
     unsafe fn virtual_desktop_destroyed(
         &self,
+        _monitors: ComRc<dyn IObjectArray>,
         destroyed_desktop: ComRc<dyn IVirtualDesktop>,
         _fallback_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
@@ -187,6 +194,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     /// On desktop change
     unsafe fn current_virtual_desktop_changed(
         &self,
+        _monitors: ComRc<dyn IObjectArray>,
         old_desktop: ComRc<dyn IVirtualDesktop>,
         new_desktop: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT {
@@ -211,6 +219,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
 
     unsafe fn virtual_desktop_moved(
         &self,
+        _monitors: ComRc<dyn IObjectArray>,
         desktop: ComRc<dyn IVirtualDesktop>,
         oldIndex: u64,
         newIndex: u64,
@@ -225,6 +234,14 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         name: crate::hstring::HSTRING,
     ) -> HRESULT {
         // TODO: !
+        HRESULT::ok()
+    }
+
+    unsafe fn virtual_desktop_wallpaper_changed(
+        &self,
+        desktopOld: ComRc<dyn IVirtualDesktop>,
+        name: crate::hstring::HSTRING,
+    ) -> HRESULT {
         HRESULT::ok()
     }
 

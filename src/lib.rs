@@ -237,6 +237,7 @@ pub fn unpin_app(hwnd: HWND) -> Result<(), Error> {
 mod tests {
     use super::helpers::*;
     use super::*;
+    use std::thread;
     use std::time::Duration;
     use winapi::um::winuser::FindWindowW;
 
@@ -287,6 +288,23 @@ mod tests {
     fn test_desktop_moves() {
         sync_test(|| {
             let current_desktop = get_current_desktop_number().unwrap();
+
+            thread::spawn(|| {
+                get_event_receiver().iter().for_each(|msg| match msg {
+                    VirtualDesktopEvent::DesktopChanged(old, new) => {
+                        println!("<- Desktop changed from {:?} to {:?}", old, new);
+                    }
+                    VirtualDesktopEvent::DesktopCreated(desk) => {
+                        println!("<- New desktop created {:?}", desk);
+                    }
+                    VirtualDesktopEvent::DesktopDestroyed(desk) => {
+                        println!("<- Desktop destroyed {:?}", desk);
+                    }
+                    VirtualDesktopEvent::WindowChanged(hwnd) => {
+                        println!("<- Window changed {:?}", hwnd);
+                    }
+                });
+            });
 
             // Go to desktop 0, ensure it worked
             go_to_desktop_number(0).unwrap();
