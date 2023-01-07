@@ -1,22 +1,23 @@
-hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, "target\release\VirtualDesktopAccessor.dll", "Ptr")
+; Path to the DLL, relative to the script
+VDA_PATH := A_ScriptDir . "\target\release\VirtualDesktopAccessor.dll"
+hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, VDA_PATH, "Ptr")
 
 GoToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GoToDesktopNumber", "Ptr")
 GetCurrentDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetCurrentDesktopNumber", "Ptr")
 IsWindowOnCurrentVirtualDesktopProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsWindowOnCurrentVirtualDesktop", "Ptr")
 IsWindowOnDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsWindowOnDesktopNumber", "Ptr")
 MoveWindowToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "MoveWindowToDesktopNumber", "Ptr")
-RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
-UnregisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "UnregisterPostMessageHook", "Ptr")
 RestoreMinimizedProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RestoreMinimized", "Ptr")
 EnableKeepMinimizedProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "EnableKeepMinimized", "Ptr")
 IsPinnedWindowProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsPinnedWindow", "Ptr")
 
-activeWindowByDesktop := {}
+; On change listeners
+RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
+UnregisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "UnregisterPostMessageHook", "Ptr")
 
 MoveCurrentWindowToDesktop(number) {
-    global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc, activeWindowByDesktop
+    global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc
     WinGet, activeHwnd, ID, A
-    activeWindowByDesktop[number] := 0 ; Do not activate
     DllCall(MoveWindowToDesktopNumberProc, UInt, activeHwnd, UInt, number)
     DllCall(GoToDesktopNumberProc, UInt, number)
 }
@@ -44,22 +45,7 @@ GoToNextDesktop() {
 }
 
 GoToDesktopNumber(num) {
-    global GetCurrentDesktopNumberProc, GoToDesktopNumberProc, IsPinnedWindowProc, activeWindowByDesktop
-
-    ; Store the active window of old desktop, if it is not pinned
-    WinGet, activeHwnd, ID, A
-    current := DllCall(GetCurrentDesktopNumberProc, UInt)
-    isPinned := DllCall(IsPinnedWindowProc, UInt, activeHwnd)
-    if (isPinned == 0) {
-        activeWindowByDesktop[current] := activeHwnd
-    }
-
-    ; Try to avoid flashing task bar buttons, deactivate the current window if it is not pinned
-    if (isPinned != 1) {
-        WinActivate, ahk_class Shell_TrayWnd
-    }
-
-    ; Change desktop
+    global GoToDesktopNumberProc
     DllCall(GoToDesktopNumberProc, Int, num)
     return
 }
@@ -72,6 +58,14 @@ MoveOrGotoDesktopNumber(num) {
     }
     return
 }
+
+; DllCall(RegisterPostMessageHookProc, Int, hwnd, Int, 0x1400 + 30)
+; OnMessage(0x1400 + 30, "OnChangeDesktop")
+; OnChangeDesktop(wParam, lParam, msg, hwnd) {
+;     desktopNumber := lParam + 1
+;     MsgBox, desktopNumber
+; }
+
 #+1::MoveOrGotoDesktopNumber(0)
 #+2::MoveOrGotoDesktopNumber(1)
 #+3::MoveOrGotoDesktopNumber(2)
