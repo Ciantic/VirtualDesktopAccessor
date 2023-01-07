@@ -7,12 +7,12 @@ use crate::{
         CLSID_IVirtualNotificationService, CLSID_ImmersiveShell,
         CLSID_VirtualDesktopManagerInternal, CLSID_VirtualDesktopPinnedApps, IApplicationView,
         IApplicationViewCollection, IObjectArray, IServiceProvider, IVirtualDesktop,
-        IVirtualDesktop2, IVirtualDesktopManager, IVirtualDesktopManagerInternal,
-        IVirtualDesktopManagerInternal2, IVirtualDesktopNotificationService,
+        IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopNotificationService,
         IVirtualDesktopPinnedApps,
     },
     Desktop, DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
 };
+use com::sys::GUID;
 use com::{ComInterface, ComRc};
 use crossbeam_channel::Receiver;
 use std::{cell::RefCell, sync::atomic::Ordering};
@@ -22,7 +22,6 @@ use std::{cell::RefCell, sync::atomic::Ordering};
 pub struct VirtualDesktopService {
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
-    virtual_desktop_manager_internal2: ComRc<dyn IVirtualDesktopManagerInternal2>,
     virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
@@ -47,12 +46,6 @@ impl VirtualDesktopService {
             &service_provider,
             CLSID_VirtualDesktopManagerInternal,
         )?;
-
-        let virtual_desktop_manager_internal2: ComRc<dyn IVirtualDesktopManagerInternal2> =
-            get_immersive_service_for_class(
-                &service_provider,
-                CLSID_VirtualDesktopManagerInternal,
-            )?;
 
         let app_view_collection = get_immersive_service(&service_provider)?;
 
@@ -79,7 +72,6 @@ impl VirtualDesktopService {
             },
             virtual_desktop_manager,
             virtual_desktop_manager_internal,
-            virtual_desktop_manager_internal2,
             app_view_collection,
             virtual_desktop_notification_service,
             pinned_apps,
@@ -89,7 +81,10 @@ impl VirtualDesktopService {
     /// Get raw desktop list
     fn _get_idesktops(&self) -> Result<Vec<ComRc<dyn IVirtualDesktop>>, Error> {
         let mut ptr = None;
-        Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
+        Result::from(unsafe {
+            self.virtual_desktop_manager_internal
+                .get_desktops(0, &mut ptr)
+        })?;
         match ptr {
             Some(objectarray) => {
                 let mut count = 0;
@@ -210,16 +205,24 @@ impl VirtualDesktopService {
         let idesktop = self._get_idesktop_by_id(&desktop.id)?;
         let hstring = HSTRING::create(name).map_err(HRESULT::from_i32)?;
         Result::from(unsafe {
-            self.virtual_desktop_manager_internal2
-                .rename_desktop(idesktop, hstring)
+            self.virtual_desktop_manager_internal
+                .set_name(idesktop, hstring)
         })?;
         Ok(())
     }
 
     /// Get desktop name
     pub fn get_desktop_name(&self, desktop: &Desktop) -> Result<String, Error> {
+        let idesktop = self._get_idesktop_by_id(&desktop.id)?;
+        let mut name = HSTRING::create("                         ").unwrap();
+        Result::from(unsafe { idesktop.get_name(&mut name) })?;
+        Ok(name.get().unwrap_or_default())
+        /*
         let mut ptr = None;
-        Result::from(unsafe { self.virtual_desktop_manager_internal.get_desktops(&mut ptr) })?;
+        Result::from(unsafe {
+            self.virtual_desktop_manager_internal
+                .get_desktops(0, &mut ptr)
+        })?;
         match ptr {
             Some(objectarray) => {
                 let mut count = 0;
@@ -247,6 +250,7 @@ impl VirtualDesktopService {
             }
             None => Err(Error::ComAllocatedNullPtr),
         }
+        */
     }
 
     /// Get desktop IDs
@@ -275,12 +279,27 @@ impl VirtualDesktopService {
     }
     */
 
+    pub fn get_desktop_by_guid(&self, desktop_id: &DesktopID) -> Result<Desktop, Error> {
+        let mut ptr: Option<ComRc<dyn IVirtualDesktop>> = None;
+        Result::from(unsafe {
+            self.virtual_desktop_manager_internal
+                .find_desktop(desktop_id, &mut ptr)
+        })?;
+        match ptr {
+            Some(idesktop) => {
+                let mut desktop = Desktop::empty();
+                Result::from(unsafe { idesktop.get_id(&mut desktop.id) }).map(|_| desktop)
+            }
+            None => Err(Error::ComAllocatedNullPtr),
+        }
+    }
+
     /// Get current desktop ID
     pub fn get_current_desktop(&self) -> Result<Desktop, Error> {
         let mut ptr: Option<ComRc<dyn IVirtualDesktop>> = None;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
-                .get_current_desktop(&mut ptr)
+                .get_current_desktop(0, &mut ptr)
         })?;
         match ptr {
             Some(idesktop) => {
@@ -339,7 +358,7 @@ impl VirtualDesktopService {
         let idesktop = self._get_idesktop_by_id(&desktop.id)?;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
-                .switch_desktop(idesktop)
+                .switch_desktop(0, idesktop)
         })
     }
 
@@ -347,7 +366,7 @@ impl VirtualDesktopService {
         let mut idesk_opt: Option<ComRc<dyn IVirtualDesktop>> = None;
         Result::from(unsafe {
             self.virtual_desktop_manager_internal
-                .create_desktop(&mut idesk_opt)
+                .create_desktop(0, &mut idesk_opt)
         })?;
         let idesk = idesk_opt.ok_or(Error::CreateDesktopFailed)?;
         let mut new_desk = Desktop::empty();
@@ -417,3 +436,18 @@ impl VirtualDesktopService {
 //         println!("Deallocate VirtualDesktopService in thread.");
 //     }
 // }
+
+/*
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use com::runtime::init_runtime;
+
+    #[test]
+    fn test_init() {
+        init_runtime().unwrap();
+        VirtualDesktopService::create().unwrap();
+    }
+}
+*/

@@ -33,4 +33,8 @@ impl Desktop {
     pub fn get_index(&self) -> Result<usize, Error> {
         get_index_by_desktop(&self)
     }
+
+    pub fn get_id(&self) -> DesktopID {
+        self.id
+    }
 }

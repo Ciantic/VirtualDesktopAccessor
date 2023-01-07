@@ -9,7 +9,6 @@ mod immersive;
 mod interfaces;
 mod service;
 use crate::comhelpers::ComError;
-use crate::desktopid::DesktopID;
 use crate::service::VirtualDesktopService;
 use com::runtime::init_runtime;
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -23,6 +22,7 @@ use std::sync::{
 pub mod helpers;
 pub use crate::changelistener::VirtualDesktopEvent;
 pub use crate::desktop::Desktop;
+pub use crate::desktopid::DesktopID;
 pub use crate::error::Error;
 pub use crate::hresult::HRESULT;
 pub use crate::interfaces::HWND;
@@ -144,8 +144,13 @@ pub(crate) fn get_index_by_desktop(desktop: &Desktop) -> Result<usize, Error> {
 }
 
 /// Get desktop number
-pub(crate) fn get_desktop_by_index(number: usize) -> Result<Desktop, Error> {
+pub fn get_desktop_by_index(number: usize) -> Result<Desktop, Error> {
     with_service(|s| s.get_desktop_by_index(number))
+}
+
+/// Get desktop by GUID
+pub fn get_desktop_by_guid(id: &DesktopID) -> Result<Desktop, Error> {
+    with_service(|s| s.get_desktop_by_guid(&id))
 }
 
 /// Rename desktop
@@ -266,6 +271,19 @@ mod tests {
     }
 
     #[test]
+    fn test_desktop_get() {
+        sync_test(|| {
+            let desktop = get_desktop_by_index(0).unwrap();
+            let id = desktop.get_id();
+            let (data1, _, _, _) = id.get_data();
+            assert_ne!(data1, 0);
+
+            // No errors by getting desktop
+            get_desktop_by_guid(&id).unwrap();
+        })
+    }
+
+    #[test]
     fn test_desktop_moves() {
         sync_test(|| {
             let current_desktop = get_current_desktop_number().unwrap();
@@ -301,6 +319,8 @@ mod tests {
             );
 
             let current_desktop = get_current_desktop_number().unwrap();
+            assert!(current_desktop != 0, "Current desktop must not be 0");
+
             let notepad_is_on_current_desktop = is_window_on_current_desktop(notepad_hwnd).unwrap();
             let notepad_is_on_specific_desktop =
                 is_window_on_desktop_number(notepad_hwnd, current_desktop).unwrap();
@@ -418,6 +438,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(1000));
         })
     }
+
     /// Rename first desktop to Foo, and then back to what it was
     #[test]
     fn test_rename_desktop() {

@@ -204,6 +204,30 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         HRESULT::ok()
     }
 
+    unsafe fn virtual_desktop_is_per_monitor_changed(&self, isPerMonitor: bool) -> HRESULT {
+        // TODO: !
+        HRESULT::ok()
+    }
+
+    unsafe fn virtual_desktop_moved(
+        &self,
+        desktop: ComRc<dyn IVirtualDesktop>,
+        oldIndex: u64,
+        newIndex: u64,
+    ) -> HRESULT {
+        // TODO: !
+        HRESULT::ok()
+    }
+
+    unsafe fn virtual_desktop_name_changed(
+        &self,
+        desktop: ComRc<dyn IVirtualDesktop>,
+        name: crate::hstring::HSTRING,
+    ) -> HRESULT {
+        // TODO: !
+        HRESULT::ok()
+    }
+
     // // Virtual desktop was renamed
     // unsafe fn virtual_desktop_renamed(
     //     &self,

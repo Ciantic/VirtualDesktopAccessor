@@ -9,6 +9,10 @@ publish = false
 name = "VirtualDesktopAccessor"
 crate-type = ["cdylib"]
 
+[profile.release]
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"  # Optimize for size.
+
 [dependencies]
 winapi = { version = "0.3.9", features = ["winuser", "wtypesbase", "hstring", "guiddef"] }
 winvd = { path = "../", features = ["debug"] }
