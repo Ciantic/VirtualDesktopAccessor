@@ -17,6 +17,9 @@ pub enum VirtualDesktopEvent {
     DesktopCreated(Desktop),
     DesktopDestroyed(Desktop),
     DesktopChanged(Desktop, Desktop),
+    DesktopNameChanged(Desktop, String),
+    DesktopWallpaperChanged(Desktop, String),
+    DesktopMoved(Desktop, i64, i64),
     WindowChanged(HWND),
 }
 
@@ -221,10 +224,14 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         &self,
         _monitors: ComRc<dyn IObjectArray>,
         desktop: ComRc<dyn IVirtualDesktop>,
-        oldIndex: u64,
-        newIndex: u64,
+        old_index: i64,
+        new_index: i64,
     ) -> HRESULT {
-        // TODO: !
+        let mut new = Desktop::empty();
+        desktop.get_id(&mut new.id);
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopMoved(new, old_index, new_index));
         HRESULT::ok()
     }
 
@@ -233,15 +240,38 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         desktop: ComRc<dyn IVirtualDesktop>,
         name: crate::hstring::HSTRING,
     ) -> HRESULT {
-        // TODO: !
+        let namestr = name.get().unwrap();
+        let mut new = Desktop::empty();
+        desktop.get_id(&mut new.id);
+        #[cfg(feature = "debug")]
+        println!(
+            "-> Desktop name of {:?} changed to {}",
+            std::thread::current().id(),
+            namestr
+        );
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopNameChanged(new, namestr));
         HRESULT::ok()
     }
 
     unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktopOld: ComRc<dyn IVirtualDesktop>,
+        desktop: ComRc<dyn IVirtualDesktop>,
         name: crate::hstring::HSTRING,
     ) -> HRESULT {
+        let namestr = name.get().unwrap();
+        let mut new = Desktop::empty();
+        desktop.get_id(&mut new.id);
+        #[cfg(feature = "debug")]
+        println!(
+            "-> Desktop wallpaper of {:?} changed to {}",
+            std::thread::current().id(),
+            namestr
+        );
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopWallpaperChanged(new, namestr));
         HRESULT::ok()
     }
 

@@ -237,9 +237,12 @@ pub fn unpin_app(hwnd: HWND) -> Result<(), Error> {
 mod tests {
     use super::helpers::*;
     use super::*;
+    use std::sync::Once;
     use std::thread;
     use std::time::Duration;
     use winapi::um::winuser::FindWindowW;
+
+    static INIT: Once = Once::new();
 
     // Run the tests synchronously
     fn sync_test<T>(test: T)
@@ -247,6 +250,33 @@ mod tests {
         T: FnOnce() -> (),
     {
         static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+        INIT.call_once(|| {
+            thread::spawn(|| {
+                get_event_receiver().iter().for_each(|msg| match msg {
+                    VirtualDesktopEvent::DesktopChanged(old, new) => {
+                        println!("<- Desktop changed from {:?} to {:?}", old, new);
+                    }
+                    VirtualDesktopEvent::DesktopCreated(desk) => {
+                        println!("<- New desktop created {:?}", desk);
+                    }
+                    VirtualDesktopEvent::DesktopDestroyed(desk) => {
+                        println!("<- Desktop destroyed {:?}", desk);
+                    }
+                    VirtualDesktopEvent::WindowChanged(hwnd) => {
+                        println!("<- Window changed {:?}", hwnd);
+                    }
+                    VirtualDesktopEvent::DesktopNameChanged(desk, name) => {
+                        println!("<- Name of {:?} changed to {}", desk, name);
+                    }
+                    VirtualDesktopEvent::DesktopWallpaperChanged(desk, name) => {
+                        println!("<- Wallpaper of {:?} changed to {}", desk, name);
+                    }
+                    VirtualDesktopEvent::DesktopMoved(desk, old, new) => {
+                        println!("<- Desktop {:?} moved from {} to {}", desk, old, new);
+                    }
+                });
+            });
+        });
         let _t = SEMAPHORE.lock().unwrap();
         test()
     }
@@ -288,23 +318,6 @@ mod tests {
     fn test_desktop_moves() {
         sync_test(|| {
             let current_desktop = get_current_desktop_number().unwrap();
-
-            thread::spawn(|| {
-                get_event_receiver().iter().for_each(|msg| match msg {
-                    VirtualDesktopEvent::DesktopChanged(old, new) => {
-                        println!("<- Desktop changed from {:?} to {:?}", old, new);
-                    }
-                    VirtualDesktopEvent::DesktopCreated(desk) => {
-                        println!("<- New desktop created {:?}", desk);
-                    }
-                    VirtualDesktopEvent::DesktopDestroyed(desk) => {
-                        println!("<- Desktop destroyed {:?}", desk);
-                    }
-                    VirtualDesktopEvent::WindowChanged(hwnd) => {
-                        println!("<- Window changed {:?}", hwnd);
-                    }
-                });
-            });
 
             // Go to desktop 0, ensure it worked
             go_to_desktop_number(0).unwrap();

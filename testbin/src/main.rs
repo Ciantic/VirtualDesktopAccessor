@@ -31,6 +31,15 @@ fn main() {
             VirtualDesktopEvent::WindowChanged(hwnd) => {
                 println!("<- Window changed {:?}", hwnd);
             }
+            VirtualDesktopEvent::DesktopNameChanged(desk, name) => {
+                println!("<- Name of {:?} changed to {}", desk, name);
+            }
+            VirtualDesktopEvent::DesktopWallpaperChanged(desk, name) => {
+                println!("<- Wallpaper of {:?} changed to {}", desk, name);
+            }
+            VirtualDesktopEvent::DesktopMoved(desk, old, new) => {
+                println!("<- Desktop {:?} moved from {} to {}", desk, old, new);
+            }
         })
     });
 

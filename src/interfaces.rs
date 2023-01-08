@@ -360,8 +360,8 @@ pub trait IVirtualDesktopNotification: IUnknown {
         &self,
         monitors: ComRc<dyn IObjectArray>,
         desktop: ComRc<dyn IVirtualDesktop>,
-        oldIndex: u64,
-        newIndex: u64,
+        oldIndex: i64,
+        newIndex: i64,
     ) -> HRESULT;
 
     unsafe fn virtual_desktop_name_changed(
