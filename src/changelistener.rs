@@ -13,6 +13,31 @@ use crate::{
 };
 use crossbeam_channel::{Receiver, Sender};
 
+unsafe impl Send for VirtualDesktopEventSender {}
+unsafe impl Sync for VirtualDesktopEventSender {}
+
+#[derive(Debug, Clone)]
+pub enum VirtualDesktopEventSender {
+    Std(std::sync::mpsc::Sender<VirtualDesktopEvent>),
+    // #[cfg(feature = "crossbeam-channel")]
+    // Crossbeam(crossbeam_channel::Sender<VirtualDesktopEvent>),
+}
+
+impl VirtualDesktopEventSender {
+    pub fn try_send(&self, event: VirtualDesktopEvent) -> Result<(), String> {
+        match self {
+            VirtualDesktopEventSender::Std(sender) => sender
+                .send(event)
+                .map_err(|_| "Failed to send event".to_owned()),
+            //
+            // #[cfg(feature = "crossbeam-channel")]
+            // VirtualDesktopEventSender::Crossbeam(sender) => {
+            //     sender.send(event).expect("Failed to send event");
+            // }
+        }
+    }
+}
+
 pub enum VirtualDesktopEvent {
     DesktopCreated(Desktop),
     DesktopDestroyed(Desktop),
@@ -32,7 +57,8 @@ pub struct RegisteredListener {
     listener: Box<VirtualDesktopChangeListener>,
 
     // Receiver
-    receiver: Receiver<VirtualDesktopEvent>,
+    // receiver: Receiver<VirtualDesktopEvent>,
+    // sender: VirtualDesktopEventSender,
 
     // Unregistration on drop requires a notification service
     service: ComRc<dyn IVirtualDesktopNotificationService>,
@@ -42,8 +68,7 @@ unsafe impl Sync for RegisteredListener {}
 
 impl RegisteredListener {
     pub fn register(
-        sender: Sender<VirtualDesktopEvent>,
-        receiver: Receiver<VirtualDesktopEvent>,
+        sender: VirtualDesktopEventSender,
         service: ComRc<dyn IVirtualDesktopNotificationService>,
     ) -> Result<RegisteredListener, HRESULT> {
         let listener = VirtualDesktopChangeListener::create(sender);
@@ -71,14 +96,13 @@ impl RegisteredListener {
             Ok(RegisteredListener {
                 cookie,
                 listener,
-                receiver,
+                //sender,
                 service: service.clone(),
             })
         }
     }
-
-    pub fn get_receiver(&self) -> Receiver<VirtualDesktopEvent> {
-        self.receiver.clone()
+    pub(crate) fn get_sender(&self) -> &VirtualDesktopEventSender {
+        &self.listener.get_sender()
     }
 }
 
@@ -94,7 +118,7 @@ impl Drop for RegisteredListener {
 
 #[co_class(implements(IVirtualDesktopNotification))]
 struct VirtualDesktopChangeListener {
-    sender: Sender<VirtualDesktopEvent>,
+    sender: VirtualDesktopEventSender,
 }
 
 impl VirtualDesktopChangeListener {
@@ -105,12 +129,16 @@ impl VirtualDesktopChangeListener {
         // VirtualDesktopChangeListener::allocate()
     }
 
-    fn create(sender: Sender<VirtualDesktopEvent>) -> Box<VirtualDesktopChangeListener> {
+    fn create(sender: VirtualDesktopEventSender) -> Box<VirtualDesktopChangeListener> {
         let v = VirtualDesktopChangeListener::allocate(sender);
         unsafe {
             v.add_ref();
         }
         v
+    }
+
+    pub(crate) fn get_sender(&self) -> &VirtualDesktopEventSender {
+        &self.sender
     }
 }
 

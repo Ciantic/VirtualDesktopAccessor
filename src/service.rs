@@ -1,3 +1,4 @@
+use crate::changelistener::VirtualDesktopEventSender;
 use crate::comhelpers::create_instance;
 use crate::immersive::{get_immersive_service, get_immersive_service_for_class};
 use crate::{
@@ -10,22 +11,24 @@ use crate::{
         IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopNotificationService,
         IVirtualDesktopPinnedApps,
     },
-    Desktop, DesktopID, Error, VirtualDesktopEvent, EVENTS, HAS_LISTENERS, HRESULT, HWND,
+    Desktop, DesktopID, Error, VirtualDesktopEvent, HRESULT, HWND,
 };
 use com::sys::GUID;
 use com::{ComInterface, ComRc};
 use crossbeam_channel::Receiver;
+use std::borrow::Borrow;
 use std::{cell::RefCell, sync::atomic::Ordering};
 
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
 /// functions.
 pub struct VirtualDesktopService {
+    pub(crate) service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
-    virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
+    // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
-    registered_listener: RefCell<Option<RegisteredListener>>,
+    // registered_listener: RefCell<Option<RegisteredListener>>,
 }
 
 // Let's throw the last of the remaining safety away and implement the send and
@@ -52,28 +55,14 @@ impl VirtualDesktopService {
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
 
-        let virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
-            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
-
         #[cfg(feature = "debug")]
         println!("VirtualDesktopService created.");
 
         Ok(Box::new(VirtualDesktopService {
-            registered_listener: if HAS_LISTENERS.load(Ordering::SeqCst) {
-                #[cfg(feature = "debug")]
-                println!("Has listeners, so try to recreate...");
-                RefCell::new(Some(RegisteredListener::register(
-                    EVENTS.0.clone(),
-                    EVENTS.1.clone(),
-                    virtual_desktop_notification_service.clone(),
-                )?))
-            } else {
-                RefCell::new(None)
-            },
+            service_provider,
             virtual_desktop_manager,
             virtual_desktop_manager_internal,
             app_view_collection,
-            virtual_desktop_notification_service,
             pinned_apps,
         }))
     }
@@ -162,7 +151,18 @@ impl VirtualDesktopService {
         Ok(app_id)
     }
 
+    // pub fn set_event_sender(&self, sender: &VirtualDesktopEventSender) {
+    //     let _ = self.registered_listener.replace(Some(
+    //         RegisteredListener::register(
+    //             sender.clone(),
+    //             self.virtual_desktop_notification_service.clone(),
+    //         )
+    //         .unwrap(),
+    //     ));
+    // }
+
     /// Get event receiver
+    /*
     pub fn get_event_receiver(&self) -> Result<Receiver<VirtualDesktopEvent>, Error> {
         #[cfg(feature = "debug")]
         println!("Get event receiver...");
@@ -182,6 +182,20 @@ impl VirtualDesktopService {
                 Ok(EVENTS.1.clone())
             }
         }
+    }
+     */
+
+    pub fn create_event_listener(
+        &self,
+        sender: VirtualDesktopEventSender,
+    ) -> Result<RegisteredListener, Error> {
+        let service: ComRc<dyn IVirtualDesktopNotificationService> =
+            get_immersive_service_for_class(
+                &self.service_provider,
+                CLSID_IVirtualNotificationService,
+            )?;
+
+        RegisteredListener::register(sender, service).map_err(Error::ComError)
     }
 
     /// Get desktop index

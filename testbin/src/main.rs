@@ -1,7 +1,7 @@
 use std::{thread, time::Duration};
 use winvd::{
-    create_desktop, get_current_desktop, get_desktops, get_event_receiver,
-    helpers::get_desktop_count, remove_desktop, VirtualDesktopEvent,
+    create_desktop, create_event_listener, get_current_desktop, get_desktops,
+    helpers::get_desktop_count, remove_desktop, VirtualDesktopEvent, VirtualDesktopEventSender,
 };
 
 fn main() {
@@ -13,7 +13,10 @@ fn main() {
     println!("Desktops are: {:?}", get_desktops().unwrap());
 
     thread::spawn(|| {
-        get_event_receiver().iter().for_each(|msg| match msg {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let _ = create_event_listener(VirtualDesktopEventSender::Std(sender)).unwrap();
+
+        receiver.iter().for_each(|msg| match msg {
             VirtualDesktopEvent::DesktopChanged(old, new) => {
                 println!(
                     "<- Desktop changed from {:?} to {:?} {:?}",

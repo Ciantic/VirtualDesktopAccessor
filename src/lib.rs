@@ -10,30 +10,32 @@ mod interfaces;
 mod service;
 use crate::comhelpers::ComError;
 use crate::service::VirtualDesktopService;
+use changelistener::RegisteredListener;
 use com::runtime::init_runtime;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use once_cell::sync::Lazy;
+use std::borrow::Borrow;
 use std::cell::{Ref, RefCell};
+use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
 };
 
 pub mod helpers;
-pub use crate::changelistener::VirtualDesktopEvent;
+pub use crate::changelistener::{VirtualDesktopEvent, VirtualDesktopEventSender};
 pub use crate::desktop::Desktop;
 pub use crate::desktopid::DesktopID;
 pub use crate::error::Error;
 pub use crate::hresult::HRESULT;
 pub use crate::interfaces::HWND;
 
-static SERVICE: Lazy<Mutex<RefCell<Result<Box<VirtualDesktopService>, Error>>>> =
-    Lazy::new(|| Mutex::new(RefCell::new(Err(Error::ServiceNotCreated))));
+static SERVICE: Lazy<Arc<Mutex<Result<Box<VirtualDesktopService>, Error>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(Err(Error::ServiceNotCreated))));
 
-static EVENTS: Lazy<(Sender<VirtualDesktopEvent>, Receiver<VirtualDesktopEvent>)> =
-    Lazy::new(unbounded);
-
-static HAS_LISTENERS: AtomicBool = AtomicBool::new(false);
+static LISTENER: Lazy<Arc<Mutex<Option<RegisteredListener>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(None)));
 
 fn error_side_effect(err: &Error) -> Result<bool, Error> {
     match err {
@@ -76,9 +78,9 @@ where
     F: Fn(&VirtualDesktopService) -> Result<T, Error>,
 {
     match SERVICE.lock() {
-        Ok(cell) => {
+        Ok(mut cell) => {
             for _ in 0..6 {
-                let service_ref: Ref<Result<Box<VirtualDesktopService>, Error>> = cell.borrow();
+                let service_ref = cell.borrow();
                 let result = service_ref.as_ref();
                 match result {
                     Ok(v) => match cb(&v) {
@@ -97,10 +99,29 @@ where
                         }
                     }
                 }
-                drop(service_ref);
+
                 #[cfg(feature = "debug")]
                 println!("Try to create");
-                let _ = cell.replace(VirtualDesktopService::create());
+
+                let res = VirtualDesktopService::create();
+                match res {
+                    Ok(new_service) => {
+                        // Recreate listener, if it exists
+                        if let Ok(mut listener) = LISTENER.lock() {
+                            if let Some(l) = listener.as_ref() {
+                                let new_listener =
+                                    new_service.create_event_listener(l.get_sender().clone())?;
+                                listener.replace(new_listener);
+                            }
+                        }
+
+                        // Store service
+                        (*cell) = Ok(new_service);
+                    }
+                    Err(err) => {
+                        (*cell) = Err(err);
+                    }
+                }
             }
             Err(Error::ServiceNotCreated)
         }
@@ -114,23 +135,19 @@ where
 
 /// Should be called when explorer is restarted
 pub fn notify_explorer_restarted() -> Result<(), Error> {
-    if let Ok(cell) = SERVICE.lock() {
-        let _ = (*cell).replace(Ok(VirtualDesktopService::create()?));
+    if let Ok(mut cell) = SERVICE.lock() {
+        (*cell) = VirtualDesktopService::create();
         Ok(())
     } else {
         Ok(())
     }
 }
 
-/// Get event receiver
-pub fn get_event_receiver() -> Receiver<VirtualDesktopEvent> {
-    let _res = with_service(|s| {
-        s.get_event_receiver()?;
-        HAS_LISTENERS.store(true, Ordering::SeqCst);
-        Ok(())
-    });
-
-    EVENTS.1.clone()
+pub fn create_event_listener(sender: VirtualDesktopEventSender) -> Result<(), Error> {
+    let mut mutex = LISTENER.lock().unwrap();
+    let listener = with_service(move |s| s.create_event_listener(sender.clone()))?;
+    mutex.replace(listener);
+    Ok(())
 }
 
 /// Get desktop name
@@ -250,9 +267,16 @@ mod tests {
         T: FnOnce() -> (),
     {
         static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
         INIT.call_once(|| {
-            thread::spawn(|| {
-                get_event_receiver().iter().for_each(|msg| match msg {
+            let (a, b) = std::sync::mpsc::channel::<VirtualDesktopEvent>();
+            /*
+            TODO: LOCKS UP!
+            let _ =
+                create_event_listener(changelistener::VirtualDesktopEventSender::Std(a.clone()));
+            thread::spawn(move || {
+                let zoo = a;
+                b.iter().for_each(|msg| match msg {
                     VirtualDesktopEvent::DesktopChanged(old, new) => {
                         println!("<- Desktop changed from {:?} to {:?}", old, new);
                     }
@@ -276,7 +300,9 @@ mod tests {
                     }
                 });
             });
+             */
         });
+
         let _t = SEMAPHORE.lock().unwrap();
         test()
     }

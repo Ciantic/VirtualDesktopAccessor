@@ -381,7 +381,7 @@ pub trait IVirtualDesktopNotification: IUnknown {
 
     unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktopOld: ComRc<dyn IVirtualDesktop>,
+        desktop: ComRc<dyn IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 }
