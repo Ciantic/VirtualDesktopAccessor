@@ -232,12 +232,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         let namestr = name.get().unwrap();
         let mut new = Desktop::empty();
         desktop.get_id(&mut new.id);
-        #[cfg(feature = "debug")]
-        println!(
-            "-> Desktop name of {:?} changed to {}",
-            std::thread::current().id(),
-            namestr
-        );
+
         let _ = self
             .sender
             .try_send(VirtualDesktopEvent::DesktopNameChanged(new, namestr));
@@ -248,13 +243,6 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
     unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT {
         let mut hwnd = 0 as _;
         view.get_thumbnail_window(&mut hwnd);
-
-        #[cfg(feature = "debug")]
-        println!(
-            "-> Window changed {:?} {:?}",
-            hwnd,
-            std::thread::current().id()
-        );
 
         let _ = self
             .sender
@@ -275,8 +263,6 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         old_desktop.get_id(&mut old.id);
         new_desktop.get_id(&mut new.id);
 
-        #[cfg(feature = "debug")]
-        println!("-> Desktop changed {:?}", std::thread::current().id());
         let _ = self
             .sender
             .try_send(VirtualDesktopEvent::DesktopChanged(old, new));
@@ -292,12 +278,7 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         let namestr = name.get().unwrap();
         let mut new = Desktop::empty();
         desktop.get_id(&mut new.id);
-        #[cfg(feature = "debug")]
-        println!(
-            "-> Desktop wallpaper of {:?} changed to {}",
-            std::thread::current().id(),
-            namestr
-        );
+
         let _ = self
             .sender
             .try_send(VirtualDesktopEvent::DesktopWallpaperChanged(new, namestr));
