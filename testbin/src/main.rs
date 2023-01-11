@@ -14,7 +14,7 @@ fn main() {
 
     thread::spawn(|| {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let _ = create_event_listener(VirtualDesktopEventSender::Std(sender)).unwrap();
+        create_event_listener(VirtualDesktopEventSender::Std(sender)).unwrap();
 
         receiver.iter().for_each(|msg| match msg {
             VirtualDesktopEvent::DesktopChanged(old, new) => {

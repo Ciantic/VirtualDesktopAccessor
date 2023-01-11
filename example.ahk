@@ -1,3 +1,8 @@
+; Get hwnd of AutoHotkey window, for listener
+DetectHiddenWindows, On
+ahkWindowHwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
+ahkWindowHwnd+=0x1000<<32
+
 ; Path to the DLL, relative to the script
 VDA_PATH := A_ScriptDir . "\target\release\VirtualDesktopAccessor.dll"
 hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, VDA_PATH, "Ptr")
@@ -59,15 +64,21 @@ MoveOrGotoDesktopNumber(num) {
     return
 }
 
-; DllCall(RegisterPostMessageHookProc, Int, hwnd, Int, 0x1400 + 30)
-; OnMessage(0x1400 + 30, "OnChangeDesktop")
-; OnChangeDesktop(wParam, lParam, msg, hwnd) {
-;     desktopNumber := lParam + 1
-;     MsgBox, desktopNumber
-; }
+DllCall(RegisterPostMessageHookProc, Int, ahkWindowHwnd, Int, 0x1400 + 30)
+OnMessage(0x1400 + 30, "OnChangeDesktop")
+OnChangeDesktop(wParam, lParam, msg, hwnd) {
+    desktopNumber := lParam + 1
+    OutputDebug % "DESKTOP CHANGED TO " desktopNumber
+}
 
 #+1::MoveOrGotoDesktopNumber(0)
 #+2::MoveOrGotoDesktopNumber(1)
 #+3::MoveOrGotoDesktopNumber(2)
 #+4::MoveOrGotoDesktopNumber(3)
 #+5::MoveOrGotoDesktopNumber(4)
+
+F13 & 1::MoveOrGotoDesktopNumber(0)
+F13 & 2::MoveOrGotoDesktopNumber(1)
+F13 & 3::MoveOrGotoDesktopNumber(2)
+F13 & 4::MoveOrGotoDesktopNumber(3)
+F13 & 5::MoveOrGotoDesktopNumber(4)

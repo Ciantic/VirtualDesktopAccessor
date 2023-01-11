@@ -1,11 +1,16 @@
-use std::convert::TryInto;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{mpsc::Sender, Arc, Mutex},
+    thread,
+};
 
-use winapi::shared::{guiddef::GUID, windef::HWND};
+use once_cell::sync::Lazy;
+use winapi::shared::windef::HWND;
 use winvd::{
-    get_current_desktop, get_desktop_by_guid, get_desktop_by_index, get_desktop_by_window,
+    create_event_listener, get_desktop_by_guid, get_desktop_by_index, get_desktop_by_window,
     helpers::*, is_pinned_app, is_pinned_window, is_window_on_current_desktop,
-    is_window_on_desktop, move_window_to_desktop, pin_app, pin_window, unpin_app, unpin_window,
-    DesktopID,
+    is_window_on_desktop, pin_app, pin_window, unpin_app, unpin_window, DesktopID,
+    VirtualDesktopEvent, VirtualDesktopEventSender,
 };
 
 #[no_mangle]
@@ -61,14 +66,89 @@ pub extern "C" fn GoToDesktopNumber(desktop_number: i32) {
     go_to_desktop_number(desktop_number as usize).unwrap_or_default()
 }
 
+static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<u32, u32>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+static LISTENER_THREAD: Lazy<Arc<Mutex<Option<std::thread::JoinHandle<()>>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(None)));
+
+// static LISTENER_SENDER: Lazy<Arc<Mutex<Option<VirtualDesktopEventSender>>>> =
+//     Lazy::new(|| Arc::new(Mutex::new(None)));
+
 #[no_mangle]
-pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: i32) {
-    todo!()
+pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) {
+    let mut a = LISTENER_HWNDS.lock().unwrap();
+    if a.len() == 0 {
+        let mut static_thread = LISTENER_THREAD.lock().unwrap();
+        let thread_handle = thread::spawn(|| {
+            let (sender, receiver) = std::sync::mpsc::channel();
+
+            create_event_listener(VirtualDesktopEventSender::Std(sender)).unwrap();
+
+            receiver.iter().for_each(|msg| match msg {
+                VirtualDesktopEvent::DesktopChanged(_old, new) => {
+                    let hwnds = LISTENER_HWNDS.lock();
+                    if let Ok(hwnds) = hwnds {
+                        for (hwnd, offset) in hwnds.iter() {
+                            // let vec: Vec<u16> = format!(
+                            //     "{:?} Desktop changed from {:?} to {:?} {:?}",
+                            //     hwnd,
+                            //     old,
+                            //     new,
+                            //     thread::current().id()
+                            // )
+                            // .encode_utf16()
+                            // .chain(Some(0))
+                            // .collect();
+                            // unsafe { winapi::um::debugapi::OutputDebugStringW(vec.as_ptr()) };
+
+                            unsafe {
+                                winapi::um::winuser::PostMessageW(
+                                    *hwnd as _,
+                                    *offset,
+                                    0,
+                                    new.get_index().map_or(-1, |x| x as isize),
+                                );
+                            }
+                        }
+                    }
+                }
+                VirtualDesktopEvent::DesktopCreated(desk) => {
+                    // println!("<- New desktop created {:?}", desk);
+                }
+                VirtualDesktopEvent::DesktopDestroyed(desk) => {
+                    // println!("<- Desktop destroyed {:?}", desk);
+                }
+                VirtualDesktopEvent::WindowChanged(hwnd) => {
+                    // println!("<- Window changed {:?}", hwnd);
+                }
+                VirtualDesktopEvent::DesktopNameChanged(desk, name) => {
+                    // println!("<- Name of {:?} changed to {}", desk, name);
+                }
+                VirtualDesktopEvent::DesktopWallpaperChanged(desk, name) => {
+                    // println!("<- Wallpaper of {:?} changed to {}", desk, name);
+                }
+                VirtualDesktopEvent::DesktopMoved(desk, old, new) => {
+                    // println!("<- Desktop {:?} moved from {} to {}", desk, old, new);
+                }
+            });
+            println!("Exit thread");
+        });
+        static_thread.replace(thread_handle);
+    }
+    a.insert(listener_hwnd as u32, message_offset);
 }
 
 #[no_mangle]
 pub extern "C" fn UnregisterPostMessageHook(listener_hwnd: HWND) {
-    todo!()
+    let mut a = LISTENER_HWNDS.lock().unwrap();
+    a.remove(&(listener_hwnd as u32));
+    if a.len() == 0 {
+        // let mut static_thread = LISTENER_THREAD.lock().unwrap();
+        // let mut static_sender = LISTENER_SENDER.lock().unwrap();
+        // static_sender.take();
+        // static_thread.take().unwrap().join().unwrap();
+    }
 }
 #[no_mangle]
 pub extern "C" fn IsPinnedWindow(hwnd: HWND) -> i32 {
