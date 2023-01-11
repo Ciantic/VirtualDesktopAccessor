@@ -5,7 +5,7 @@
 use crate::{
     get_current_desktop, get_desktop_by_index, get_desktop_by_window, get_desktops,
     get_index_by_desktop, go_to_desktop, is_window_on_desktop, move_window_to_desktop,
-    rename_desktop, Error, HWND,
+    set_desktop_name, Error, HWND,
 };
 
 /// Get number of desktops
@@ -30,7 +30,7 @@ pub fn is_window_on_desktop_number(hwnd: HWND, number: usize) -> Result<bool, Er
 
 /// Rename desktop
 pub fn rename_desktop_number(number: usize, name: &str) -> Result<(), Error> {
-    rename_desktop(&get_desktop_by_index(number)?, name)
+    set_desktop_name(&get_desktop_by_index(number)?, name)
 }
 
 /// Get name by desktop number

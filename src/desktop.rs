@@ -1,4 +1,6 @@
-use crate::{desktopid::DesktopID, get_desktop_name, get_index_by_desktop, rename_desktop, Error};
+use crate::{
+    desktopid::DesktopID, get_desktop_name, get_index_by_desktop, set_desktop_name, Error,
+};
 use std::fmt::Debug;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -26,7 +28,7 @@ impl Desktop {
 
     /// Set the name of the desktop
     pub fn set_name(&self, name: &str) -> Result<(), Error> {
-        rename_desktop(self, name)
+        set_desktop_name(self, name)
     }
 
     /// Index of the desktop among other

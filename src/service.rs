@@ -22,7 +22,7 @@ use std::{cell::RefCell, sync::atomic::Ordering};
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
 /// functions.
 pub struct VirtualDesktopService {
-    pub(crate) service_provider: ComRc<dyn IServiceProvider>,
+    // pub(crate) service_provider: ComRc<dyn IServiceProvider>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
@@ -59,7 +59,7 @@ impl VirtualDesktopService {
         println!("VirtualDesktopService created.");
 
         Ok(Box::new(VirtualDesktopService {
-            service_provider,
+            // service_provider,
             virtual_desktop_manager,
             virtual_desktop_manager_internal,
             app_view_collection,
@@ -189,11 +189,10 @@ impl VirtualDesktopService {
         &self,
         sender: VirtualDesktopEventSender,
     ) -> Result<RegisteredListener, Error> {
+        let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
+
         let service: ComRc<dyn IVirtualDesktopNotificationService> =
-            get_immersive_service_for_class(
-                &self.service_provider,
-                CLSID_IVirtualNotificationService,
-            )?;
+            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
 
         RegisteredListener::register(sender, service).map_err(Error::ComError)
     }

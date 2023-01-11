@@ -386,45 +386,6 @@ pub trait IVirtualDesktopNotification: IUnknown {
     ) -> HRESULT;
 }
 
-// This is here for completness, however I think this cannot be used at all. One
-// can't register a IVirtualDesktopNotification2, it just gives an error when
-// given to registration method. This is not finished by Microsoft engineers.
-#[com_interface("1ba7cf30-3591-43fa-abfa-4aaf7abeedb7")]
-pub trait IVirtualDesktopNotification2: IUnknown {
-    unsafe fn virtual_desktop_created(&self, desktop: ComRc<dyn IVirtualDesktop>) -> HRESULT;
-
-    unsafe fn virtual_desktop_destroy_begin(
-        &self,
-        desktopDestroyed: ComRc<dyn IVirtualDesktop>,
-        desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
-
-    unsafe fn virtual_desktop_destroy_failed(
-        &self,
-        desktopDestroyed: ComRc<dyn IVirtualDesktop>,
-        desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
-
-    unsafe fn virtual_desktop_destroyed(
-        &self,
-        desktopDestroyed: ComRc<dyn IVirtualDesktop>,
-        desktopFallback: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
-
-    unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT;
-
-    unsafe fn current_virtual_desktop_changed(
-        &self,
-        desktopOld: ComRc<dyn IVirtualDesktop>,
-        desktopNew: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
-    unsafe fn virtual_desktop_renamed(
-        &self,
-        desktop: ComRc<dyn IVirtualDesktop>,
-        newName: HSTRING,
-    ) -> HRESULT;
-}
-
 #[com_interface("0CD45E71-D927-4F15-8B0A-8FEF525337BF")]
 pub trait IVirtualDesktopNotificationService: IUnknown {
     unsafe fn register(

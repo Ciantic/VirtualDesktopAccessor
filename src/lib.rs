@@ -144,8 +144,8 @@ pub fn notify_explorer_restarted() -> Result<(), Error> {
 }
 
 pub fn create_event_listener(sender: VirtualDesktopEventSender) -> Result<(), Error> {
-    let mut mutex = LISTENER.lock().unwrap();
     let listener = with_service(move |s| s.create_event_listener(sender.clone()))?;
+    let mut mutex = LISTENER.lock().unwrap();
     mutex.replace(listener);
     Ok(())
 }
@@ -160,6 +160,11 @@ pub(crate) fn get_index_by_desktop(desktop: &Desktop) -> Result<usize, Error> {
     with_service(|s| s.get_index_by_desktop(desktop))
 }
 
+/// Set desktop name
+pub fn set_desktop_name(desktop: &Desktop, name: &str) -> Result<(), Error> {
+    with_service(|s| s.rename_desktop(desktop, name))
+}
+
 /// Get desktop number
 pub fn get_desktop_by_index(number: usize) -> Result<Desktop, Error> {
     with_service(|s| s.get_desktop_by_index(number))
@@ -168,11 +173,6 @@ pub fn get_desktop_by_index(number: usize) -> Result<Desktop, Error> {
 /// Get desktop by GUID
 pub fn get_desktop_by_guid(id: &DesktopID) -> Result<Desktop, Error> {
     with_service(|s| s.get_desktop_by_guid(&id))
-}
-
-/// Rename desktop
-pub(crate) fn rename_desktop(desktop: &Desktop, name: &str) -> Result<(), Error> {
-    with_service(|s| s.rename_desktop(desktop, name))
 }
 
 /// Get desktops
@@ -270,12 +270,11 @@ mod tests {
 
         INIT.call_once(|| {
             let (a, b) = std::sync::mpsc::channel::<VirtualDesktopEvent>();
-            /*
-            TODO: LOCKS UP!
-            let _ =
-                create_event_listener(changelistener::VirtualDesktopEventSender::Std(a.clone()));
+
+            create_event_listener(changelistener::VirtualDesktopEventSender::Std(a.clone()))
+                .unwrap();
+
             thread::spawn(move || {
-                let zoo = a;
                 b.iter().for_each(|msg| match msg {
                     VirtualDesktopEvent::DesktopChanged(old, new) => {
                         println!("<- Desktop changed from {:?} to {:?}", old, new);
@@ -300,7 +299,6 @@ mod tests {
                     }
                 });
             });
-             */
         });
 
         let _t = SEMAPHORE.lock().unwrap();

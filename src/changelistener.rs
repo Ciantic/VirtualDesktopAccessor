@@ -203,6 +203,47 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
         HRESULT::ok()
     }
 
+    unsafe fn virtual_desktop_is_per_monitor_changed(&self, isPerMonitor: bool) -> HRESULT {
+        // TODO: !?
+        HRESULT::ok()
+    }
+
+    unsafe fn virtual_desktop_moved(
+        &self,
+        _monitors: ComRc<dyn IObjectArray>,
+        desktop: ComRc<dyn IVirtualDesktop>,
+        old_index: i64,
+        new_index: i64,
+    ) -> HRESULT {
+        let mut new = Desktop::empty();
+        desktop.get_id(&mut new.id);
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopMoved(new, old_index, new_index));
+        HRESULT::ok()
+    }
+
+    unsafe fn virtual_desktop_name_changed(
+        &self,
+        desktop: ComRc<dyn IVirtualDesktop>,
+        name: crate::hstring::HSTRING,
+    ) -> HRESULT {
+        // TODO: ! THIS IS NOT CALLED ! ??
+        let namestr = name.get().unwrap();
+        let mut new = Desktop::empty();
+        desktop.get_id(&mut new.id);
+        #[cfg(feature = "debug")]
+        println!(
+            "-> Desktop name of {:?} changed to {}",
+            std::thread::current().id(),
+            namestr
+        );
+        let _ = self
+            .sender
+            .try_send(VirtualDesktopEvent::DesktopNameChanged(new, namestr));
+        HRESULT::ok()
+    }
+
     /// On view/window change
     unsafe fn view_virtual_desktop_changed(&self, view: ComRc<dyn IApplicationView>) -> HRESULT {
         let mut hwnd = 0 as _;
@@ -240,46 +281,6 @@ impl IVirtualDesktopNotification for VirtualDesktopChangeListener {
             .sender
             .try_send(VirtualDesktopEvent::DesktopChanged(old, new));
 
-        HRESULT::ok()
-    }
-
-    unsafe fn virtual_desktop_is_per_monitor_changed(&self, isPerMonitor: bool) -> HRESULT {
-        // TODO: !
-        HRESULT::ok()
-    }
-
-    unsafe fn virtual_desktop_moved(
-        &self,
-        _monitors: ComRc<dyn IObjectArray>,
-        desktop: ComRc<dyn IVirtualDesktop>,
-        old_index: i64,
-        new_index: i64,
-    ) -> HRESULT {
-        let mut new = Desktop::empty();
-        desktop.get_id(&mut new.id);
-        let _ = self
-            .sender
-            .try_send(VirtualDesktopEvent::DesktopMoved(new, old_index, new_index));
-        HRESULT::ok()
-    }
-
-    unsafe fn virtual_desktop_name_changed(
-        &self,
-        desktop: ComRc<dyn IVirtualDesktop>,
-        name: crate::hstring::HSTRING,
-    ) -> HRESULT {
-        let namestr = name.get().unwrap();
-        let mut new = Desktop::empty();
-        desktop.get_id(&mut new.id);
-        #[cfg(feature = "debug")]
-        println!(
-            "-> Desktop name of {:?} changed to {}",
-            std::thread::current().id(),
-            namestr
-        );
-        let _ = self
-            .sender
-            .try_send(VirtualDesktopEvent::DesktopNameChanged(new, namestr));
         HRESULT::ok()
     }
 
