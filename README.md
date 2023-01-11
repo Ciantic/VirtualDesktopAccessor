@@ -1,3 +1,11 @@
+# VirtualDesktopAccessor.dll
+
+DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2023
+
+See AutoHotkey example here:
+
+[example.ahk](example.ahk ⬅️)
+
 # winvd - Windows virtual desktop bindings library for Rust
 
 https://crates.io/crates/winvd
@@ -24,26 +32,7 @@ fn main() {
     go_to_desktop_number(1).unwrap();
 
     // Listen on interesting events
-    std::thread::spawn(|| {
-        get_event_receiver().iter().for_each(|msg| match msg {
-            VirtualDesktopEvent::DesktopChanged(old, new) => {
-                println!(
-                    "<- Desktop changed from {:?} to {:?}",
-                    old.get_index().unwrap(),
-                    new.get_index().unwrap()
-                );
-            }
-            VirtualDesktopEvent::DesktopCreated(desk) => {
-                println!("<- New desktop created {:?}", desk);
-            }
-            VirtualDesktopEvent::DesktopDestroyed(desk) => {
-                println!("<- Desktop destroyed {:?}", desk);
-            }
-            VirtualDesktopEvent::WindowChanged(hwnd) => {
-                println!("<- Window changed {:?}", hwnd);
-            }
-        })
-    });
+    // TODO: Document
 
 }
 ```
