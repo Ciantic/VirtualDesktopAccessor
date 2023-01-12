@@ -4,7 +4,9 @@ DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features 
 
 See AutoHotkey example here:
 
-[example.ahk](example.ahk ⬅️)
+1. [example.ahk ⬅️](./example.ahk)
+
+2. [Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/tag/2023-01-12-windows11)
 
 # winvd - Windows virtual desktop bindings library for Rust
 
