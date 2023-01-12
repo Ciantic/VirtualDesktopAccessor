@@ -2,13 +2,18 @@
 
 DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2023
 
-See AutoHotkey example here:
+## AutoHotkey example here:
 
-1. [example.ahk ⬅️](./example.ahk)
+[example.ahk ⬅️](./example.ahk)
 
-2. [Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/tag/2023-01-12-windows11)
+## Download from releases:
 
-# winvd - Windows virtual desktop bindings library for Rust
+[Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/tag/2023-01-12-windows11)
+
+---- 
+
+
+## winvd - Windows virtual desktop bindings library for Rust
 
 https://crates.io/crates/winvd
 https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/
@@ -16,7 +21,7 @@ https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/
 The implementation abstracts the annoying COM API to a simple functions.
 Accessing these functions should be thread-safe.
 
-## Example
+### Example
 
 You may want to use `helpers` sub module in this crate, it is most stable API at
 the moment. It contains almost all the wanted features but with numbered
