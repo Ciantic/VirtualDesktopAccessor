@@ -18,3 +18,6 @@ winapi = { version = "0.3.9", features = ["winuser", "wtypesbase", "hstring", "g
 winvd = { path = "../", features = ["debug"] }
 once_cell = "1.5.0"
 
+[build-dependencies]
+cbindgen = "0.24.3"
+
