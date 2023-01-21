@@ -4,8 +4,8 @@ DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features 
 
 ## AutoHotkey example here:
 
-[AutoHotkey V1 example.ahk ⬅️](./example.ahk)
-[AutoHotkey V2 example.ah2 ⬅️](./example.ah2)
+* [AutoHotkey V1 example.ahk ⬅️](./example.ahk)
+* [AutoHotkey V2 example.ah2 ⬅️](./example.ah2)
 
 ## Download from releases:
 
