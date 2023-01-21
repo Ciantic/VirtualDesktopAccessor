@@ -7,6 +7,10 @@ DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features 
 * [AutoHotkey V1 example.ahk ⬅️](./example.ahk)
 * [AutoHotkey V2 example.ah2 ⬅️](./example.ah2)
 
+## Download from releases:
+
+[Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/)
+
 ## Reference of exported DLL functions
 
 ```rust
@@ -34,10 +38,6 @@ fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
 fn CreateDesktop() -> i32 // Win11 only
 fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i32 // Win11 only
 ```
-
-## Download from releases:
-
-[Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/)
 
 ---- 
 
