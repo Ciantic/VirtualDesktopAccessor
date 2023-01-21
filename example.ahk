@@ -7,6 +7,7 @@ ahkWindowHwnd+=0x1000<<32
 VDA_PATH := A_ScriptDir . "\target\release\VirtualDesktopAccessor.dll"
 hVirtualDesktopAccessor := DllCall("LoadLibrary", Str, VDA_PATH, "Ptr")
 
+GetDesktopCountProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetDesktopCount", "Ptr")
 GoToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GoToDesktopNumber", "Ptr")
 GetCurrentDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetCurrentDesktopNumber", "Ptr")
 IsWindowOnCurrentVirtualDesktopProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsWindowOnCurrentVirtualDesktop", "Ptr")
@@ -20,6 +21,12 @@ SetDesktopNameProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AS
 RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
 UnregisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "UnregisterPostMessageHook", "Ptr")
 
+GetDesktopCount() {
+    global GetDesktopCountProc
+    count := DllCall(GetDesktopCountProc, UInt)
+    return count
+}
+
 MoveCurrentWindowToDesktop(number) {
     global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc
     WinGet, activeHwnd, ID, A
@@ -30,10 +37,12 @@ MoveCurrentWindowToDesktop(number) {
 GoToPrevDesktop() {
     global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
     current := DllCall(GetCurrentDesktopNumberProc, UInt)
+    last_desktop := GetDesktopCount() - 1
+    ; If current desktop is 0, go to last desktop
     if (current = 0) {
-        GoToDesktopNumber(7)
+        MoveOrGotoDesktopNumber(last_desktop)
     } else {
-        GoToDesktopNumber(current - 1)
+        MoveOrGotoDesktopNumber(current - 1)
     }
     return
 }
@@ -41,10 +50,12 @@ GoToPrevDesktop() {
 GoToNextDesktop() {
     global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
     current := DllCall(GetCurrentDesktopNumberProc, UInt)
-    if (current = 7) {
-        GoToDesktopNumber(0)
+    last_desktop := GetDesktopCount() - 1
+    ; If current desktop is last, go to first desktop
+    if (current = last_desktop) {
+        MoveOrGotoDesktopNumber(0)
     } else {
-        GoToDesktopNumber(current + 1)
+        MoveOrGotoDesktopNumber(current + 1)
     }
     return
 }
@@ -107,3 +118,5 @@ F13 & 2::MoveOrGotoDesktopNumber(1)
 F13 & 3::MoveOrGotoDesktopNumber(2)
 F13 & 4::MoveOrGotoDesktopNumber(3)
 F13 & 5::MoveOrGotoDesktopNumber(4)
+F14 UP::GoToPrevDesktop()
+F15 UP::GoToNextDesktop()
