@@ -9,7 +9,7 @@ DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features 
 
 ## Download from releases:
 
-[Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/tag/2023-01-12-windows11)
+[Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/)
 
 ---- 
 
