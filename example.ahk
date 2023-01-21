@@ -18,6 +18,8 @@ MoveWindowToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopA
 IsPinnedWindowProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsPinnedWindow", "Ptr")
 GetDesktopNameProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetDesktopName", "Ptr")
 SetDesktopNameProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "SetDesktopName", "Ptr")
+CreateDesktopProc := DllCall("GetProcAddress", "Ptr", hVirtualDesktopAccessor, "AStr", "CreateDesktop", "Ptr")
+RemoveDesktopProc := DllCall("GetProcAddress", "Ptr", hVirtualDesktopAccessor, "AStr", "RemoveDesktop", "Ptr")
 
 ; On change listeners
 RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
@@ -91,6 +93,16 @@ SetDesktopName(num, name) {
     VarSetCapacity(name_utf8, 1024, 0)
     StrPut(name, &name_utf8, "UTF-8")
     ran := DllCall(SetDesktopNameProc, UInt, num, Ptr, &name_utf8)
+    return ran
+}
+CreateDesktop() {
+    global CreateDesktopProc
+    ran := DllCall(CreateDesktopProc)
+    return ran
+}
+RemoveDesktop(remove_desktop_number, fallback_desktop_number) {
+    global RemoveDesktopProc
+    ran := DllCall(RemoveDesktopProc, "UInt", remove_desktop_number, "UInt", fallback_desktop_number)
     return ran
 }
 

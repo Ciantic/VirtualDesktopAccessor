@@ -347,6 +347,7 @@ impl VirtualDesktopService {
         let idesk = idesk_opt.ok_or(Error::CreateDesktopFailed)?;
         let mut new_desk = Desktop::empty();
         Result::from(unsafe { idesk.get_id(&mut new_desk.id) })?;
+        clear_desktops();
         if new_desk.id == DesktopID::default() {
             Err(Error::CreateDesktopFailed)
         } else {
@@ -361,6 +362,7 @@ impl VirtualDesktopService {
     ) -> Result<(), Error> {
         let a = self._get_idesktop_by_id(&remove_desktop.id)?;
         let b = self._get_idesktop_by_id(&fallback_desktop.id)?;
+        clear_desktops();
         Result::from(unsafe { self.virtual_desktop_manager_internal.remove_desktop(a, b) })
     }
 

@@ -6,12 +6,12 @@ use std::{
 };
 
 use once_cell::sync::Lazy;
-use winapi::{shared::windef::HWND, winrt::hstring::HSTRING};
+use winapi::shared::windef::HWND;
 use winvd::{
-    create_event_listener, get_desktop_by_guid, get_desktop_by_index, get_desktop_by_window,
+    create_desktop, get_desktop_by_guid, get_desktop_by_index, get_desktop_by_window,
     get_desktop_name, helpers::*, is_pinned_app, is_pinned_window, is_window_on_current_desktop,
-    is_window_on_desktop, pin_app, pin_window, unpin_app, unpin_window, DesktopID,
-    VirtualDesktopEvent, VirtualDesktopEventSender,
+    is_window_on_desktop, pin_app, pin_window, remove_desktop, set_event_sender, unpin_app,
+    unpin_window, DesktopID, VirtualDesktopEvent, VirtualDesktopEventSender,
 };
 
 #[no_mangle]
@@ -113,7 +113,7 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
         let mut static_thread = LISTENER_THREAD.lock().unwrap();
         let thread_handle = thread::spawn(|| {
             let (sender, receiver) = std::sync::mpsc::channel();
-            create_event_listener(VirtualDesktopEventSender::Std(sender)).unwrap();
+            set_event_sender(VirtualDesktopEventSender::Std(sender)).unwrap();
             receiver.iter().for_each(|msg| match msg {
                 VirtualDesktopEvent::DesktopChanged(_old, new) => {
                     let hwnds = LISTENER_HWNDS.lock();
@@ -196,14 +196,33 @@ pub extern "C" fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i3
         is_window_on_desktop(hwnd as u32, &x).map_or(-1, |b| b as i32)
     })
 }
+
 #[no_mangle]
-pub extern "C" fn RestartVirtualDesktopAccessor() {
-    // ?
+pub extern "C" fn CreateDesktop() -> i32 {
+    if let Ok(desk) = create_desktop() {
+        desk.get_index().map_or(-1, |x| x as i32)
+    } else {
+        -1
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn lib_test() {
-    println!("Hello from the library!");
+pub extern "C" fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i32 {
+    if remove_desktop_number == fallback_desktop_number {
+        return -1;
+    }
+    let fallback_desk = get_desktop_by_index(fallback_desktop_number as usize);
+    let remove_desk = get_desktop_by_index(remove_desktop_number as usize);
+    if let (Ok(fd), Ok(rd)) = (fallback_desk, remove_desk) {
+        remove_desktop(&rd, &fd).map_or(-1, |_| 1)
+    } else {
+        -1
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn RestartVirtualDesktopAccessor() {
+    // ?
 }
 
 #[cfg(test)]
@@ -235,6 +254,21 @@ mod tests {
         rename_desktop_number(0, &current_desktop_name).unwrap();
         assert_eq!(new_name, name);
         assert_eq!(res, 1);
+    }
+
+    #[test]
+    fn test_create_desktop() {
+        // Creation works
+        let count = GetDesktopCount();
+        let new_desk_index = CreateDesktop();
+        let new_count = GetDesktopCount();
+        assert_eq!(count + 1, new_count);
+
+        // Removing works
+        let did_it_work = RemoveDesktop(new_desk_index, 0);
+        assert_eq!(did_it_work, 1);
+        let after_count = GetDesktopCount();
+        assert_eq!(count, after_count);
     }
 }
 /*

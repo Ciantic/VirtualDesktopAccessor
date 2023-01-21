@@ -135,7 +135,7 @@ pub fn notify_explorer_restarted() -> Result<(), Error> {
     }
 }
 
-pub fn create_event_listener(sender: VirtualDesktopEventSender) -> Result<(), Error> {
+pub fn set_event_sender(sender: VirtualDesktopEventSender) -> Result<(), Error> {
     // println!("Create event listener");
     let _ = with_service(move |s| Ok(s.create_event_listener(sender.clone())));
     Ok(())
@@ -262,8 +262,7 @@ mod tests {
         INIT.call_once(|| {
             let (a, b) = std::sync::mpsc::channel::<VirtualDesktopEvent>();
 
-            create_event_listener(changelistener::VirtualDesktopEventSender::Std(a.clone()))
-                .unwrap();
+            set_event_sender(changelistener::VirtualDesktopEventSender::Std(a.clone())).unwrap();
 
             thread::spawn(move || {
                 b.iter().for_each(|msg| match msg {

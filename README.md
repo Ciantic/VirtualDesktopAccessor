@@ -47,12 +47,9 @@ fn main() {
 
 See more examples from the [testbin sources 🢅](https://github.com/Ciantic/VirtualDesktopAccessor/blob/rust/testbin/src/main.rs).
 
-## When explorer.exe restarts
+### Notes
 
-In case you want a robust event listener, you need to notify when the
-explorer.exe restarts. Listen on window message loop [for `TaskbarCreated`
-messages 🢅](https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification), and call the `notify_explorer_restarted` to recreate the underlying sender loop.
-
-## Other
-
-This might deprecate CPP implementation, once I get a DLL also done with Rust.
+```
+cargo clean
+cargo build --release --workspace
+```
