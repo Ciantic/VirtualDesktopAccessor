@@ -72,6 +72,12 @@ pub extern "C" fn SetName(desktop_number: i32, name: HSTRING) {
     // rename_desktop_number(number, name)
 }
 
+#[no_mangle]
+pub extern "C" fn GetName(desktop_number: i32, name: HSTRING) {
+    // TODO:
+    // rename_desktop_number(number, name)
+}
+
 static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<u32, u32>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
