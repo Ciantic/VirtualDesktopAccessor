@@ -86,7 +86,6 @@ SetDesktopName(num, name) {
     ; NOTICE! For UTF-8 to work AHK file must be saved with UTF-8 with BOM
 
     global SetDesktopNameProc
-    OutputDebug, % name
     VarSetCapacity(name_utf8, 1024, 0)
     StrPut(name, &name_utf8, "UTF-8")
     ran := DllCall(SetDesktopNameProc, UInt, num, Ptr, &name_utf8)
