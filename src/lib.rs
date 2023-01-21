@@ -39,17 +39,11 @@ fn error_side_effect(err: &Error) -> Result<bool, Error> {
         Error::ComError(hresult) => {
             let comerror = ComError::from(*hresult);
 
-            // #[cfg(feature = "debug")]
+            #[cfg(feature = "debug")]
             println!("ComError::{:?}", comerror);
 
             match comerror {
                 ComError::NotInitialized => {
-                    // #[cfg(feature = "debug")]
-                    println!(
-                        "Com initialize, thread id is {:?}",
-                        std::thread::current().id()
-                    );
-
                     // This is the right initialization, it uses
                     // CoIncrementMTAUsage inside, and no CoInitialize function
                     // at all
@@ -83,12 +77,12 @@ where
             for _ in 0..6 {
                 let service_ref = cell.borrow();
                 let result = service_ref.as_ref();
-                match result {
-                    Ok(v) => match cb(&v) {
+                let mut res = match result {
+                    Ok(mut v) => match cb(v) {
                         Ok(r) => return Ok(r),
                         Err(err) => match error_side_effect(&err) {
                             Ok(false) => return Err(err),
-                            Ok(true) => (),
+                            Ok(true) => v.recreate(),
                             Err(err) => return Err(err),
                         },
                     },
@@ -98,26 +92,13 @@ where
                         {
                             error_side_effect(&err);
                         }
+                        VirtualDesktopService::create(None)
                     }
-                }
+                };
 
-                // #[cfg(feature = "debug")]
-                println!("Try to create");
-
-                let res = VirtualDesktopService::create();
                 match res {
                     Ok(new_service) => {
                         println!("Recreate listener");
-                        // Recreate listener, if it exists
-                        /*
-                        if let Ok(mut listener) = LISTENER.lock() {
-                            if let Some(l) = listener.as_ref() {
-                                let new_listener =
-                                    new_service.create_event_listener(l.get_sender().clone())?;
-                                listener.replace(new_listener);
-                            }
-                        }
-                         */
 
                         // Store service
                         (*cell) = Ok(new_service);
@@ -140,7 +121,15 @@ where
 /// Should be called when explorer is restarted
 pub fn notify_explorer_restarted() -> Result<(), Error> {
     if let Ok(mut cell) = SERVICE.lock() {
-        (*cell) = VirtualDesktopService::create();
+        let old = cell.borrow().as_ref();
+        match old {
+            Ok(v) => {
+                (*cell) = v.recreate();
+            }
+            Err(_) => {
+                (*cell) = VirtualDesktopService::create(None);
+            }
+        }
         Ok(())
     } else {
         Ok(())
@@ -154,7 +143,7 @@ pub fn create_event_listener(sender: VirtualDesktopEventSender) -> Result<(), Er
 }
 
 /// Get desktop name
-pub(crate) fn get_desktop_name(desktop: &Desktop) -> Result<String, Error> {
+pub fn get_desktop_name(desktop: &Desktop) -> Result<String, Error> {
     with_service(|s| s.get_desktop_name(desktop))
 }
 
@@ -165,7 +154,7 @@ pub(crate) fn get_index_by_desktop(desktop: &Desktop) -> Result<usize, Error> {
 
 /// Set desktop name
 pub fn set_desktop_name(desktop: &Desktop, name: &str) -> Result<(), Error> {
-    with_service(|s| s.rename_desktop(desktop, name))
+    with_service(|s| s.set_desktop_name(desktop, name))
 }
 
 /// Get desktop number

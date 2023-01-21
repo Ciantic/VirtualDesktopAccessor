@@ -1,4 +1,4 @@
-; Get hwnd of AutoHotkey window, for listener
+﻿; Get hwnd of AutoHotkey window, for listener
 DetectHiddenWindows, On
 ahkWindowHwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
 ahkWindowHwnd+=0x1000<<32
@@ -15,6 +15,8 @@ MoveWindowToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopA
 RestoreMinimizedProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RestoreMinimized", "Ptr")
 EnableKeepMinimizedProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "EnableKeepMinimized", "Ptr")
 IsPinnedWindowProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "IsPinnedWindow", "Ptr")
+GetDesktopNameProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "GetDesktopName", "Ptr")
+SetDesktopNameProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "SetDesktopName", "Ptr")
 
 ; On change listeners
 RegisterPostMessageHookProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "RegisterPostMessageHook", "Ptr")
@@ -63,12 +65,37 @@ MoveOrGotoDesktopNumber(num) {
     }
     return
 }
+GetDesktopName(num) {
+    global GetDesktopNameProc
+    utf8_buffer := ""
+    utf8_buffer_len := VarSetCapacity(utf8_buffer, 1024, 0)
+    ran := DllCall(GetDesktopNameProc, UInt, num, Ptr, &utf8_buffer, UInt, utf8_buffer_len)
+    name := StrGet(&utf8_buffer, 1024, "UTF-8")
+    return name
+}
+SetDesktopName(num, name) {
+    ; NOTICE! For UTF-8 to work AHK file must be saved with UTF-8 with BOM
 
+    global SetDesktopNameProc
+    OutputDebug, % name
+    VarSetCapacity(name_utf8, 1024, 0)
+    StrPut(name, &name_utf8, "UTF-8")
+    ran := DllCall(SetDesktopNameProc, UInt, num, Ptr, &name_utf8)
+    return ran
+}
+
+; SetDesktopName(0, "It works! 🐱")
+
+; How to listen to desktop changes
 DllCall(RegisterPostMessageHookProc, Int, ahkWindowHwnd, Int, 0x1400 + 30)
 OnMessage(0x1400 + 30, "OnChangeDesktop")
 OnChangeDesktop(wParam, lParam, msg, hwnd) {
+    Critical, 100
     desktopNumber := lParam + 1
-    OutputDebug % "DESKTOP CHANGED TO " desktopNumber
+    name := GetDesktopName(lParam)
+
+    ; Use Dbgview.exe to checkout the output debug logs
+    OutputDebug % "DESKTOP CHANGED TO " desktopNumber " " name
 }
 
 #+1::MoveOrGotoDesktopNumber(0)

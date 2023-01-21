@@ -29,6 +29,7 @@ pub(crate) fn clear_desktops() {
 /// functions.
 pub struct VirtualDesktopService {
     // service_provider: ComRc<dyn IServiceProvider>,
+    // sender: Option<VirtualDesktopEventSender>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
@@ -45,7 +46,11 @@ unsafe impl Sync for VirtualDesktopService {}
 
 impl VirtualDesktopService {
     /// Initialize only the service, must be-created on TaskbarCreated message
-    pub fn create() -> Result<Box<VirtualDesktopService>, Error> {
+    pub fn create(
+        sender: Option<VirtualDesktopEventSender>,
+    ) -> Result<Box<VirtualDesktopService>, Error> {
+        clear_desktops();
+
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
 
         let virtual_desktop_manager =
@@ -65,7 +70,7 @@ impl VirtualDesktopService {
             get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
 
         let registered_listener =
-            RegisteredListener::register(None, virtual_desktop_notification_service)
+            RegisteredListener::register(sender.clone(), virtual_desktop_notification_service)
                 .map_err(Error::ComError)?;
 
         #[cfg(feature = "debug")]
@@ -77,6 +82,7 @@ impl VirtualDesktopService {
         Ok(Box::new(VirtualDesktopService {
             // service_provider,
             // virtual_desktop_notification_service,
+            // sender,
             virtual_desktop_manager,
             virtual_desktop_manager_internal,
             app_view_collection,
@@ -172,6 +178,11 @@ impl VirtualDesktopService {
         Ok(app_id)
     }
 
+    pub fn recreate(&self) -> Result<Box<VirtualDesktopService>, Error> {
+        let sender = self.registered_listener.get_sender().clone();
+        VirtualDesktopService::create(sender)
+    }
+
     pub fn create_event_listener(&self, sender: VirtualDesktopEventSender) {
         self.registered_listener.set_sender(Some(sender));
     }
@@ -193,7 +204,7 @@ impl VirtualDesktopService {
     }
 
     /// Rename desktop
-    pub fn rename_desktop(&self, desktop: &Desktop, name: &str) -> Result<(), Error> {
+    pub fn set_desktop_name(&self, desktop: &Desktop, name: &str) -> Result<(), Error> {
         let idesktop = self._get_idesktop_by_id(&desktop.id)?;
         let hstring = HSTRING::create(name).map_err(HRESULT::from_i32)?;
         Result::from(unsafe {

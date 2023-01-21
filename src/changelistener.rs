@@ -105,6 +105,9 @@ impl RegisteredListener {
         let mut sender_lock = self.listener.sender.lock().unwrap();
         *sender_lock = sender;
     }
+    pub fn get_sender(&self) -> Option<VirtualDesktopEventSender> {
+        self.listener.sender.lock().unwrap().clone()
+    }
 }
 
 impl Drop for RegisteredListener {

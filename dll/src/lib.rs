@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ffi::{c_char, CStr, CString},
     sync::{Arc, Mutex},
     thread,
 };
@@ -8,7 +9,7 @@ use once_cell::sync::Lazy;
 use winapi::{shared::windef::HWND, winrt::hstring::HSTRING};
 use winvd::{
     create_event_listener, get_desktop_by_guid, get_desktop_by_index, get_desktop_by_window,
-    helpers::*, is_pinned_app, is_pinned_window, is_window_on_current_desktop,
+    get_desktop_name, helpers::*, is_pinned_app, is_pinned_window, is_window_on_current_desktop,
     is_window_on_desktop, pin_app, pin_window, unpin_app, unpin_window, DesktopID,
     VirtualDesktopEvent, VirtualDesktopEventSender,
 };
@@ -67,15 +68,33 @@ pub extern "C" fn GoToDesktopNumber(desktop_number: i32) {
 }
 
 #[no_mangle]
-pub extern "C" fn SetName(desktop_number: i32, name: HSTRING) {
-    // TODO:
-    // rename_desktop_number(number, name)
+pub extern "C" fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32 {
+    let name_str = unsafe { CStr::from_ptr(in_name_ptr).to_string_lossy() };
+    // let name = unsafe { CString::from_raw(in_name_ptr) };
+    // let name_str = name.to_string_lossy();
+    rename_desktop_number(desktop_number as usize, &name_str).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
-pub extern "C" fn GetName(desktop_number: i32, name: HSTRING) {
-    // TODO:
-    // rename_desktop_number(number, name)
+pub extern "C" fn GetDesktopName(
+    desktop_number: i32,
+    out_utf8_ptr: *mut u8,
+    out_utf8_len: usize,
+) -> i32 {
+    if let Ok(desktop) = get_desktop_by_index(desktop_number as usize) {
+        let name = get_desktop_name(&desktop).unwrap_or_default();
+        let name_str = CString::new(name).unwrap();
+        let name_bytes = name_str.as_bytes_with_nul();
+        if name_bytes.len() > out_utf8_len {
+            return -1;
+        }
+        unsafe {
+            out_utf8_ptr.copy_from(name_bytes.as_ptr(), name_bytes.len());
+        }
+        1
+    } else {
+        0
+    }
 }
 
 static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<u32, u32>>>> =
@@ -185,6 +204,38 @@ pub extern "C" fn RestartVirtualDesktopAccessor() {
 #[no_mangle]
 pub extern "C" fn lib_test() {
     println!("Hello from the library!");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dll_get_desktop_name() {
+        // Allocate a buffer for the UTF-8 string
+        let utf8_buffer_1024 = [0u8; 1024];
+        let utf8_buffer_1024_ptr = utf8_buffer_1024.as_ptr() as *mut u8;
+        let res = GetDesktopName(0, utf8_buffer_1024_ptr, 1024);
+
+        let name_cstr = unsafe { std::ffi::CStr::from_ptr(utf8_buffer_1024_ptr as *const i8) };
+        let name_str = name_cstr.to_str().unwrap();
+
+        assert_eq!(res, 1);
+        assert_eq!(name_str, "Oma");
+    }
+    #[test]
+    fn test_dll_set_desktop_name() {
+        let current_desktop_name = get_name_by_desktop_number(0).unwrap();
+        let name = "Testi 😉";
+        assert_ne!(current_desktop_name, name);
+
+        let name_cstr = std::ffi::CString::new(name).unwrap();
+        let res = SetDesktopName(0, name_cstr.as_ptr() as *mut i8);
+        let new_name = get_name_by_desktop_number(0).unwrap();
+        rename_desktop_number(0, &current_desktop_name).unwrap();
+        assert_eq!(new_name, name);
+        assert_eq!(res, 1);
+    }
 }
 /*
 * int GetCurrentDesktopNumber()
