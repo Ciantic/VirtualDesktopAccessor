@@ -1,7 +1,9 @@
-﻿; Get hwnd of AutoHotkey window, for listener
+﻿; AutoHotkey v1 script
+
+; Get hwnd of AutoHotkey window, for listener
 DetectHiddenWindows, On
-ahkWindowHwnd:=WinExist("ahk_pid " . DllCall("GetCurrentProcessId","Uint"))
-ahkWindowHwnd+=0x1000<<32
+ahkWindowHwnd := WinExist("ahk_pid " . DllCall("GetCurrentProcessId", "Uint"))
+ahkWindowHwnd += 0x1000 << 32
 
 ; Path to the DLL, relative to the script
 VDA_PATH := A_ScriptDir . "\target\release\VirtualDesktopAccessor.dll"
@@ -103,19 +105,19 @@ OnChangeDesktop(wParam, lParam, msg, hwnd) {
     name := GetDesktopName(lParam)
 
     ; Use Dbgview.exe to checkout the output debug logs
-    OutputDebug % "DESKTOP CHANGED TO " desktopNumber " " name
+    OutputDebug %"DESKTOP CHANGED TO " desktopNumber " " name
 }
 
-#+1::MoveOrGotoDesktopNumber(0)
-#+2::MoveOrGotoDesktopNumber(1)
-#+3::MoveOrGotoDesktopNumber(2)
-#+4::MoveOrGotoDesktopNumber(3)
-#+5::MoveOrGotoDesktopNumber(4)
+#+1:: MoveOrGotoDesktopNumber(0)
+#+2:: MoveOrGotoDesktopNumber(1)
+#+3:: MoveOrGotoDesktopNumber(2)
+#+4:: MoveOrGotoDesktopNumber(3)
+#+5:: MoveOrGotoDesktopNumber(4)
 
-F13 & 1::MoveOrGotoDesktopNumber(0)
-F13 & 2::MoveOrGotoDesktopNumber(1)
-F13 & 3::MoveOrGotoDesktopNumber(2)
-F13 & 4::MoveOrGotoDesktopNumber(3)
-F13 & 5::MoveOrGotoDesktopNumber(4)
-F14 UP::GoToPrevDesktop()
-F15 UP::GoToNextDesktop()
+F13 & 1:: MoveOrGotoDesktopNumber(0)
+F13 & 2:: MoveOrGotoDesktopNumber(1)
+F13 & 3:: MoveOrGotoDesktopNumber(2)
+F13 & 4:: MoveOrGotoDesktopNumber(3)
+F13 & 5:: MoveOrGotoDesktopNumber(4)
+F14 UP:: GoToPrevDesktop()
+F15 UP:: GoToNextDesktop()
