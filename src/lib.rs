@@ -12,7 +12,6 @@ use crate::comhelpers::ComError;
 use crate::service::VirtualDesktopService;
 use changelistener::RegisteredListener;
 use com::runtime::init_runtime;
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use once_cell::sync::Lazy;
 use std::borrow::Borrow;
 use std::cell::{Ref, RefCell};
