@@ -34,21 +34,21 @@ pub use crate::interfaces::HWND;
 static SERVICE: Lazy<Arc<Mutex<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Err(Error::ServiceNotCreated))));
 
-static LISTENER: Lazy<Arc<Mutex<Option<RegisteredListener>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(None)));
-
 fn error_side_effect(err: &Error) -> Result<bool, Error> {
     match err {
         Error::ComError(hresult) => {
             let comerror = ComError::from(*hresult);
 
-            #[cfg(feature = "debug")]
+            // #[cfg(feature = "debug")]
             println!("ComError::{:?}", comerror);
 
             match comerror {
                 ComError::NotInitialized => {
-                    #[cfg(feature = "debug")]
-                    println!("Com initialize");
+                    // #[cfg(feature = "debug")]
+                    println!(
+                        "Com initialize, thread id is {:?}",
+                        std::thread::current().id()
+                    );
 
                     // This is the right initialization, it uses
                     // CoIncrementMTAUsage inside, and no CoInitialize function
@@ -79,6 +79,7 @@ where
 {
     match SERVICE.lock() {
         Ok(mut cell) => {
+            // println!("Thread id is {:?}", std::thread::current().id());
             for _ in 0..6 {
                 let service_ref = cell.borrow();
                 let result = service_ref.as_ref();
@@ -100,13 +101,15 @@ where
                     }
                 }
 
-                #[cfg(feature = "debug")]
+                // #[cfg(feature = "debug")]
                 println!("Try to create");
 
                 let res = VirtualDesktopService::create();
                 match res {
                     Ok(new_service) => {
+                        println!("Recreate listener");
                         // Recreate listener, if it exists
+                        /*
                         if let Ok(mut listener) = LISTENER.lock() {
                             if let Some(l) = listener.as_ref() {
                                 let new_listener =
@@ -114,6 +117,7 @@ where
                                 listener.replace(new_listener);
                             }
                         }
+                         */
 
                         // Store service
                         (*cell) = Ok(new_service);
@@ -126,7 +130,7 @@ where
             Err(Error::ServiceNotCreated)
         }
         Err(_) => {
-            #[cfg(feature = "debug")]
+            // #[cfg(feature = "debug")]
             println!("Lock failed?");
             Err(Error::ServiceNotCreated)
         }
@@ -144,9 +148,8 @@ pub fn notify_explorer_restarted() -> Result<(), Error> {
 }
 
 pub fn create_event_listener(sender: VirtualDesktopEventSender) -> Result<(), Error> {
-    let listener = with_service(move |s| s.create_event_listener(sender.clone()))?;
-    let mut mutex = LISTENER.lock().unwrap();
-    mutex.replace(listener);
+    // println!("Create event listener");
+    let _ = with_service(move |s| Ok(s.create_event_listener(sender.clone())));
     Ok(())
 }
 
@@ -277,7 +280,11 @@ mod tests {
             thread::spawn(move || {
                 b.iter().for_each(|msg| match msg {
                     VirtualDesktopEvent::DesktopChanged(old, new) => {
-                        println!("<- Desktop changed from {:?} to {:?}", old, new);
+                        println!(
+                            "<- Desktop changed from {:?} to {:?}",
+                            old.get_index().unwrap(),
+                            new.get_index().unwrap()
+                        );
                     }
                     VirtualDesktopEvent::DesktopCreated(desk) => {
                         println!("<- New desktop created {:?}", desk);
@@ -309,19 +316,42 @@ mod tests {
     fn test_threads() {
         sync_test(|| {
             std::thread::spawn(|| {
-                let get_count = || {
-                    get_desktop_count().unwrap();
-                };
+                // let get_count = || {
+                //     get_desktop_count().unwrap();
+                // };
                 let mut threads = vec![];
-                for _ in 0..16 {
-                    threads.push(std::thread::spawn(get_count));
+                for _ in 0..555 {
+                    threads.push(std::thread::spawn(|| {
+                        get_desktops().unwrap().iter().for_each(|d| {
+                            let n = d.get_name().unwrap();
+                            let i = d.get_index().unwrap();
+                            let j = d.get_index().unwrap();
+                            println!("Thread {n} {i} {j}");
+                        })
+                    }));
                 }
+                thread::sleep(Duration::from_millis(2500));
                 for t in threads {
                     t.join().unwrap();
                 }
             })
             .join()
             .unwrap();
+        })
+    }
+
+    // #[test] // TODO: Commented out, use only on occasion when needed!
+    fn test_threading_two() {
+        sync_test(|| {
+            let current_desktop = get_current_desktop_number().unwrap();
+
+            for _ in 0..999 {
+                go_to_desktop_number(0).unwrap();
+                std::thread::sleep(Duration::from_millis(4));
+                go_to_desktop_number(1).unwrap();
+            }
+            std::thread::sleep(Duration::from_millis(3));
+            go_to_desktop_number(current_desktop).unwrap();
         })
     }
 

@@ -20,8 +20,8 @@ fn main() {
             VirtualDesktopEvent::DesktopChanged(old, new) => {
                 println!(
                     "<- Desktop changed from {:?} to {:?} {:?}",
-                    old,
-                    new,
+                    old.get_index().unwrap_or(999),
+                    new.get_index().unwrap_or(999),
                     thread::current().id()
                 );
             }

@@ -186,9 +186,6 @@ pub trait IApplicationView: IUnknown {
         policyType: APPLICATION_VIEW_COMPATIBILITY_POLICY,
     ) -> HRESULT;
 
-    //unsafe fn get_position_priority(&self, THIS_ IShellPositionerPriority**) -> HRESULT; // removed in 1803
-    //unsafe fn set_position_priority(&self, THIS_ IShellPositionerPriority*) -> HRESULT; // removed in 1803
-
     unsafe fn get_size_constraints(
         &self,
         monitor: *mut IImmersiveMonitor,
@@ -207,8 +204,6 @@ pub trait IApplicationView: IUnknown {
         size1: *const SIZE,
         size2: *const SIZE,
     ) -> HRESULT;
-
-    //unsafe fn query_size_constraints_from_app)(&self, THIS PURE; // removed in 1803
 
     unsafe fn on_min_size_preferences_updated(&self, window: HWND) -> HRESULT;
     unsafe fn apply_operation(&self, operation: *mut IApplicationViewOperation) -> HRESULT;
@@ -261,17 +256,6 @@ pub trait IVirtualDesktop: IUnknown {
     unsafe fn get_name(&self, outString: *mut HSTRING) -> HRESULT;
     unsafe fn get_wallpaper(&self, outString: *mut HSTRING) -> HRESULT;
 }
-
-// #[com_interface("31ebde3f-6ec3-4cbd-b9fb-0ef6d09b41f4")]
-// pub trait IVirtualDesktop2: IUnknown {
-//     unsafe fn is_view_visible(
-//         &self,
-//         pView: ComRc<dyn IApplicationView>,
-//         outBool: *mut u32,
-//     ) -> HRESULT;
-//     unsafe fn get_id(&self, outGuid: *mut DesktopID) -> HRESULT;
-//     unsafe fn get_name(&self, outName: *mut HSTRING) -> HRESULT;
-// }
 
 #[com_interface("1841c6d7-4f9d-42c0-af41-8747538f10e5")]
 pub trait IApplicationViewCollection: IUnknown {
@@ -354,7 +338,7 @@ pub trait IVirtualDesktopNotification: IUnknown {
         desktopFallback: ComRc<dyn IVirtualDesktop>,
     ) -> HRESULT;
 
-    unsafe fn virtual_desktop_is_per_monitor_changed(&self, isPerMonitor: bool) -> HRESULT;
+    unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT;
 
     unsafe fn virtual_desktop_moved(
         &self,
@@ -390,9 +374,7 @@ pub trait IVirtualDesktopNotification: IUnknown {
 pub trait IVirtualDesktopNotificationService: IUnknown {
     unsafe fn register(
         &self,
-        // notification: ComPtr<dyn IVirtualDesktopNotification>,
         notification: ComRc<dyn IVirtualDesktopNotification>,
-        // notification: *mut c_void,
         outCookie: *mut DWORD,
     ) -> HRESULT;
 
@@ -492,97 +474,7 @@ pub trait IVirtualDesktopManagerInternal: IUnknown {
     unsafe fn set_wallpaper(&self, desktop: ComRc<dyn IVirtualDesktop>, name: HSTRING) -> HRESULT;
 
     unsafe fn update_wallpaper_for_all(&self, name: HSTRING) -> HRESULT;
-
-    /*
-        virtual HRESULT STDMETHODCALLTYPE CopyDesktopState(
-            _In_ IApplicationView* p0,
-            _In_ IApplicationView* p1) = 0;
-
-        virtual HRESULT STDMETHODCALLTYPE GetDesktopIsPerMonitor(
-            _Out_ BOOL* p0) = 0;
-
-        virtual HRESULT STDMETHODCALLTYPE SetDesktopIsPerMonitor(
-            _In_ BOOL p0) = 0;
-    */
 }
-
-// Notice that engineers at Microsoft have been in hurry, this is basically
-// useless for anything else than renaming the desktop! This is because all of
-// the signatures still refer to plain old IVirtualDesktop instead of
-// IVirtualDesktop2.
-/*
-#[com_interface("0f3a72b0-4566-487e-9a33-4ed302f6d6ce")]
-pub trait IVirtualDesktopManagerInternal2: IUnknown {
-    // Proc3
-    unsafe fn get_count(&self, outCount: *mut UINT) -> HRESULT;
-
-    // Proc4
-    unsafe fn move_view_to_desktop(
-        &self,
-        view: ComRc<dyn IApplicationView>,
-        desktop: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
-
-    // Proc5
-    unsafe fn can_move_view_between_desktops(
-        &self,
-        view: ComRc<dyn IApplicationView>,
-        canMove: *mut i32,
-    ) -> HRESULT;
-
-    // Proc6
-    unsafe fn get_current_desktop(
-        &self,
-        outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>,
-    ) -> HRESULT;
-
-    // Proc7
-    unsafe fn get_desktops(&self, outDesktops: *mut Option<ComRc<dyn IObjectArray>>) -> HRESULT;
-
-    // Proc8
-    unsafe fn get_adjacent_desktop(
-        &self,
-        inDesktop: ComRc<dyn IVirtualDesktop>,
-        outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>,
-    ) -> HRESULT;
-
-    // Proc9
-    unsafe fn switch_desktop(&self, desktop: ComRc<dyn IVirtualDesktop2>) -> HRESULT;
-
-    // Proc10
-    unsafe fn create_desktop(&self, outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>)
-        -> HRESULT;
-
-    // Proc11
-    unsafe fn remove_desktop(
-        &self,
-        destroyDesktop: ComRc<dyn IVirtualDesktop>,
-        fallbackDesktop: ComRc<dyn IVirtualDesktop>,
-    ) -> HRESULT;
-
-    // Proc12
-    unsafe fn find_desktop(
-        &self,
-        guid: *const DesktopID,
-        outDesktop: *mut Option<ComRc<dyn IVirtualDesktop>>,
-    ) -> HRESULT;
-
-    // Proc13
-    unsafe fn unknown(
-        &self,
-        desktop: ComRc<dyn IVirtualDesktop>,
-        out1: *mut Option<ComRc<dyn IObjectArray>>,
-        out2: *mut Option<ComRc<dyn IObjectArray>>,
-    ) -> HRESULT;
-
-    // Proc12
-    unsafe fn rename_desktop(
-        &self,
-        inDesktop: ComRc<dyn IVirtualDesktop>,
-        name: HSTRING,
-    ) -> HRESULT;
-}
- */
 
 #[com_interface("4ce81583-1e4c-4632-a621-07a53543148f")]
 pub trait IVirtualDesktopPinnedApps: IUnknown {
