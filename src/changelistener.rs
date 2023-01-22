@@ -1,10 +1,6 @@
 // Some reason the co_class macro uses null comparison
 #![allow(clippy::cmp_null)]
 
-use std::sync::Mutex;
-
-use com::{co_class, ComRc};
-
 use crate::{
     hresult::HRESULT,
     interfaces::{
@@ -14,6 +10,8 @@ use crate::{
     service::clear_desktops,
     Desktop, HWND,
 };
+use com::{co_class, ComRc};
+use std::sync::Mutex;
 
 unsafe impl Send for VirtualDesktopEventSender {}
 unsafe impl Sync for VirtualDesktopEventSender {}

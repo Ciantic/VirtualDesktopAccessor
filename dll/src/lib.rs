@@ -1,18 +1,17 @@
+use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
-    ffi::{c_char, CStr, CString},
+    ffi::{CStr, CString},
     sync::{Arc, Mutex},
     thread,
 };
-
-use once_cell::sync::Lazy;
-use winapi::shared::windef::HWND;
 use winvd::{
     create_desktop, get_desktop_by_guid, get_desktop_by_index, get_desktop_by_window,
     get_desktop_name, helpers::*, is_pinned_app, is_pinned_window, is_window_on_current_desktop,
     is_window_on_desktop, pin_app, pin_window, remove_desktop, set_event_sender, unpin_app,
     unpin_window, DesktopID, VirtualDesktopEvent, VirtualDesktopEventSender,
 };
+type HWND = u32;
 
 #[no_mangle]
 pub extern "C" fn GetCurrentDesktopNumber() -> i32 {
@@ -120,11 +119,11 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                     if let Ok(hwnds) = hwnds {
                         for (hwnd, offset) in hwnds.iter() {
                             unsafe {
-                                winapi::um::winuser::PostMessageW(
+                                PostMessageW(
                                     *hwnd as _,
                                     *offset,
                                     0,
-                                    new.get_index().map_or(-1, |x| x as isize),
+                                    new.get_index().map_or(-1, |x| x as i32),
                                 );
                             }
                         }
@@ -223,6 +222,11 @@ pub extern "C" fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_num
 #[no_mangle]
 pub extern "C" fn RestartVirtualDesktopAccessor() {
     // ?
+}
+
+#[link(name = "User32")]
+extern "system" {
+    pub fn PostMessageW(inOptHwnd: HWND, inMsg: u32, inWParam: u32, inLParam: i32) -> bool;
 }
 
 #[cfg(test)]

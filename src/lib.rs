@@ -8,19 +8,14 @@ mod hstring;
 mod immersive;
 mod interfaces;
 mod service;
+
 use crate::comhelpers::ComError;
 use crate::service::VirtualDesktopService;
-use changelistener::RegisteredListener;
 use com::runtime::init_runtime;
 use once_cell::sync::Lazy;
 use std::borrow::Borrow;
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Mutex,
-};
+use std::sync::Mutex;
 
 pub mod helpers;
 pub use crate::changelistener::{VirtualDesktopEvent, VirtualDesktopEventSender};
