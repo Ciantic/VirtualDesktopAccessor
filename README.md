@@ -1,6 +1,6 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 11 (22H2 Os Build 22621.963) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see LICENSE.txt (c) Jari Pennanen, 2015-2023
+DLL for accessing Windows 11 (22H2 Os Build 22621.1105) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2023
 
 ## AutoHotkey example here:
 
