@@ -19,8 +19,9 @@ unsafe impl Sync for VirtualDesktopEventSender {}
 #[derive(Debug, Clone)]
 pub enum VirtualDesktopEventSender {
     Std(std::sync::mpsc::Sender<VirtualDesktopEvent>),
-    // #[cfg(feature = "crossbeam-channel")]
-    // Crossbeam(crossbeam_channel::Sender<VirtualDesktopEvent>),
+
+    #[cfg(feature = "crossbeam-channel")]
+    Crossbeam(crossbeam_channel::Sender<VirtualDesktopEvent>),
 }
 
 impl VirtualDesktopEventSender {
@@ -28,6 +29,11 @@ impl VirtualDesktopEventSender {
         match self {
             VirtualDesktopEventSender::Std(sender) => sender
                 .send(event)
+                .map_err(|_| "Failed to send event".to_owned()),
+
+            #[cfg(feature = "crossbeam-channel")]
+            VirtualDesktopEventSender::Crossbeam(sender) => sender
+                .try_send(event)
                 .map_err(|_| "Failed to send event".to_owned()),
         }
     }

@@ -92,8 +92,8 @@ where
 
                 match res {
                     Ok(new_service) => {
-                        println!("Recreate listener");
-
+                        #[cfg(feature = "debug")]
+                        println!("Recreate service");
                         // Store service
                         (*cell) = Ok(new_service);
                     }
@@ -105,7 +105,7 @@ where
             Err(Error::ServiceNotCreated)
         }
         Err(_) => {
-            // #[cfg(feature = "debug")]
+            #[cfg(feature = "debug")]
             println!("Lock failed?");
             Err(Error::ServiceNotCreated)
         }

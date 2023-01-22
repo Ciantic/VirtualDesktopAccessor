@@ -99,20 +99,13 @@ pub extern "C" fn GetDesktopName(
 static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<u32, u32>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-static LISTENER_THREAD: Lazy<Arc<Mutex<Option<std::thread::JoinHandle<()>>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(None)));
-
-// static LISTENER_SENDER: Lazy<Arc<Mutex<Option<VirtualDesktopEventSender>>>> =
-//     Lazy::new(|| Arc::new(Mutex::new(None)));
-
 #[no_mangle]
 pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) {
     let mut a = LISTENER_HWNDS.lock().unwrap();
     if a.len() == 0 {
-        let mut static_thread = LISTENER_THREAD.lock().unwrap();
-        let thread_handle = thread::spawn(|| {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            set_event_sender(VirtualDesktopEventSender::Std(sender)).unwrap();
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        set_event_sender(VirtualDesktopEventSender::Crossbeam(sender)).unwrap();
+        thread::spawn(move || {
             receiver.iter().for_each(|msg| match msg {
                 VirtualDesktopEvent::DesktopChanged(_old, new) => {
                     let hwnds = LISTENER_HWNDS.lock();
@@ -149,7 +142,6 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                 }
             });
         });
-        static_thread.replace(thread_handle);
     }
     a.insert(listener_hwnd as u32, message_offset);
 }
