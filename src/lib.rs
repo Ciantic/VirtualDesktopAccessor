@@ -536,7 +536,7 @@ mod tests {
     /// Test some errors
     #[test]
     fn test_errors() {
-        let err = rename_desktop_number(99999, "").unwrap_err();
+        let err = set_name_by_desktop_number(99999, "").unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
         let err = go_to_desktop_number(99999).unwrap_err();

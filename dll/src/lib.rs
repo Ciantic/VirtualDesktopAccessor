@@ -69,9 +69,7 @@ pub extern "C" fn GoToDesktopNumber(desktop_number: i32) {
 #[no_mangle]
 pub extern "C" fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32 {
     let name_str = unsafe { CStr::from_ptr(in_name_ptr).to_string_lossy() };
-    // let name = unsafe { CString::from_raw(in_name_ptr) };
-    // let name_str = name.to_string_lossy();
-    rename_desktop_number(desktop_number as usize, &name_str).map_or(-1, |_| 1)
+    set_name_by_desktop_number(desktop_number as usize, &name_str).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
@@ -247,7 +245,7 @@ mod tests {
         let name_cstr = std::ffi::CString::new(name).unwrap();
         let res = SetDesktopName(0, name_cstr.as_ptr() as *mut i8);
         let new_name = get_name_by_desktop_number(0).unwrap();
-        rename_desktop_number(0, &current_desktop_name).unwrap();
+        set_name_by_desktop_number(0, &current_desktop_name).unwrap();
         assert_eq!(new_name, name);
         assert_eq!(res, 1);
     }
