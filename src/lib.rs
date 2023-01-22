@@ -132,7 +132,7 @@ pub fn notify_explorer_restarted() -> Result<(), Error> {
 
 pub fn set_event_sender(sender: VirtualDesktopEventSender) -> Result<(), Error> {
     // println!("Create event listener");
-    let _ = with_service(move |s| Ok(s.create_event_listener(sender.clone())));
+    let _ = with_service(move |s| Ok(s.set_event_sender(sender.clone())));
     Ok(())
 }
 

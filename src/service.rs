@@ -183,7 +183,7 @@ impl VirtualDesktopService {
         VirtualDesktopService::create(sender)
     }
 
-    pub fn create_event_listener(&self, sender: VirtualDesktopEventSender) {
+    pub fn set_event_sender(&self, sender: VirtualDesktopEventSender) {
         self.registered_listener.set_sender(Some(sender));
     }
 
