@@ -179,6 +179,9 @@ impl VirtualDesktopService {
     }
 
     pub fn recreate(&self) -> Result<Box<VirtualDesktopService>, Error> {
+        #[cfg(feature = "debug")]
+        crate::log_output(&format!("Recreate service"));
+
         let sender = self.registered_listener.get_sender().clone();
         VirtualDesktopService::create(sender)
     }

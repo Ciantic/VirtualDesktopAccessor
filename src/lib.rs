@@ -11,7 +11,9 @@ mod service;
 
 use crate::comhelpers::ComError;
 use crate::service::VirtualDesktopService;
+use com::runtime::init_apartment;
 use com::runtime::init_runtime;
+use com::runtime::ApartmentType;
 use once_cell::sync::Lazy;
 use std::borrow::Borrow;
 use std::sync::Arc;
@@ -28,25 +30,34 @@ pub use crate::interfaces::HWND;
 static SERVICE: Lazy<Arc<Mutex<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Err(Error::ServiceNotCreated))));
 
+static COM_RUNTIME_INITIALIZED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+
 fn error_side_effect(err: &Error) -> Result<bool, Error> {
     match err {
         Error::ComError(hresult) => {
             let comerror = ComError::from(*hresult);
 
             #[cfg(feature = "debug")]
-            println!("ComError::{:?}", comerror);
+            log_output(&format!("ComError::{:?}", comerror));
 
             match comerror {
                 ComError::NotInitialized => {
+                    let mut v = COM_RUNTIME_INITIALIZED.lock().unwrap();
+                    if *v {
+                        return Ok(true);
+                    }
+
                     // This is the right initialization, it uses
                     // CoIncrementMTAUsage inside, and no CoInitialize function
                     // at all
                     init_runtime().map_err(HRESULT::from_i32)?;
+                    *v = true;
 
                     // Following gives STATUS_ACCESS_VIOLATION in the threading
                     // test, it uses CoInitializeEx with COINIT_MULTITHREADED
                     // inside
                     // init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
+                    // init_apartment(ApartmentType::SingleThreaded).map_err(HRESULT::from_i32)?;
 
                     Ok(true)
                 }
@@ -71,6 +82,7 @@ where
             for _ in 0..6 {
                 let service_ref = cell.borrow();
                 let result = service_ref.as_ref();
+
                 let mut res = match result {
                     Ok(mut v) => match cb(v) {
                         Ok(r) => return Ok(r),
@@ -93,7 +105,8 @@ where
                 match res {
                     Ok(new_service) => {
                         #[cfg(feature = "debug")]
-                        println!("Recreate service");
+                        log_output(&format!("Set service"));
+
                         // Store service
                         (*cell) = Ok(new_service);
                     }
@@ -106,7 +119,7 @@ where
         }
         Err(_) => {
             #[cfg(feature = "debug")]
-            println!("Lock failed?");
+            log_output(&format!("Lock failed: SERVICE.lock()"));
             Err(Error::ServiceNotCreated)
         }
     }
@@ -236,6 +249,20 @@ pub fn unpin_app(hwnd: HWND) -> Result<(), Error> {
     with_service(|s| s.unpin_app(hwnd))
 }
 
+// Import OutputDebugStringA
+#[cfg(feature = "debug")]
+extern "system" {
+    fn OutputDebugStringA(lpOutputString: *const i8);
+}
+
+#[cfg(feature = "debug")]
+pub(crate) fn log_output(s: &str) {
+    unsafe {
+        println!("{}", s);
+        OutputDebugStringA(s.as_ptr() as *const i8);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::helpers::*;
@@ -308,7 +335,7 @@ mod tests {
                             let n = d.get_name().unwrap();
                             let i = d.get_index().unwrap();
                             let j = d.get_index().unwrap();
-                            println!("Thread {n} {i} {j}");
+                            println!("Thread {n} {i} {j} {:?}", std::thread::current().id());
                         })
                     }));
                 }

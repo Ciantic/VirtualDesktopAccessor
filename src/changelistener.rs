@@ -10,7 +10,7 @@ use crate::{
     service::clear_desktops,
     Desktop, HWND,
 };
-use com::{co_class, ComRc};
+use com::{co_class, interfaces::IUnknown, ComRc};
 use std::sync::Mutex;
 
 unsafe impl Send for VirtualDesktopEventSender {}
@@ -57,8 +57,8 @@ pub struct RegisteredListener {
     #[allow(dead_code)]
     listener: Box<VirtualDesktopChangeListener>,
 
-    #[allow(dead_code)]
-    ptr: ComRc<dyn IVirtualDesktopNotification>,
+    // #[allow(dead_code)]
+    // ptr: ComRc<dyn IVirtualDesktopNotification>,
 
     // Unregistration on drop requires a notification service
     service: ComRc<dyn IVirtualDesktopNotificationService>,
@@ -78,25 +78,25 @@ impl RegisteredListener {
 
         // Register the IVirtualDesktopNotification to the service
         let mut cookie = 0;
-        let res = unsafe { service.register(ptr.clone(), &mut cookie) };
+        let res = unsafe { service.register(ptr, &mut cookie) };
         // let res = HRESULT::ok();
 
         if res.failed() {
             #[cfg(feature = "debug")]
-            println!("Registration failed {:?}", res);
+            crate::log_output(&format!("Registration failed {:?}", res));
 
             Err(res)
         } else {
             #[cfg(feature = "debug")]
-            println!(
+            crate::log_output(&format!(
                 "Register a listener {:?} {:?} {:?}",
                 listener.__refcnt,
                 cookie,
                 std::thread::current().id()
-            );
+            ));
 
             Ok(RegisteredListener {
-                ptr,
+                // ptr,
                 cookie,
                 listener,
                 // sender: Mutex::new(sender),
@@ -116,10 +116,13 @@ impl RegisteredListener {
 
 impl Drop for RegisteredListener {
     fn drop(&mut self) {
-        #[cfg(feature = "debug")]
-        println!("Unregister a listener {:?}", self.cookie);
         unsafe {
-            self.service.unregister(self.cookie);
+            let did_work = self.service.unregister(self.cookie);
+            #[cfg(feature = "debug")]
+            crate::log_output(&format!(
+                "Unregister a listener {:?} {:?}",
+                self.cookie, did_work
+            ));
         }
     }
 }
@@ -139,12 +142,19 @@ impl VirtualDesktopChangeListener {
     fn create(
         sender: Mutex<Option<VirtualDesktopEventSender>>,
     ) -> Box<VirtualDesktopChangeListener> {
-        VirtualDesktopChangeListener::allocate(sender)
+        #[cfg(feature = "debug")]
+        crate::log_output("Create VirtualDesktopChangeListener");
+
+        let item = VirtualDesktopChangeListener::allocate(sender);
+        unsafe {
+            item.add_ref();
+        }
+        item
     }
 
     fn try_send(&self, evt: VirtualDesktopEvent) -> () {
         let sender = self.sender.lock().unwrap();
-        if let Some(sender) = &*sender {
+        if let Some(sender) = sender.as_ref() {
             let _ = sender.try_send(evt);
         }
     }
@@ -153,7 +163,7 @@ impl VirtualDesktopChangeListener {
 impl Drop for VirtualDesktopChangeListener {
     fn drop(&mut self) {
         #[cfg(feature = "debug")]
-        println!("Drop VirtualDesktopChangeListener");
+        crate::log_output("Drop VirtualDesktopChangeListener");
     }
 }
 

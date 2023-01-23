@@ -5,5 +5,8 @@
     "triggerTaskOnSave.restart": true,
     "triggerTaskOnSave.tasks": {
         // "rust: cargo build": ["**/*.rs"]
-    }
+    },
+    "lldb.displayFormat": "auto",
+    "lldb.dereferencePointers": true,
+    "lldb.consoleMode": "commands"
 }

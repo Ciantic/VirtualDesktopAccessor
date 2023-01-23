@@ -1,7 +1,8 @@
 use std::{thread, time::Duration};
 use winvd::{
-    create_desktop, get_current_desktop, get_desktops, helpers::get_desktop_count, remove_desktop,
-    set_event_sender, VirtualDesktopEvent, VirtualDesktopEventSender,
+    create_desktop, get_current_desktop, get_desktops,
+    helpers::{get_current_desktop_number, get_desktop_count, go_to_desktop_number},
+    remove_desktop, set_event_sender, VirtualDesktopEvent, VirtualDesktopEventSender,
 };
 
 fn main() {
@@ -12,10 +13,10 @@ fn main() {
     // Desktops are:
     println!("Desktops are: {:?}", get_desktops().unwrap());
 
-    thread::spawn(|| {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        set_event_sender(VirtualDesktopEventSender::Std(sender)).unwrap();
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    set_event_sender(VirtualDesktopEventSender::Crossbeam(sender)).unwrap();
 
+    thread::spawn(move || {
         receiver.iter().for_each(|msg| match msg {
             VirtualDesktopEvent::DesktopChanged(old, new) => {
                 println!(
@@ -47,7 +48,7 @@ fn main() {
     });
 
     thread::spawn(|| {
-        thread::sleep(Duration::from_secs(2));
+        thread::sleep(Duration::from_secs(1));
 
         // Create and remove a desktop
         let desk = create_desktop().unwrap();

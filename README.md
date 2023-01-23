@@ -82,4 +82,5 @@ See more examples from the [testbin sources 🢅](https://github.com/Ciantic/Vir
 ```
 cargo clean
 cargo build --release --workspace
+cargo build --features debug --workspace
 ```
