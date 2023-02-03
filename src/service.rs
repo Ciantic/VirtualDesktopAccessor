@@ -35,7 +35,6 @@ pub struct VirtualDesktopService {
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
-    registered_listener: RegisteredListener,
 }
 
 // Let's throw the last of the remaining safety away and implement the send and
@@ -45,10 +44,22 @@ unsafe impl Send for VirtualDesktopService {}
 unsafe impl Sync for VirtualDesktopService {}
 
 impl VirtualDesktopService {
-    /// Initialize only the service, must be-created on TaskbarCreated message
-    pub fn create(
+    pub fn create_listener(
         sender: Option<VirtualDesktopEventSender>,
-    ) -> Result<Box<VirtualDesktopService>, Error> {
+    ) -> Result<RegisteredListener, Error> {
+        let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
+
+        let virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
+            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
+
+        Ok(
+            RegisteredListener::register(sender, virtual_desktop_notification_service)
+                .map_err(Error::ComError)?,
+        )
+    }
+
+    /// Initialize only the service, must be-created on TaskbarCreated message
+    pub fn create() -> Result<Box<VirtualDesktopService>, Error> {
         clear_desktops();
 
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
@@ -66,13 +77,6 @@ impl VirtualDesktopService {
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
 
-        let virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
-            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
-
-        let registered_listener =
-            RegisteredListener::register(sender.clone(), virtual_desktop_notification_service)
-                .map_err(Error::ComError)?;
-
         #[cfg(feature = "debug")]
         println!(
             "VirtualDesktopService created, thread id is {:?}",
@@ -87,7 +91,7 @@ impl VirtualDesktopService {
             virtual_desktop_manager_internal,
             app_view_collection,
             pinned_apps,
-            registered_listener,
+            // registered_listener,
         }))
     }
 
@@ -113,7 +117,7 @@ impl VirtualDesktopService {
                         objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr)
                     })?;
                     let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
-                    desktops.push(desktop.clone());
+                    desktops.push(desktop);
                 }
                 Ok(desktops)
             }
@@ -178,17 +182,17 @@ impl VirtualDesktopService {
         Ok(app_id)
     }
 
-    pub fn recreate(&self) -> Result<Box<VirtualDesktopService>, Error> {
-        #[cfg(feature = "debug")]
-        crate::log_output(&format!("Recreate service"));
+    // pub fn recreate(&self) -> Result<Box<VirtualDesktopService>, Error> {
+    //     #[cfg(feature = "debug")]
+    //     crate::log_output(&format!("Recreate service"));
 
-        let sender = self.registered_listener.get_sender().clone();
-        VirtualDesktopService::create(sender)
-    }
+    //     let sender = self.registered_listener.get_sender().clone();
+    //     VirtualDesktopService::create(sender)
+    // }
 
-    pub fn set_event_sender(&self, sender: VirtualDesktopEventSender) {
-        self.registered_listener.set_sender(Some(sender));
-    }
+    // pub fn set_event_sender(&self, sender: VirtualDesktopEventSender) {
+    //     self.registered_listener.set_sender(Some(sender));
+    // }
 
     /// Get desktop index
     pub fn get_desktop_by_index(&self, index: usize) -> Result<Desktop, Error> {
@@ -227,6 +231,15 @@ impl VirtualDesktopService {
 
     /// Get desktop IDs
     pub fn get_desktops(&self) -> Result<Vec<Desktop>, Error> {
+        return self
+            ._get_idesktops()?
+            .iter()
+            .map(|f| {
+                let mut desktop = Desktop::empty();
+                Result::from(unsafe { f.get_id(&mut desktop.id) }).map(|_| desktop)
+            })
+            .collect();
+
         // This is cached, as rapid access in `test_threading_two` test causes occasional crashes
         let mut _desktops = unsafe { DESKTOPS.lock().unwrap() };
         if _desktops.is_empty() {

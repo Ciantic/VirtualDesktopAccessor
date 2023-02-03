@@ -109,6 +109,7 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                     let hwnds = LISTENER_HWNDS.lock();
                     if let Ok(hwnds) = hwnds {
                         for (hwnd, offset) in hwnds.iter() {
+                            // println!("Sending message {} to {}", *offset, *hwnd);
                             unsafe {
                                 PostMessageW(
                                     *hwnd as _,
@@ -217,6 +218,7 @@ pub extern "C" fn RestartVirtualDesktopAccessor() {
 #[link(name = "User32")]
 extern "system" {
     pub fn PostMessageW(inOptHwnd: HWND, inMsg: u32, inWParam: u32, inLParam: i32) -> bool;
+    pub fn SendMessageA(inOptHwnd: HWND, inMsg: u32, inWParam: u32, inLParam: i32) -> bool;
 }
 
 #[cfg(test)]

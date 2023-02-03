@@ -13,9 +13,6 @@ use crate::{
 use com::{co_class, interfaces::IUnknown, ComRc};
 use std::sync::Mutex;
 
-unsafe impl Send for VirtualDesktopEventSender {}
-unsafe impl Sync for VirtualDesktopEventSender {}
-
 #[derive(Debug, Clone)]
 pub enum VirtualDesktopEventSender {
     Std(std::sync::mpsc::Sender<VirtualDesktopEvent>),
@@ -63,8 +60,6 @@ pub struct RegisteredListener {
     // Unregistration on drop requires a notification service
     service: ComRc<dyn IVirtualDesktopNotificationService>,
 }
-unsafe impl Send for RegisteredListener {}
-unsafe impl Sync for RegisteredListener {}
 
 impl RegisteredListener {
     pub fn register(

@@ -11,6 +11,7 @@ mod service;
 
 use crate::comhelpers::ComError;
 use crate::service::VirtualDesktopService;
+use changelistener::RegisteredListener;
 use com::runtime::init_apartment;
 use com::runtime::init_runtime;
 use com::runtime::ApartmentType;
@@ -29,6 +30,10 @@ pub use crate::interfaces::HWND;
 
 static SERVICE: Lazy<Arc<Mutex<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Err(Error::ServiceNotCreated))));
+
+thread_local!(
+    static LISTENER: Mutex<Option<RegisteredListener>> = Mutex::new(None);
+);
 
 static COM_RUNTIME_INITIALIZED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
@@ -83,12 +88,12 @@ where
                 let service_ref = cell.borrow();
                 let result = service_ref.as_ref();
 
-                let mut res = match result {
+                match result {
                     Ok(mut v) => match cb(v) {
                         Ok(r) => return Ok(r),
                         Err(err) => match error_side_effect(&err) {
                             Ok(false) => return Err(err),
-                            Ok(true) => v.recreate(),
+                            Ok(true) => (),
                             Err(err) => return Err(err),
                         },
                     },
@@ -98,10 +103,10 @@ where
                         {
                             error_side_effect(&err);
                         }
-                        VirtualDesktopService::create(None)
                     }
                 };
-
+                (*cell) = Err(Error::ServiceNotCreated);
+                let res = VirtualDesktopService::create();
                 match res {
                     Ok(new_service) => {
                         #[cfg(feature = "debug")]
@@ -127,25 +132,37 @@ where
 
 /// Should be called when explorer is restarted
 pub fn notify_explorer_restarted() -> Result<(), Error> {
-    if let Ok(mut cell) = SERVICE.lock() {
-        let old = cell.borrow().as_ref();
-        match old {
-            Ok(v) => {
-                (*cell) = v.recreate();
-            }
-            Err(_) => {
-                (*cell) = VirtualDesktopService::create(None);
-            }
-        }
-        Ok(())
-    } else {
-        Ok(())
-    }
+    Ok(())
+    // if let Ok(mut cell) = SERVICE.lock() {
+    //     let old = cell.borrow().as_ref();
+    //     match old {
+    //         Ok(v) => {
+    //             (*cell) = v.recreate();
+    //         }
+    //         Err(_) => {
+    //             (*cell) = VirtualDesktopService::create(None);
+    //         }
+    //     }
+    //     Ok(())
+    // } else {
+    //     Ok(())
+    // }
 }
 
 pub fn set_event_sender(sender: VirtualDesktopEventSender) -> Result<(), Error> {
+    std::thread::spawn(|| {
+        init_runtime().map_err(HRESULT::from_i32).unwrap();
+        LISTENER.with(|f| {
+            let mut a = f.lock().unwrap();
+            *a = Some(VirtualDesktopService::create_listener(Some(sender)).unwrap());
+        });
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+        }
+    });
+
     // println!("Create event listener");
-    let _ = with_service(move |s| Ok(s.set_event_sender(sender.clone())));
+    // let _ = with_service(move |s| Ok(s.set_event_sender(sender.clone())));
     Ok(())
 }
 
@@ -349,7 +366,7 @@ mod tests {
         })
     }
 
-    // #[test] // TODO: Commented out, use only on occasion when needed!
+    #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_threading_two() {
         sync_test(|| {
             let current_desktop = get_current_desktop_number().unwrap();
