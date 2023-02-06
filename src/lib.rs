@@ -1,4 +1,5 @@
 mod changelistener;
+mod comapi;
 mod comhelpers;
 mod desktop;
 mod desktopid;

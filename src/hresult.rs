@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use crate::Error;
+
 /// This is wrapper for handling HRESULT values.
 ///
 /// Value is printed in hexadecimal format for convinience, this is usually the
@@ -20,6 +22,21 @@ impl HRESULT {
     #[inline]
     pub fn ok() -> HRESULT {
         HRESULT(0)
+    }
+
+    pub fn as_result(&self) -> Result<(), Error> {
+        if self.failed() {
+            Err(Error::ComError(self.clone()))
+        } else {
+            Ok(())
+        }
+    }
+
+    #[inline]
+    pub fn panic_if_failed(&self) {
+        if self.failed() {
+            panic!("HRESULT failed: {:?}", self);
+        }
     }
 
     /// Create value
