@@ -20,6 +20,13 @@ impl<'a, T: Clone> ComIn<'a, T> {
             _phantom: std::marker::PhantomData,
         }
     }
+
+    pub unsafe fn unsafe_new_no_clone(t: T) -> Self {
+        Self {
+            data: t,
+            _phantom: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<'a, T> Deref for ComIn<'a, T> {

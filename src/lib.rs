@@ -374,10 +374,10 @@ mod tests {
 
             for _ in 0..999 {
                 go_to_desktop_number(0).unwrap();
-                std::thread::sleep(Duration::from_millis(4));
+                // std::thread::sleep(Duration::from_millis(4));
                 go_to_desktop_number(1).unwrap();
             }
-            std::thread::sleep(Duration::from_millis(3));
+            // std::thread::sleep(Duration::from_millis(3));
             go_to_desktop_number(current_desktop).unwrap();
         })
     }
