@@ -15,6 +15,10 @@ impl Debug for Desktop {
 }
 
 impl Desktop {
+    pub fn new(id: DesktopID) -> Desktop {
+        Desktop { id }
+    }
+
     pub(crate) fn empty() -> Desktop {
         Desktop {
             id: DesktopID::default(),

@@ -4,7 +4,9 @@ use windows::{
     Win32::UI::Shell::Common::IObjectArray,
 };
 
-use crate::{DesktopID, HRESULT};
+use crate::HRESULT;
+
+type DesktopID = GUID;
 
 // Idea here is that the cloned ComIn instance lifetime is within the original ComIn instance lifetime
 #[repr(transparent)]
@@ -264,7 +266,7 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
     pub unsafe fn get_view_for_hwnd(
         &self,
         window: HWND,
-        out_view: *mut IApplicationView,
+        out_view: *mut Option<IApplicationView>,
     ) -> HRESULT;
 
     pub unsafe fn get_view_for_application(

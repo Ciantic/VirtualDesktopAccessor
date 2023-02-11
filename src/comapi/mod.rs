@@ -1,27 +1,32 @@
 pub mod interfaces;
 
 use self::interfaces::*;
-use crate::{DesktopID, Error, HRESULT};
-use std::{ffi::c_void, time::Duration};
+use crate::{Error, HRESULT};
+use std::ffi::c_void;
 use windows::{
-    core::{Interface, Vtable, HSTRING},
+    core::{Interface, Vtable, GUID, HSTRING},
     Win32::{
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
-            COINIT_MULTITHREADED,
         },
         UI::Shell::Common::IObjectArray,
     },
 };
 
+type HWND = u32;
+
+type APPID_PWSTR = *mut *mut std::ffi::c_void;
+
 type Result<T> = std::result::Result<T, Error>;
 
-struct ComInit();
+pub(crate) struct ComInit();
 
 impl ComInit {
     pub fn new() -> Self {
         unsafe {
-            println!("CoInitializeEx COINIT_APARTMENTTHREADED");
+            // Notice: Only COINIT_APARTMENTTHREADED works correctly!
+            //
+            // Not COINIT_MULTITHREADED or CoIncrementMTAUsage, they cause a seldom crashes in threading tests.
             CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap();
         }
         ComInit()
@@ -31,152 +36,605 @@ impl ComInit {
 impl Drop for ComInit {
     fn drop(&mut self) {
         unsafe {
-            println!("CoUninitialize");
             CoUninitialize();
         }
     }
 }
 
 thread_local! {
-    static COM_INIT: ComInit = ComInit::new();
+    pub(crate) static COM_INIT: ComInit = ComInit::new();
 }
 
 fn map_win_err(er: ::windows::core::Error) -> Error {
     Error::ComError(HRESULT::from_i32(er.code().0))
 }
 
-pub fn create_service_provider() -> Result<IServiceProvider> {
-    return unsafe {
+fn create_service_provider() -> Result<IServiceProvider> {
+    COM_INIT.with(|_| unsafe {
         CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_ALL).map_err(map_win_err)
-    };
+    })
 }
 
-pub fn create_vd_notification_service(
+fn create_vd_notification_service(
     provider: &IServiceProvider,
 ) -> Result<IVirtualDesktopNotificationService> {
-    let mut obj = std::ptr::null_mut::<c_void>();
-    unsafe {
-        provider
-            .query_service(
-                &CLSID_IVirtualNotificationService,
-                &IVirtualDesktopNotificationService::IID,
-                &mut obj,
-            )
-            .as_result()?
-    }
-    assert_eq!(obj.is_null(), false);
+    COM_INIT.with(|_| {
+        let mut obj = std::ptr::null_mut::<c_void>();
+        unsafe {
+            provider
+                .query_service(
+                    &CLSID_IVirtualNotificationService,
+                    &IVirtualDesktopNotificationService::IID,
+                    &mut obj,
+                )
+                .as_result()?
+        }
+        assert_eq!(obj.is_null(), false);
 
-    Ok(unsafe { IVirtualDesktopNotificationService::from_raw(obj) })
+        Ok(unsafe { IVirtualDesktopNotificationService::from_raw(obj) })
+    })
 }
 
-pub fn create_vd_manager(provider: &IServiceProvider) -> Result<IVirtualDesktopManagerInternal> {
-    let mut obj = std::ptr::null_mut::<c_void>();
-    unsafe {
-        provider
-            .query_service(
-                &CLSID_VirtualDesktopManagerInternal,
-                &IVirtualDesktopManagerInternal::IID,
-                &mut obj,
-            )
-            .as_result()?;
-    }
-    assert_eq!(obj.is_null(), false);
+fn create_vd_manager(provider: &IServiceProvider) -> Result<IVirtualDesktopManagerInternal> {
+    COM_INIT.with(|_| {
+        let mut obj = std::ptr::null_mut::<c_void>();
+        unsafe {
+            provider
+                .query_service(
+                    &CLSID_VirtualDesktopManagerInternal,
+                    &IVirtualDesktopManagerInternal::IID,
+                    &mut obj,
+                )
+                .as_result()?;
+        }
+        assert_eq!(obj.is_null(), false);
 
-    Ok(unsafe { IVirtualDesktopManagerInternal::from_raw(obj) })
+        Ok(unsafe { IVirtualDesktopManagerInternal::from_raw(obj) })
+    })
 }
 
-pub fn get_desktops_array(manager: &IVirtualDesktopManagerInternal) -> Result<IObjectArray> {
-    let mut desktops = None;
-    unsafe { manager.get_desktops(0, &mut desktops).as_result()? }
-    Ok(desktops.unwrap())
+fn create_view_collection(provider: &IServiceProvider) -> Result<IApplicationViewCollection> {
+    COM_INIT.with(|_| {
+        let mut obj = std::ptr::null_mut::<c_void>();
+        unsafe {
+            provider
+                .query_service(
+                    &IApplicationViewCollection::IID,
+                    &IApplicationViewCollection::IID,
+                    &mut obj,
+                )
+                .as_result()?;
+        }
+        assert_eq!(obj.is_null(), false);
+
+        Ok(unsafe { IApplicationViewCollection::from_raw(obj) })
+    })
 }
 
-pub fn get_desktop_number(
+fn create_pinned_apps(provider: &IServiceProvider) -> Result<IVirtualDesktopPinnedApps> {
+    COM_INIT.with(|_| {
+        let mut obj = std::ptr::null_mut::<c_void>();
+        unsafe {
+            provider
+                .query_service(
+                    &CLSID_VirtualDesktopPinnedApps,
+                    &IVirtualDesktopPinnedApps::IID,
+                    &mut obj,
+                )
+                .as_result()?;
+        }
+        assert_eq!(obj.is_null(), false);
+
+        Ok(unsafe { IVirtualDesktopPinnedApps::from_raw(obj) })
+    })
+}
+
+fn get_idesktops_array(manager: &IVirtualDesktopManagerInternal) -> Result<IObjectArray> {
+    COM_INIT.with(|_| {
+        let mut desktops = None;
+        unsafe { manager.get_desktops(0, &mut desktops).as_result()? }
+        Ok(desktops.unwrap())
+    })
+}
+
+fn get_idesktop_number(
     manager: &IVirtualDesktopManagerInternal,
     desktop: &IVirtualDesktop,
-) -> Result<i32> {
-    let desktops = get_desktops_array(manager)?;
-    let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
-    for i in 0..count {
-        let d: IVirtualDesktop = unsafe { desktops.GetAt(i).map_err(map_win_err)? };
-        if d == *desktop {
-            return Ok(i as i32);
+) -> Result<u32> {
+    COM_INIT.with(|_| {
+        let desktops = get_idesktops_array(manager)?;
+        let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+        for i in 0..count {
+            let d: IVirtualDesktop = unsafe { desktops.GetAt(i).map_err(map_win_err)? };
+            if d == *desktop {
+                return Ok(i);
+            }
         }
-    }
-    Err(Error::DesktopNotFound)
+        Err(Error::DesktopNotFound)
+    })
 }
 
-pub fn get_desktop_by_number(
+fn get_idesktop_wallpaper(desktop: &IVirtualDesktop) -> Result<String> {
+    COM_INIT.with(|_| {
+        let mut name = HSTRING::default();
+        unsafe { desktop.get_wallpaper(&mut name).as_result()? }
+        Ok(name.to_string_lossy())
+    })
+}
+
+fn set_idesktop_wallpaper(
+    manager: &IVirtualDesktopManagerInternal,
+    desktop: &IVirtualDesktop,
+    wallpaper_path: &str,
+) -> Result<()> {
+    COM_INIT.with(|_| {
+        let name = HSTRING::from(wallpaper_path);
+        unsafe {
+            manager
+                .set_wallpaper(ComIn::new(&desktop), name)
+                .as_result()?
+        }
+        Ok(())
+    })
+}
+
+fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
+    COM_INIT.with(|_| {
+        let mut guid = GUID::default();
+        unsafe { desktop.get_id(&mut guid).as_result()? }
+        Ok(guid)
+    })
+}
+
+fn get_idesktop_name(desktop: &IVirtualDesktop) -> Result<String> {
+    COM_INIT.with(|_| {
+        let mut name = HSTRING::default();
+        unsafe { desktop.get_name(&mut name).as_result()? }
+        Ok(name.to_string_lossy())
+    })
+}
+
+fn set_idesktop_name(
+    manager: &IVirtualDesktopManagerInternal,
+    desktop: &IVirtualDesktop,
+    name: &str,
+) -> Result<()> {
+    COM_INIT.with(|_| {
+        let name = HSTRING::from(name);
+        unsafe { manager.set_name(ComIn::new(&desktop), name).as_result()? }
+        Ok(())
+    })
+}
+
+fn get_idesktop_by_number(
     manager: &IVirtualDesktopManagerInternal,
     index: u32,
 ) -> Result<IVirtualDesktop> {
-    let desktops = get_desktops_array(manager)?;
-    let desktop: IVirtualDesktop = unsafe { desktops.GetAt(index).map_err(map_win_err)? };
-    Ok(desktop)
+    COM_INIT.with(|_| {
+        let desktops = get_idesktops_array(manager)?;
+        let desktop: IVirtualDesktop = unsafe { desktops.GetAt(index).map_err(map_win_err)? };
+        Ok(desktop)
+    })
 }
 
-pub fn get_desktops(manager: &IVirtualDesktopManagerInternal) -> Result<Vec<IVirtualDesktop>> {
-    let mut desktops = None;
-    unsafe { manager.get_desktops(0, &mut desktops).as_result()? }
-    let desktops = desktops.unwrap();
-    let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
-    let mut idesktops = Vec::with_capacity(count as usize);
-    for i in 0..count {
-        let desktop: IVirtualDesktop = unsafe { desktops.GetAt(i).map_err(map_win_err)? };
-        idesktops.push(desktop);
+fn get_idesktop_by_guid(
+    manager: &IVirtualDesktopManagerInternal,
+    guid: &GUID,
+) -> Result<IVirtualDesktop> {
+    COM_INIT.with(|_| {
+        let mut idesktop = None;
+        unsafe {
+            manager.find_desktop(guid, &mut idesktop).as_result()?;
+        }
+        idesktop.ok_or(Error::DesktopNotFound)
+    })
+}
+
+fn get_idesktops(manager: &IVirtualDesktopManagerInternal) -> Result<Vec<IVirtualDesktop>> {
+    COM_INIT.with(|_| {
+        let mut desktops = None;
+        unsafe { manager.get_desktops(0, &mut desktops).as_result()? }
+        let desktops = desktops.unwrap();
+        let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+        let mut idesktops = Vec::with_capacity(count as usize);
+        for i in 0..count {
+            let desktop: IVirtualDesktop = unsafe { desktops.GetAt(i).map_err(map_win_err)? };
+            idesktops.push(desktop);
+        }
+        Ok(idesktops)
+    })
+}
+
+fn get_current_idesktop(manager: &IVirtualDesktopManagerInternal) -> Result<IVirtualDesktop> {
+    COM_INIT.with(|_| {
+        let mut desktop = None;
+        unsafe { manager.get_current_desktop(0, &mut desktop).as_result()? }
+        desktop.ok_or(Error::DesktopNotFound)
+    })
+}
+
+fn switch_to_idesktop(
+    manager: &IVirtualDesktopManagerInternal,
+    desktop: &IVirtualDesktop,
+) -> Result<()> {
+    COM_INIT.with(|_| {
+        unsafe {
+            manager
+                .switch_desktop(0, ComIn::new(&desktop))
+                .as_result()?
+        }
+        Ok(())
+    })
+}
+
+fn create_idesktop(manager: &IVirtualDesktopManagerInternal) -> Result<IVirtualDesktop> {
+    COM_INIT.with(|_| {
+        let mut desktop = None;
+        unsafe { manager.create_desktop(0, &mut desktop).as_result()? }
+        desktop.ok_or(Error::CreateDesktopFailed)
+    })
+}
+
+fn remove_idesktop(
+    manager: &IVirtualDesktopManagerInternal,
+    remove_desktop: &IVirtualDesktop,
+    fallback_desktop: &IVirtualDesktop,
+) -> Result<()> {
+    COM_INIT.with(|_| unsafe {
+        manager
+            .remove_desktop(ComIn::new(remove_desktop), ComIn::new(fallback_desktop))
+            .as_result()
+            .map_err(|_| Error::RemoveDesktopFailed)
+    })
+}
+
+fn get_iapplication_id_for_view(view: &IApplicationView) -> Result<APPID_PWSTR> {
+    COM_INIT.with(|_| {
+        let mut app_id: APPID_PWSTR = std::ptr::null_mut();
+        unsafe {
+            view.get_app_user_model_id(&mut app_id as *mut _ as *mut _)
+                .as_result()?
+        }
+        Ok(app_id)
+    })
+}
+
+fn get_iapplication_view_for_hwnd(
+    view_collection: &IApplicationViewCollection,
+    hwnd: HWND,
+) -> Result<IApplicationView> {
+    COM_INIT.with(|_| {
+        let mut view = None;
+        unsafe {
+            view_collection
+                .get_view_for_hwnd(hwnd, &mut view)
+                .as_result()
+                .map_err(|er| {
+                    // View does not exist
+                    if er == Error::ComError(HRESULT(0x8002802B)) {
+                        Error::WindowNotFound
+                    } else {
+                        er
+                    }
+                })?
+        }
+        view.ok_or(Error::WindowNotFound)
+    })
+}
+
+fn is_view_pinned(apps: &IVirtualDesktopPinnedApps, view: IApplicationView) -> Result<bool> {
+    COM_INIT.with(|_| {
+        let mut is_pinned = false;
+        unsafe {
+            apps.is_view_pinned(ComIn::new(&view), &mut is_pinned)
+                .as_result()?
+        }
+        Ok(is_pinned)
+    })
+}
+
+fn pin_view(apps: &IVirtualDesktopPinnedApps, view: IApplicationView) -> Result<()> {
+    COM_INIT.with(|_| unsafe { apps.pin_view(ComIn::new(&view)).as_result() })
+}
+
+fn upin_view(apps: &IVirtualDesktopPinnedApps, view: IApplicationView) -> Result<()> {
+    COM_INIT.with(|_| unsafe { apps.unpin_view(ComIn::new(&view)).as_result() })
+}
+
+fn is_app_id_pinned(apps: &IVirtualDesktopPinnedApps, app_id: APPID_PWSTR) -> Result<bool> {
+    COM_INIT.with(|_| {
+        let mut is_pinned = false;
+        unsafe {
+            apps.is_app_pinned(app_id as *mut _, &mut is_pinned)
+                .as_result()?
+        }
+        Ok(is_pinned)
+    })
+}
+
+fn pin_app_id(apps: &IVirtualDesktopPinnedApps, app_id: APPID_PWSTR) -> Result<()> {
+    COM_INIT.with(|_| unsafe { apps.pin_app(app_id as *mut _).as_result() })
+}
+
+fn unpin_app_id(apps: &IVirtualDesktopPinnedApps, app_id: APPID_PWSTR) -> Result<()> {
+    COM_INIT.with(|_| unsafe { apps.unpin_app(app_id as *mut _).as_result() })
+}
+
+pub mod pinning {
+    type HWND = u32;
+    use super::*;
+
+    /// Is window pinned?
+    pub fn is_pinned_window(hwnd: HWND) -> Result<bool> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let view_collection = create_view_collection(&provider)?;
+            let apps = create_pinned_apps(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
+            is_view_pinned(&apps, view)
+        })
     }
-    Ok(idesktops)
+
+    /// Pin window
+    pub fn pin_window(hwnd: HWND) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let view_collection = create_view_collection(&provider)?;
+            let apps = create_pinned_apps(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
+            pin_view(&apps, view)
+        })
+    }
+
+    /// Unpin window
+    pub fn unpin_window(hwnd: HWND) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let view_collection = create_view_collection(&provider)?;
+            let apps = create_pinned_apps(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
+            upin_view(&apps, view)
+        })
+    }
+
+    /// Is pinned app
+    pub fn is_pinned_app(hwnd: HWND) -> Result<bool> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let view_collection = create_view_collection(&provider)?;
+            let apps = create_pinned_apps(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
+            let app_id = get_iapplication_id_for_view(&view)?;
+            is_app_id_pinned(&apps, app_id)
+        })
+    }
+
+    /// Pin app
+    pub fn pin_app(hwnd: HWND) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let view_collection = create_view_collection(&provider)?;
+            let apps = create_pinned_apps(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
+            let app_id = get_iapplication_id_for_view(&view)?;
+            pin_app_id(&apps, app_id)
+        })
+    }
+
+    /// Unpin app
+    pub fn unpin_app(hwnd: HWND) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let view_collection = create_view_collection(&provider)?;
+            let apps = create_pinned_apps(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
+            let app_id = get_iapplication_id_for_view(&view)?;
+            unpin_app_id(&apps, app_id)
+        })
+    }
 }
 
-pub fn get_current_desktop(manager: &IVirtualDesktopManagerInternal) -> Result<IVirtualDesktop> {
-    let mut desktop = None;
-    unsafe { manager.get_current_desktop(0, &mut desktop).as_result()? }
-    desktop.ok_or(Error::DesktopNotFound)
-}
+pub mod normal {
+    use super::*;
+    use std::fmt::Debug;
+    use windows::core::GUID;
 
-pub fn go_to_desktop_number(number: u32) -> Result<()> {
-    let provider = create_service_provider()?;
-    let manager = create_vd_manager(&provider)?;
-    let desktop = get_desktop_by_number(&manager, number)?;
-    unsafe { manager.switch_desktop(0, ComIn::new(&desktop)).as_result() }
-}
+    #[derive(Copy, Clone, PartialEq)]
+    pub struct Desktop {
+        pub(crate) id: GUID,
+    }
 
-pub fn get_current_desktop_number() -> Result<u32> {
-    let provider = create_service_provider()?;
-    let manager = create_vd_manager(&provider)?;
-    let desktops = get_desktops(&manager)?;
-    let current = get_current_desktop(&manager)?;
-    for (i, desktop) in desktops.iter().enumerate() {
-        if desktop == &current {
-            return Ok(i as u32);
+    impl Debug for Desktop {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Desktop({:?})", self.id)
         }
     }
-    Err(Error::DesktopNotFound)
+
+    impl Desktop {
+        pub(crate) fn empty() -> Desktop {
+            Desktop {
+                id: GUID::default(),
+            }
+        }
+
+        pub fn new() -> Result<Desktop> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let desktop = create_idesktop(&manager)?;
+                let id = get_idesktop_guid(&desktop)?;
+                Ok(Desktop { id })
+            })
+        }
+
+        pub fn get_name(&self) -> Result<String> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let desktop = get_idesktop_by_guid(&manager, &self.id)?;
+                get_idesktop_name(&desktop)
+            })
+        }
+
+        pub fn set_name(&self, name: &str) -> Result<()> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                set_idesktop_name(&manager, &idesktop, name)
+            })
+        }
+
+        pub fn get_index(&self) -> Result<u32> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let index = get_idesktop_number(&manager, &idesktop)?;
+                Ok(index)
+            })
+        }
+
+        pub fn get_wallpaper(&self) -> Result<String> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                get_idesktop_wallpaper(&idesktop)
+            })
+        }
+
+        pub fn set_wallpaper(&self, path: &str) -> Result<()> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                set_idesktop_wallpaper(&manager, &idesktop, path)
+            })
+        }
+
+        pub fn switch_to(&self) -> Result<()> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                switch_to_idesktop(&manager, &idesktop)
+            })
+        }
+
+        pub fn remove(&self, fallback_desktop: &Desktop) -> Result<()> {
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let manager = create_vd_manager(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let fallback_idesktop = get_idesktop_by_guid(&manager, &fallback_desktop.id)?;
+                remove_idesktop(&manager, &idesktop, &fallback_idesktop)
+            })
+        }
+
+        pub fn get_id(&self) -> GUID {
+            self.id
+        }
+    }
+
+    pub fn get_desktops() -> Result<Vec<Desktop>> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktops: Result<Vec<Desktop>> = get_idesktops(&manager)?
+                .into_iter()
+                .map(|d| -> Result<Desktop> {
+                    let mut desktop = Desktop::empty();
+                    unsafe { d.get_id(&mut desktop.id).as_result()? };
+                    Ok(desktop)
+                })
+                .collect();
+            Ok(desktops?)
+        })
+    }
+
+    pub fn get_desktop_by_guid(guid: GUID) -> Result<Desktop> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_guid(&manager, &guid)?;
+            let id = get_idesktop_guid(&desktop)?;
+            Ok(Desktop { id })
+        })
+    }
 }
 
-pub fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
-    let mut gid = DesktopID::default();
-    unsafe { desktop_new.get_id(&mut gid).panic_if_failed() };
+mod numbered {
+    use super::*;
 
-    let mut name = HSTRING::new();
-    unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
+    pub fn go_to_desktop_number(number: u32) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_number(&manager, number)?;
+            switch_to_idesktop(&manager, &desktop)
+        })
+    }
 
-    let manager = create_vd_manager(&create_service_provider().unwrap()).unwrap();
-    let number = get_desktop_number(&manager, &desktop_new).unwrap_or(-1);
+    pub fn get_current_desktop_number() -> Result<u32> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktops = get_idesktops(&manager)?;
+            let current = get_current_idesktop(&manager)?;
+            for (i, desktop) in desktops.iter().enumerate() {
+                if desktop == &current {
+                    return Ok(i as u32);
+                }
+            }
+            Err(Error::DesktopNotFound)
+        })
+    }
 
-    println!("{}: {} {:?} {:?}", prefix, number, gid, name.to_string());
+    pub fn set_name_by_desktop_number(number: u32, name: &str) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_number(&manager, number)?;
+            let name = HSTRING::from(name);
+            unsafe { manager.set_name(ComIn::new(&desktop), name).as_result() }
+        })
+    }
+
+    pub fn get_name_by_desktop_number(number: u32) -> Result<String> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_number(&manager, number)?;
+            let mut name = HSTRING::new();
+            unsafe { desktop.get_name(&mut name).as_result()? }
+            Ok(name.to_string())
+        })
+    }
 }
 
 mod tests {
-
     use std::{
         rc::Rc,
         sync::{mpsc::Sender, Mutex},
+        time::Duration,
     };
 
-    use windows::Win32::System::Com::{CoIncrementMTAUsage, COINIT_APARTMENTTHREADED};
-
+    use super::numbered::*;
     use super::*;
+
+    fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
+        let mut gid = GUID::default();
+        unsafe { desktop_new.get_id(&mut gid).panic_if_failed() };
+
+        let mut name = HSTRING::new();
+        unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
+
+        let manager = create_vd_manager(&create_service_provider().unwrap()).unwrap();
+        let number = get_idesktop_number(&manager, &desktop_new).unwrap_or(99999);
+
+        println!("{}: {} {:?} {:?}", prefix, number, gid, name.to_string());
+    }
 
     #[derive(Clone)]
     #[windows::core::implement(IVirtualDesktopNotification)]
@@ -187,24 +645,26 @@ mod tests {
 
     impl TestVDNotifications {
         pub fn new(number_times_desktop_changed: Sender<()>) -> Result<Self> {
-            let provider = create_service_provider()?;
-            let service = create_vd_notification_service(&provider)?;
-            let notification = TestVDNotifications {
-                cookie: Rc::new(Mutex::new(0)),
-                number_times_desktop_changed: Rc::new(number_times_desktop_changed),
-            };
-            let inotification: IVirtualDesktopNotification = notification.clone().into();
+            COM_INIT.with(|_| {
+                let provider = create_service_provider()?;
+                let service = create_vd_notification_service(&provider)?;
+                let notification = TestVDNotifications {
+                    cookie: Rc::new(Mutex::new(0)),
+                    number_times_desktop_changed: Rc::new(number_times_desktop_changed),
+                };
+                let inotification: IVirtualDesktopNotification = notification.clone().into();
 
-            let mut cookie = 0;
-            unsafe {
-                service
-                    .register(ComIn::unsafe_new_no_clone(inotification), &mut cookie)
-                    .panic_if_failed();
-                assert_ne!(cookie, 0);
-            }
-            *notification.cookie.lock().unwrap() = cookie;
+                let mut cookie = 0;
+                unsafe {
+                    service
+                        .register(ComIn::unsafe_new_no_clone(inotification), &mut cookie)
+                        .panic_if_failed();
+                    assert_ne!(cookie, 0);
+                }
+                *notification.cookie.lock().unwrap() = cookie;
 
-            Ok(notification)
+                Ok(notification)
+            })
         }
     }
 
@@ -317,7 +777,6 @@ mod tests {
 
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_threading_two() {
-        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
         let (tx, rx) = std::sync::mpsc::channel();
         let notification = TestVDNotifications::new(tx);
 
@@ -334,7 +793,6 @@ mod tests {
 
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_listener_manual() {
-        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
         let (tx, rx) = std::sync::mpsc::channel();
         let notification = TestVDNotifications::new(tx);
 
@@ -344,7 +802,6 @@ mod tests {
     /// This test switched desktop and prints out the changed desktop
     #[test]
     fn test_register_notifications() {
-        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
         let (tx, rx) = std::sync::mpsc::channel();
         let notification = TestVDNotifications::new(tx);
 
@@ -362,7 +819,7 @@ mod tests {
         assert_eq!(current_desk.is_none(), false);
         let current_desk = current_desk.unwrap();
 
-        let mut gid = DesktopID::default();
+        let mut gid = GUID::default();
         unsafe { current_desk.get_id(&mut gid).panic_if_failed() };
 
         let mut name = HSTRING::new();
@@ -378,7 +835,7 @@ mod tests {
                 .panic_if_failed();
         }
         let next_desk = next_idesk.unwrap();
-        let mut gid = DesktopID::default();
+        let mut gid = GUID::default();
         unsafe { next_desk.get_id(&mut gid).panic_if_failed() };
 
         let mut name = HSTRING::new();
@@ -426,7 +883,7 @@ mod tests {
         for i in 0..count {
             let desktop: IVirtualDesktop = unsafe { desktops.GetAt(i).unwrap() };
 
-            let mut gid = DesktopID::default();
+            let mut gid = GUID::default();
             unsafe { desktop.get_id(&mut gid).panic_if_failed() };
 
             let mut name = HSTRING::new();
