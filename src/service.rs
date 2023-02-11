@@ -11,24 +11,31 @@ use crate::{
         IVirtualDesktopManager, IVirtualDesktopManagerInternal, IVirtualDesktopNotificationService,
         IVirtualDesktopPinnedApps,
     },
-    Desktop, DesktopID, Error, VirtualDesktopEvent, HRESULT, HWND,
+    Desktop, DesktopID, Error, HRESULT, HWND,
 };
-use com::sys::GUID;
 use com::{ComInterface, ComRc};
-use crossbeam_channel::Receiver;
-use std::borrow::Borrow;
-use std::{cell::RefCell, sync::atomic::Ordering};
+use std::sync::Mutex;
+
+// This is is not thread safe, but it's ok for now
+static mut DESKTOPS: Mutex<Vec<Desktop>> = Mutex::new(vec![]);
+
+pub(crate) fn clear_desktops() {
+    unsafe {
+        DESKTOPS = Mutex::new(vec![]);
+    }
+}
 
 /// Provides the stateful helper to accessing the Windows 10 Virtual Desktop
 /// functions.
 pub struct VirtualDesktopService {
-    // pub(crate) service_provider: ComRc<dyn IServiceProvider>,
+    // service_provider: ComRc<dyn IServiceProvider>,
+    // sender: Option<VirtualDesktopEventSender>,
     virtual_desktop_manager: ComRc<dyn IVirtualDesktopManager>,
     virtual_desktop_manager_internal: ComRc<dyn IVirtualDesktopManagerInternal>,
     // virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService>,
     app_view_collection: ComRc<dyn IApplicationViewCollection>,
     pinned_apps: ComRc<dyn IVirtualDesktopPinnedApps>,
-    // registered_listener: RefCell<Option<RegisteredListener>>,
+    registered_listener: RegisteredListener,
 }
 
 // Let's throw the last of the remaining safety away and implement the send and
@@ -39,7 +46,11 @@ unsafe impl Sync for VirtualDesktopService {}
 
 impl VirtualDesktopService {
     /// Initialize only the service, must be-created on TaskbarCreated message
-    pub fn create() -> Result<Box<VirtualDesktopService>, Error> {
+    pub fn create(
+        sender: Option<VirtualDesktopEventSender>,
+    ) -> Result<Box<VirtualDesktopService>, Error> {
+        clear_desktops();
+
         let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
 
         let virtual_desktop_manager =
@@ -55,15 +66,28 @@ impl VirtualDesktopService {
         let pinned_apps =
             get_immersive_service_for_class(&service_provider, CLSID_VirtualDesktopPinnedApps)?;
 
+        let virtual_desktop_notification_service: ComRc<dyn IVirtualDesktopNotificationService> =
+            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
+
+        let registered_listener =
+            RegisteredListener::register(sender.clone(), virtual_desktop_notification_service)
+                .map_err(Error::ComError)?;
+
         #[cfg(feature = "debug")]
-        println!("VirtualDesktopService created.");
+        println!(
+            "VirtualDesktopService created, thread id is {:?}",
+            std::thread::current().id()
+        );
 
         Ok(Box::new(VirtualDesktopService {
             // service_provider,
+            // virtual_desktop_notification_service,
+            // sender,
             virtual_desktop_manager,
             virtual_desktop_manager_internal,
             app_view_collection,
             pinned_apps,
+            registered_listener,
         }))
     }
 
@@ -76,17 +100,20 @@ impl VirtualDesktopService {
         })?;
         match ptr {
             Some(objectarray) => {
+                // println!("objectarray {:?}", &objectarray as *const _);
+
                 let mut count = 0;
                 Result::from(unsafe { objectarray.get_count(&mut count) })?;
                 let mut desktops: Vec<ComRc<dyn IVirtualDesktop>> = vec![];
 
                 for i in 0..count {
                     let mut ptr = std::ptr::null_mut();
+
                     Result::from(unsafe {
                         objectarray.get_at(i, &IVirtualDesktop::IID, &mut ptr)
                     })?;
                     let desktop = unsafe { ComRc::from_raw(ptr as *mut _) };
-                    desktops.push(desktop);
+                    desktops.push(desktop.clone());
                 }
                 Ok(desktops)
             }
@@ -151,50 +178,16 @@ impl VirtualDesktopService {
         Ok(app_id)
     }
 
-    // pub fn set_event_sender(&self, sender: &VirtualDesktopEventSender) {
-    //     let _ = self.registered_listener.replace(Some(
-    //         RegisteredListener::register(
-    //             sender.clone(),
-    //             self.virtual_desktop_notification_service.clone(),
-    //         )
-    //         .unwrap(),
-    //     ));
-    // }
-
-    /// Get event receiver
-    /*
-    pub fn get_event_receiver(&self) -> Result<Receiver<VirtualDesktopEvent>, Error> {
+    pub fn recreate(&self) -> Result<Box<VirtualDesktopService>, Error> {
         #[cfg(feature = "debug")]
-        println!("Get event receiver...");
+        crate::log_output(&format!("Recreate service"));
 
-        let v = self.registered_listener.borrow();
-        match v.as_ref() {
-            Some(listener) => Ok(listener.get_receiver()),
-            None => {
-                drop(v);
-                let _ = self
-                    .registered_listener
-                    .replace(Some(RegisteredListener::register(
-                        EVENTS.0.clone(),
-                        EVENTS.1.clone(),
-                        self.virtual_desktop_notification_service.clone(),
-                    )?));
-                Ok(EVENTS.1.clone())
-            }
-        }
+        let sender = self.registered_listener.get_sender().clone();
+        VirtualDesktopService::create(sender)
     }
-     */
 
-    pub fn create_event_listener(
-        &self,
-        sender: VirtualDesktopEventSender,
-    ) -> Result<RegisteredListener, Error> {
-        let service_provider = create_instance::<dyn IServiceProvider>(&CLSID_ImmersiveShell)?;
-
-        let service: ComRc<dyn IVirtualDesktopNotificationService> =
-            get_immersive_service_for_class(&service_provider, CLSID_IVirtualNotificationService)?;
-
-        RegisteredListener::register(sender, service).map_err(Error::ComError)
+    pub fn set_event_sender(&self, sender: VirtualDesktopEventSender) {
+        self.registered_listener.set_sender(Some(sender));
     }
 
     /// Get desktop index
@@ -214,7 +207,7 @@ impl VirtualDesktopService {
     }
 
     /// Rename desktop
-    pub fn rename_desktop(&self, desktop: &Desktop, name: &str) -> Result<(), Error> {
+    pub fn set_desktop_name(&self, desktop: &Desktop, name: &str) -> Result<(), Error> {
         let idesktop = self._get_idesktop_by_id(&desktop.id)?;
         let hstring = HSTRING::create(name).map_err(HRESULT::from_i32)?;
         Result::from(unsafe {
@@ -230,51 +223,24 @@ impl VirtualDesktopService {
         let mut name = HSTRING::create("                         ").unwrap();
         Result::from(unsafe { idesktop.get_name(&mut name) })?;
         Ok(name.get().unwrap_or_default())
-        /*
-        let mut ptr = None;
-        Result::from(unsafe {
-            self.virtual_desktop_manager_internal
-                .get_desktops(0, &mut ptr)
-        })?;
-        match ptr {
-            Some(objectarray) => {
-                let mut count = 0;
-                Result::from(unsafe { objectarray.get_count(&mut count) })?;
-                for i in 0..count {
-                    let mut ptr = std::ptr::null_mut();
-                    Result::from(unsafe {
-                        objectarray.get_at(i, &IVirtualDesktop2::IID, &mut ptr)
-                    })?;
-                    let idesktop: ComRc<dyn IVirtualDesktop2> =
-                        unsafe { ComRc::from_raw(ptr as *mut _) };
-                    let mut cdesktop = Desktop::empty();
-                    Result::from(unsafe { idesktop.get_id(&mut cdesktop.id) })?;
-                    if &cdesktop == desktop {
-                        let mut hstr = HSTRING::create("").map_err(HRESULT::from_i32)?;
-                        Result::from(unsafe { idesktop.get_name(&mut hstr) })?;
-                        if let Some(s) = hstr.get() {
-                            return Ok(s);
-                        } else {
-                            return Ok("".to_string());
-                        }
-                    }
-                }
-                Err(Error::DesktopNotFound)
-            }
-            None => Err(Error::ComAllocatedNullPtr),
-        }
-        */
     }
 
     /// Get desktop IDs
     pub fn get_desktops(&self) -> Result<Vec<Desktop>, Error> {
-        self._get_idesktops()?
-            .iter()
-            .map(|f| {
-                let mut desktop = Desktop::empty();
-                Result::from(unsafe { f.get_id(&mut desktop.id) }).map(|_| desktop)
-            })
-            .collect()
+        // This is cached, as rapid access in `test_threading_two` test causes occasional crashes
+        let mut _desktops = unsafe { DESKTOPS.lock().unwrap() };
+        if _desktops.is_empty() {
+            let desks: Result<Vec<Desktop>, Error> = self
+                ._get_idesktops()?
+                .iter()
+                .map(|f| {
+                    let mut desktop = Desktop::empty();
+                    Result::from(unsafe { f.get_id(&mut desktop.id) }).map(|_| desktop)
+                })
+                .collect();
+            *_desktops = desks?;
+        }
+        Ok(_desktops.clone())
     }
 
     /// Get number of desktops
@@ -384,6 +350,7 @@ impl VirtualDesktopService {
         let idesk = idesk_opt.ok_or(Error::CreateDesktopFailed)?;
         let mut new_desk = Desktop::empty();
         Result::from(unsafe { idesk.get_id(&mut new_desk.id) })?;
+        clear_desktops();
         if new_desk.id == DesktopID::default() {
             Err(Error::CreateDesktopFailed)
         } else {
@@ -398,6 +365,7 @@ impl VirtualDesktopService {
     ) -> Result<(), Error> {
         let a = self._get_idesktop_by_id(&remove_desktop.id)?;
         let b = self._get_idesktop_by_id(&fallback_desktop.id)?;
+        clear_desktops();
         Result::from(unsafe { self.virtual_desktop_manager_internal.remove_desktop(a, b) })
     }
 

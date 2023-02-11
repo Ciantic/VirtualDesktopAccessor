@@ -8,20 +8,16 @@ mod hstring;
 mod immersive;
 mod interfaces;
 mod service;
+
 use crate::comhelpers::ComError;
 use crate::service::VirtualDesktopService;
-use changelistener::RegisteredListener;
+use com::runtime::init_apartment;
 use com::runtime::init_runtime;
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use com::runtime::ApartmentType;
 use once_cell::sync::Lazy;
 use std::borrow::Borrow;
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Mutex,
-};
+use std::sync::Mutex;
 
 pub mod helpers;
 pub use crate::changelistener::{VirtualDesktopEvent, VirtualDesktopEventSender};
@@ -34,8 +30,7 @@ pub use crate::interfaces::HWND;
 static SERVICE: Lazy<Arc<Mutex<Result<Box<VirtualDesktopService>, Error>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Err(Error::ServiceNotCreated))));
 
-static LISTENER: Lazy<Arc<Mutex<Option<RegisteredListener>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(None)));
+static COM_RUNTIME_INITIALIZED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
 fn error_side_effect(err: &Error) -> Result<bool, Error> {
     match err {
@@ -43,22 +38,26 @@ fn error_side_effect(err: &Error) -> Result<bool, Error> {
             let comerror = ComError::from(*hresult);
 
             #[cfg(feature = "debug")]
-            println!("ComError::{:?}", comerror);
+            log_output(&format!("ComError::{:?}", comerror));
 
             match comerror {
                 ComError::NotInitialized => {
-                    #[cfg(feature = "debug")]
-                    println!("Com initialize");
+                    let mut v = COM_RUNTIME_INITIALIZED.lock().unwrap();
+                    if *v {
+                        return Ok(true);
+                    }
 
                     // This is the right initialization, it uses
                     // CoIncrementMTAUsage inside, and no CoInitialize function
                     // at all
                     init_runtime().map_err(HRESULT::from_i32)?;
+                    *v = true;
 
                     // Following gives STATUS_ACCESS_VIOLATION in the threading
                     // test, it uses CoInitializeEx with COINIT_MULTITHREADED
                     // inside
                     // init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
+                    // init_apartment(ApartmentType::SingleThreaded).map_err(HRESULT::from_i32)?;
 
                     Ok(true)
                 }
@@ -79,15 +78,17 @@ where
 {
     match SERVICE.lock() {
         Ok(mut cell) => {
+            // println!("Thread id is {:?}", std::thread::current().id());
             for _ in 0..6 {
                 let service_ref = cell.borrow();
                 let result = service_ref.as_ref();
-                match result {
-                    Ok(v) => match cb(&v) {
+
+                let mut res = match result {
+                    Ok(mut v) => match cb(v) {
                         Ok(r) => return Ok(r),
                         Err(err) => match error_side_effect(&err) {
                             Ok(false) => return Err(err),
-                            Ok(true) => (),
+                            Ok(true) => v.recreate(),
                             Err(err) => return Err(err),
                         },
                     },
@@ -97,23 +98,14 @@ where
                         {
                             error_side_effect(&err);
                         }
+                        VirtualDesktopService::create(None)
                     }
-                }
+                };
 
-                #[cfg(feature = "debug")]
-                println!("Try to create");
-
-                let res = VirtualDesktopService::create();
                 match res {
                     Ok(new_service) => {
-                        // Recreate listener, if it exists
-                        if let Ok(mut listener) = LISTENER.lock() {
-                            if let Some(l) = listener.as_ref() {
-                                let new_listener =
-                                    new_service.create_event_listener(l.get_sender().clone())?;
-                                listener.replace(new_listener);
-                            }
-                        }
+                        #[cfg(feature = "debug")]
+                        log_output(&format!("Set service"));
 
                         // Store service
                         (*cell) = Ok(new_service);
@@ -127,7 +119,7 @@ where
         }
         Err(_) => {
             #[cfg(feature = "debug")]
-            println!("Lock failed?");
+            log_output(&format!("Lock failed: SERVICE.lock()"));
             Err(Error::ServiceNotCreated)
         }
     }
@@ -136,22 +128,29 @@ where
 /// Should be called when explorer is restarted
 pub fn notify_explorer_restarted() -> Result<(), Error> {
     if let Ok(mut cell) = SERVICE.lock() {
-        (*cell) = VirtualDesktopService::create();
+        let old = cell.borrow().as_ref();
+        match old {
+            Ok(v) => {
+                (*cell) = v.recreate();
+            }
+            Err(_) => {
+                (*cell) = VirtualDesktopService::create(None);
+            }
+        }
         Ok(())
     } else {
         Ok(())
     }
 }
 
-pub fn create_event_listener(sender: VirtualDesktopEventSender) -> Result<(), Error> {
-    let listener = with_service(move |s| s.create_event_listener(sender.clone()))?;
-    let mut mutex = LISTENER.lock().unwrap();
-    mutex.replace(listener);
+pub fn set_event_sender(sender: VirtualDesktopEventSender) -> Result<(), Error> {
+    // println!("Create event listener");
+    let _ = with_service(move |s| Ok(s.set_event_sender(sender.clone())));
     Ok(())
 }
 
 /// Get desktop name
-pub(crate) fn get_desktop_name(desktop: &Desktop) -> Result<String, Error> {
+pub fn get_desktop_name(desktop: &Desktop) -> Result<String, Error> {
     with_service(|s| s.get_desktop_name(desktop))
 }
 
@@ -162,7 +161,7 @@ pub(crate) fn get_index_by_desktop(desktop: &Desktop) -> Result<usize, Error> {
 
 /// Set desktop name
 pub fn set_desktop_name(desktop: &Desktop, name: &str) -> Result<(), Error> {
-    with_service(|s| s.rename_desktop(desktop, name))
+    with_service(|s| s.set_desktop_name(desktop, name))
 }
 
 /// Get desktop number
@@ -250,6 +249,20 @@ pub fn unpin_app(hwnd: HWND) -> Result<(), Error> {
     with_service(|s| s.unpin_app(hwnd))
 }
 
+// Import OutputDebugStringA
+#[cfg(feature = "debug")]
+extern "system" {
+    fn OutputDebugStringA(lpOutputString: *const i8);
+}
+
+#[cfg(feature = "debug")]
+pub(crate) fn log_output(s: &str) {
+    unsafe {
+        println!("{}", s);
+        OutputDebugStringA(s.as_ptr() as *const i8);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::helpers::*;
@@ -271,13 +284,16 @@ mod tests {
         INIT.call_once(|| {
             let (a, b) = std::sync::mpsc::channel::<VirtualDesktopEvent>();
 
-            create_event_listener(changelistener::VirtualDesktopEventSender::Std(a.clone()))
-                .unwrap();
+            set_event_sender(changelistener::VirtualDesktopEventSender::Std(a.clone())).unwrap();
 
             thread::spawn(move || {
                 b.iter().for_each(|msg| match msg {
                     VirtualDesktopEvent::DesktopChanged(old, new) => {
-                        println!("<- Desktop changed from {:?} to {:?}", old, new);
+                        println!(
+                            "<- Desktop changed from {:?} to {:?}",
+                            old.get_index().unwrap(),
+                            new.get_index().unwrap()
+                        );
                     }
                     VirtualDesktopEvent::DesktopCreated(desk) => {
                         println!("<- New desktop created {:?}", desk);
@@ -309,19 +325,42 @@ mod tests {
     fn test_threads() {
         sync_test(|| {
             std::thread::spawn(|| {
-                let get_count = || {
-                    get_desktop_count().unwrap();
-                };
+                // let get_count = || {
+                //     get_desktop_count().unwrap();
+                // };
                 let mut threads = vec![];
-                for _ in 0..16 {
-                    threads.push(std::thread::spawn(get_count));
+                for _ in 0..555 {
+                    threads.push(std::thread::spawn(|| {
+                        get_desktops().unwrap().iter().for_each(|d| {
+                            let n = d.get_name().unwrap();
+                            let i = d.get_index().unwrap();
+                            let j = d.get_index().unwrap();
+                            println!("Thread {n} {i} {j} {:?}", std::thread::current().id());
+                        })
+                    }));
                 }
+                thread::sleep(Duration::from_millis(2500));
                 for t in threads {
                     t.join().unwrap();
                 }
             })
             .join()
             .unwrap();
+        })
+    }
+
+    // #[test] // TODO: Commented out, use only on occasion when needed!
+    fn test_threading_two() {
+        sync_test(|| {
+            let current_desktop = get_current_desktop_number().unwrap();
+
+            for _ in 0..999 {
+                go_to_desktop_number(0).unwrap();
+                std::thread::sleep(Duration::from_millis(4));
+                go_to_desktop_number(1).unwrap();
+            }
+            std::thread::sleep(Duration::from_millis(3));
+            go_to_desktop_number(current_desktop).unwrap();
         })
     }
 
@@ -524,7 +563,7 @@ mod tests {
     /// Test some errors
     #[test]
     fn test_errors() {
-        let err = rename_desktop_number(99999, "").unwrap_err();
+        let err = set_name_by_desktop_number(99999, "").unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
         let err = go_to_desktop_number(99999).unwrap_err();

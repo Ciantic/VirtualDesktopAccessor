@@ -29,7 +29,7 @@ pub fn is_window_on_desktop_number(hwnd: HWND, number: usize) -> Result<bool, Er
 }
 
 /// Rename desktop
-pub fn rename_desktop_number(number: usize, name: &str) -> Result<(), Error> {
+pub fn set_name_by_desktop_number(number: usize, name: &str) -> Result<(), Error> {
     set_desktop_name(&get_desktop_by_index(number)?, name)
 }
 
