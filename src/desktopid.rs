@@ -1,3 +1,4 @@
+/// cbindgen:field-names=[Id]
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DesktopID(pub(crate) com::sys::GUID);

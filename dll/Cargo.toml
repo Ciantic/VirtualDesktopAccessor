@@ -20,3 +20,6 @@ crate-type = ["cdylib"]
 winvd = { path = "../", features = ["crossbeam-channel"] }
 once_cell = "1.5.0"
 crossbeam-channel = { version = "0.5" }
+
+[build-dependencies]
+cbindgen = "0.24.3"
