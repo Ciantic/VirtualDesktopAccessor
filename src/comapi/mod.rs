@@ -75,6 +75,24 @@ fn create_vd_notification_service(
     })
 }
 
+fn create_vd_manager_jold(provider: &IServiceProvider) -> Result<IVirtualDesktopManager> {
+    COM_INIT.with(|_| {
+        let mut obj = std::ptr::null_mut::<c_void>();
+        unsafe {
+            provider
+                .query_service(
+                    &IVirtualDesktopManager::IID,
+                    &IVirtualDesktopManager::IID,
+                    &mut obj,
+                )
+                .as_result()?;
+        }
+        assert_eq!(obj.is_null(), false);
+
+        Ok(unsafe { IVirtualDesktopManager::from_raw(obj) })
+    })
+}
+
 fn create_vd_manager(provider: &IServiceProvider) -> Result<IVirtualDesktopManagerInternal> {
     COM_INIT.with(|_| {
         let mut obj = std::ptr::null_mut::<c_void>();
@@ -212,8 +230,8 @@ fn get_idesktop_by_number(
 ) -> Result<IVirtualDesktop> {
     COM_INIT.with(|_| {
         let desktops = get_idesktops_array(manager)?;
-        let desktop: IVirtualDesktop = unsafe { desktops.GetAt(index).map_err(map_win_err)? };
-        Ok(desktop)
+        let desktop = unsafe { desktops.GetAt(index).map_err(map_win_err) };
+        desktop.map_err(|_| Error::DesktopNotFound)
     })
 }
 
@@ -272,6 +290,18 @@ fn create_idesktop(manager: &IVirtualDesktopManagerInternal) -> Result<IVirtualD
         let mut desktop = None;
         unsafe { manager.create_desktop(0, &mut desktop).as_result()? }
         desktop.ok_or(Error::CreateDesktopFailed)
+    })
+}
+
+fn move_view_to_desktop(
+    manager: &IVirtualDesktopManagerInternal,
+    view: &IApplicationView,
+    desktop: &IVirtualDesktop,
+) -> Result<()> {
+    COM_INIT.with(|_| unsafe {
+        manager
+            .move_view_to_desktop(ComIn::new(view), ComIn::new(desktop))
+            .as_result()
     })
 }
 
@@ -360,9 +390,86 @@ fn unpin_app_id(apps: &IVirtualDesktopPinnedApps, app_id: APPID_PWSTR) -> Result
     COM_INIT.with(|_| unsafe { apps.unpin_app(app_id as *mut _).as_result() })
 }
 
-pub mod pinning {
+fn _is_window_on_current_desktop(manager: &IVirtualDesktopManager, hwnd: HWND) -> Result<bool> {
+    COM_INIT.with(|_| {
+        let mut is_on_desktop = false;
+        unsafe {
+            manager
+                .is_window_on_current_desktop(hwnd, &mut is_on_desktop)
+                .as_result()?
+        }
+        Ok(is_on_desktop)
+    })
+}
+
+fn get_desktop_by_window(
+    man2: &IVirtualDesktopManagerInternal,
+    manager: &IVirtualDesktopManager,
+    hwnd: HWND,
+) -> Result<IVirtualDesktop> {
+    COM_INIT.with(|_| {
+        let mut desktop_id = GUID::default();
+        unsafe {
+            manager
+                .get_desktop_by_window(hwnd, &mut desktop_id)
+                .as_result()
+                .map_err(|er| match er {
+                    // Window does not exist
+                    Error::ComError(HRESULT(0x8002802B)) => Error::WindowNotFound,
+                    _ => er,
+                })?
+        }
+        if desktop_id == GUID::default() {
+            return Err(Error::WindowNotFound);
+        }
+
+        get_idesktop_by_guid(man2, &desktop_id)
+    })
+}
+
+pub mod windowing {
     type HWND = u32;
     use super::*;
+
+    pub fn move_window_to_desktop_number(hwnd: HWND, number: u32) -> Result<()> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_number(&manager, number)?;
+            let vc = create_view_collection(&provider)?;
+            let view = get_iapplication_view_for_hwnd(&vc, hwnd)?;
+            move_view_to_desktop(&manager, &view, &desktop)
+        })
+    }
+
+    pub fn is_window_on_current_desktop(hwnd: HWND) -> Result<bool> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager_jold(&provider)?;
+            _is_window_on_current_desktop(&manager, hwnd)
+        })
+    }
+
+    pub fn is_window_on_desktop_number(hwnd: HWND, number: u32) -> Result<bool> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager_jold(&provider)?;
+            let man2 = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_number(&man2, number)?;
+            let desktop2 = get_desktop_by_window(&man2, &manager, hwnd)?;
+            let g1 = get_idesktop_guid(&desktop);
+            let g2 = get_idesktop_guid(&desktop2);
+            Ok(g1 == g2)
+        })
+    }
+
+    pub fn get_desktop_number_by_window(hwnd: HWND) -> Result<u32> {
+        let provider = create_service_provider()?;
+        let manager = create_vd_manager_jold(&provider)?;
+        let man2 = create_vd_manager(&provider)?;
+        let desktop2 = get_desktop_by_window(&man2, &manager, hwnd)?;
+        get_idesktop_number(&man2, &desktop2)
+    }
 
     /// Is window pinned?
     pub fn is_pinned_window(hwnd: HWND) -> Result<bool> {
@@ -535,7 +642,14 @@ pub mod normal {
         pub fn get_id(&self) -> GUID {
             self.id
         }
+
+        pub fn has_window(hwnd: HWND) -> Result<bool> {
+            // TODO: IS WINDOW ON DESKTOP?
+            todo!()
+        }
     }
+
+    // TODO: GET DESKTOP BY ID
 
     pub fn get_desktops() -> Result<Vec<Desktop>> {
         COM_INIT.with(|_| {
@@ -553,7 +667,17 @@ pub mod normal {
         })
     }
 
-    pub fn get_desktop_by_guid(guid: GUID) -> Result<Desktop> {
+    pub fn get_desktop_by_index(index: u32) -> Result<Desktop> {
+        COM_INIT.with(|_| {
+            let provider = create_service_provider()?;
+            let manager = create_vd_manager(&provider)?;
+            let desktop = get_idesktop_by_number(&manager, index)?;
+            let id = get_idesktop_guid(&desktop)?;
+            Ok(Desktop { id })
+        })
+    }
+
+    pub fn get_desktop_by_guid(guid: &GUID) -> Result<Desktop> {
         COM_INIT.with(|_| {
             let provider = create_service_provider()?;
             let manager = create_vd_manager(&provider)?;
@@ -564,7 +688,7 @@ pub mod normal {
     }
 }
 
-mod numbered {
+pub mod numbered {
     use super::*;
 
     pub fn go_to_desktop_number(number: u32) -> Result<()> {

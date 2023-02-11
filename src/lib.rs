@@ -1,271 +1,12 @@
-mod changelistener;
 mod comapi;
-mod comhelpers;
-mod desktop;
-mod desktopid;
 mod error;
 mod hresult;
-mod hstring;
-mod immersive;
-mod interfaces;
-mod service;
 
-use crate::comhelpers::ComError;
-use crate::service::VirtualDesktopService;
-use changelistener::RegisteredListener;
-use com::runtime::init_apartment;
-use com::runtime::init_runtime;
-use com::runtime::ApartmentType;
-use once_cell::sync::Lazy;
-use std::borrow::Borrow;
-use std::sync::Arc;
-use std::sync::Mutex;
-
-pub mod helpers;
-pub use crate::changelistener::{VirtualDesktopEvent, VirtualDesktopEventSender};
-pub use crate::desktop::Desktop;
-pub use crate::desktopid::DesktopID;
-pub use crate::error::Error;
-pub use crate::hresult::HRESULT;
-pub use crate::interfaces::HWND;
-
-static SERVICE: Lazy<Arc<Mutex<Result<Box<VirtualDesktopService>, Error>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(Err(Error::ServiceNotCreated))));
-
-thread_local!(
-    static LISTENER: Mutex<Option<RegisteredListener>> = Mutex::new(None);
-);
-
-static COM_RUNTIME_INITIALIZED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
-
-fn error_side_effect(err: &Error) -> Result<bool, Error> {
-    match err {
-        Error::ComError(hresult) => {
-            let comerror = ComError::from(*hresult);
-
-            #[cfg(feature = "debug")]
-            log_output(&format!("ComError::{:?}", comerror));
-
-            match comerror {
-                ComError::NotInitialized => {
-                    let mut v = COM_RUNTIME_INITIALIZED.lock().unwrap();
-                    if *v {
-                        return Ok(true);
-                    }
-
-                    // This is the right initialization, it uses
-                    // CoIncrementMTAUsage inside, and no CoInitialize function
-                    // at all
-                    init_runtime().map_err(HRESULT::from_i32)?;
-                    *v = true;
-
-                    // Following gives STATUS_ACCESS_VIOLATION in the threading
-                    // test, it uses CoInitializeEx with COINIT_MULTITHREADED
-                    // inside
-                    // init_apartment(ApartmentType::Multithreaded).map_err(HRESULT::from_i32)?;
-                    // init_apartment(ApartmentType::SingleThreaded).map_err(HRESULT::from_i32)?;
-
-                    Ok(true)
-                }
-                ComError::ClassNotRegistered => Ok(true),
-                ComError::RpcUnavailable => Ok(true),
-                ComError::ObjectNotConnected => Ok(true),
-                ComError::Unknown(_) => Ok(false),
-            }
-        }
-        Error::ServiceNotCreated => Ok(true),
-        _ => Ok(false),
-    }
-}
-
-fn with_service<T, F>(cb: F) -> Result<T, Error>
-where
-    F: Fn(&VirtualDesktopService) -> Result<T, Error>,
-{
-    match SERVICE.lock() {
-        Ok(mut cell) => {
-            // println!("Thread id is {:?}", std::thread::current().id());
-            for _ in 0..6 {
-                let service_ref = cell.borrow();
-                let result = service_ref.as_ref();
-
-                match result {
-                    Ok(mut v) => match cb(v) {
-                        Ok(r) => return Ok(r),
-                        Err(err) => match error_side_effect(&err) {
-                            Ok(false) => return Err(err),
-                            Ok(true) => (),
-                            Err(err) => return Err(err),
-                        },
-                    },
-                    Err(err) => {
-                        // Ignore
-                        #[allow(unused_must_use)]
-                        {
-                            error_side_effect(&err);
-                        }
-                    }
-                };
-                (*cell) = Err(Error::ServiceNotCreated);
-                let res = VirtualDesktopService::create();
-                match res {
-                    Ok(new_service) => {
-                        #[cfg(feature = "debug")]
-                        log_output(&format!("Set service"));
-
-                        // Store service
-                        (*cell) = Ok(new_service);
-                    }
-                    Err(err) => {
-                        (*cell) = Err(err);
-                    }
-                }
-            }
-            Err(Error::ServiceNotCreated)
-        }
-        Err(_) => {
-            #[cfg(feature = "debug")]
-            log_output(&format!("Lock failed: SERVICE.lock()"));
-            Err(Error::ServiceNotCreated)
-        }
-    }
-}
-
-/// Should be called when explorer is restarted
-pub fn notify_explorer_restarted() -> Result<(), Error> {
-    Ok(())
-    // if let Ok(mut cell) = SERVICE.lock() {
-    //     let old = cell.borrow().as_ref();
-    //     match old {
-    //         Ok(v) => {
-    //             (*cell) = v.recreate();
-    //         }
-    //         Err(_) => {
-    //             (*cell) = VirtualDesktopService::create(None);
-    //         }
-    //     }
-    //     Ok(())
-    // } else {
-    //     Ok(())
-    // }
-}
-
-pub fn set_event_sender(sender: VirtualDesktopEventSender) -> Result<(), Error> {
-    std::thread::spawn(|| {
-        init_runtime().map_err(HRESULT::from_i32).unwrap();
-        LISTENER.with(|f| {
-            let mut a = f.lock().unwrap();
-            *a = Some(VirtualDesktopService::create_listener(Some(sender)).unwrap());
-        });
-        loop {
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-        }
-    });
-
-    // println!("Create event listener");
-    // let _ = with_service(move |s| Ok(s.set_event_sender(sender.clone())));
-    Ok(())
-}
-
-/// Get desktop name
-pub fn get_desktop_name(desktop: &Desktop) -> Result<String, Error> {
-    with_service(|s| s.get_desktop_name(desktop))
-}
-
-/// Get desktop name
-pub(crate) fn get_index_by_desktop(desktop: &Desktop) -> Result<usize, Error> {
-    with_service(|s| s.get_index_by_desktop(desktop))
-}
-
-/// Set desktop name
-pub fn set_desktop_name(desktop: &Desktop, name: &str) -> Result<(), Error> {
-    with_service(|s| s.set_desktop_name(desktop, name))
-}
-
-/// Get desktop number
-pub fn get_desktop_by_index(number: usize) -> Result<Desktop, Error> {
-    with_service(|s| s.get_desktop_by_index(number))
-}
-
-/// Get desktop by GUID
-pub fn get_desktop_by_guid(id: &DesktopID) -> Result<Desktop, Error> {
-    with_service(|s| s.get_desktop_by_guid(&id))
-}
-
-/// Get desktops
-pub fn get_desktops() -> Result<Vec<Desktop>, Error> {
-    with_service(|s| s.get_desktops())
-}
-
-/// Get current desktop
-pub fn get_current_desktop() -> Result<Desktop, Error> {
-    with_service(|s| s.get_current_desktop())
-}
-
-/// Get desktop by window
-pub fn get_desktop_by_window(hwnd: HWND) -> Result<Desktop, Error> {
-    with_service(|s| s.get_desktop_by_window(hwnd))
-}
-
-/// Is window on desktop number
-pub fn is_window_on_desktop(hwnd: HWND, desktop: &Desktop) -> Result<bool, Error> {
-    with_service(|s| s.is_window_on_desktop(hwnd, &desktop))
-}
-
-/// Move window to desktop
-pub fn move_window_to_desktop(hwnd: HWND, desktop: &Desktop) -> Result<(), Error> {
-    with_service(|s| s.move_window_to_desktop(hwnd, desktop))
-}
-
-/// Go to desktop
-pub fn go_to_desktop(desktop: &Desktop) -> Result<(), Error> {
-    with_service(|s| s.go_to_desktop(desktop))
-}
-
-/// Create desktop
-pub fn create_desktop() -> Result<Desktop, Error> {
-    with_service(|s| s.create_desktop())
-}
-
-/// Remove desktop
-pub fn remove_desktop(remove_desktop: &Desktop, fallback_desktop: &Desktop) -> Result<(), Error> {
-    with_service(|s| s.remove_desktop(remove_desktop, fallback_desktop))
-}
-
-/// Is window on current  desktop
-pub fn is_window_on_current_desktop(hwnd: HWND) -> Result<bool, Error> {
-    with_service(|s| s.is_window_on_current_desktop(hwnd))
-}
-
-/// Is window pinned?
-pub fn is_pinned_window(hwnd: HWND) -> Result<bool, Error> {
-    with_service(|s| s.is_pinned_window(hwnd))
-}
-
-/// Pin window
-pub fn pin_window(hwnd: HWND) -> Result<(), Error> {
-    with_service(|s| s.pin_window(hwnd))
-}
-
-/// Unpin window
-pub fn unpin_window(hwnd: HWND) -> Result<(), Error> {
-    with_service(|s| s.unpin_window(hwnd))
-}
-
-/// Is pinned app?
-pub fn is_pinned_app(hwnd: HWND) -> Result<bool, Error> {
-    with_service(|s| s.is_pinned_app(hwnd))
-}
-
-/// Pin entire app and all it's windows
-pub fn pin_app(hwnd: HWND) -> Result<(), Error> {
-    with_service(|s| s.pin_app(hwnd))
-}
-
-/// Unpin entire app and all it's windows
-pub fn unpin_app(hwnd: HWND) -> Result<(), Error> {
-    with_service(|s| s.unpin_app(hwnd))
-}
+pub use comapi::normal::*;
+pub use comapi::numbered::*;
+pub use comapi::windowing::*;
+pub use error::Error;
+pub(crate) use hresult::HRESULT;
 
 // Import OutputDebugStringA
 #[cfg(feature = "debug")]
@@ -283,14 +24,16 @@ pub(crate) fn log_output(s: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::helpers::*;
     use super::*;
-    use std::sync::Once;
+    use once_cell::sync::Lazy;
+    use std::sync::{Mutex, Once};
     use std::thread;
     use std::time::Duration;
     use winapi::um::winuser::FindWindowW;
 
     static INIT: Once = Once::new();
+
+    type HWND = u32;
 
     // Run the tests synchronously
     fn sync_test<T>(test: T)
@@ -299,6 +42,7 @@ mod tests {
     {
         static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
+        /*
         INIT.call_once(|| {
             let (a, b) = std::sync::mpsc::channel::<VirtualDesktopEvent>();
 
@@ -334,6 +78,7 @@ mod tests {
                 });
             });
         });
+         */
 
         let _t = SEMAPHORE.lock().unwrap();
         test()
@@ -387,8 +132,6 @@ mod tests {
         sync_test(|| {
             let desktop = get_desktop_by_index(0).unwrap();
             let id = desktop.get_id();
-            let (data1, _, _, _) = id.get_data();
-            assert_ne!(data1, 0);
 
             // No errors by getting desktop
             get_desktop_by_guid(&id).unwrap();

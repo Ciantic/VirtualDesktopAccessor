@@ -127,12 +127,12 @@ pub trait IVirtualDesktopManager: IUnknown {
     unsafe fn get_desktop_by_window(
         &self,
         topLevelWindow: HWND,
-        outDesktopId: *mut DesktopID,
+        outDesktopId: *mut GUID,
     ) -> HRESULT;
     unsafe fn move_window_to_desktop(
         &self,
         topLevelWindow: HWND,
-        desktopId: *const DesktopID,
+        desktopId: *const GUID,
     ) -> HRESULT;
 }
 
