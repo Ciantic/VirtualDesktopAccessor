@@ -6,8 +6,6 @@ use windows::{
 
 use crate::HRESULT;
 
-type DesktopID = GUID;
-
 // Idea here is that the cloned ComIn instance lifetime is within the original ComIn instance lifetime
 #[repr(transparent)]
 pub struct ComIn<'a, T> {
@@ -126,12 +124,12 @@ pub unsafe trait IVirtualDesktopManager: IUnknown {
     pub unsafe fn get_desktop_by_window(
         &self,
         top_level_window: HWND,
-        out_desktop_id: *mut DesktopID,
+        out_desktop_id: *mut GUID,
     ) -> HRESULT;
     pub unsafe fn move_window_to_desktop(
         &self,
         top_level_window: HWND,
-        desktop_id: *const DesktopID,
+        desktop_id: *const GUID,
     ) -> HRESULT;
 }
 
@@ -178,8 +176,8 @@ pub unsafe trait IApplicationView: IUnknown {
     pub unsafe fn get_neediness(&self, out_neediness: *mut INT) -> HRESULT; // Proc22
     pub unsafe fn get_last_activation_timestamp(&self, out_timestamp: *mut ULONGLONG) -> HRESULT;
     pub unsafe fn set_last_activation_timestamp(&self, timestamp: ULONGLONG) -> HRESULT;
-    pub unsafe fn get_virtual_desktop_id(&self, out_desktop_guid: *mut DesktopID) -> HRESULT;
-    pub unsafe fn set_virtual_desktop_id(&self, desktop_guid: *const DesktopID) -> HRESULT;
+    pub unsafe fn get_virtual_desktop_id(&self, out_desktop_guid: *mut GUID) -> HRESULT;
+    pub unsafe fn set_virtual_desktop_id(&self, desktop_guid: *const GUID) -> HRESULT;
     pub unsafe fn get_show_in_switchers(&self, out_show: *mut INT) -> HRESULT;
     pub unsafe fn set_show_in_switchers(&self, show: INT) -> HRESULT;
     pub unsafe fn get_scale_factor(&self, out_scale_factor: *mut INT) -> HRESULT;
@@ -245,7 +243,7 @@ pub unsafe trait IVirtualDesktop: IUnknown {
         p_view: ComIn<IApplicationView>,
         out_bool: *mut u32,
     ) -> HRESULT;
-    pub unsafe fn get_id(&self, out_guid: *mut DesktopID) -> HRESULT;
+    pub unsafe fn get_id(&self, out_guid: *mut GUID) -> HRESULT;
     pub unsafe fn get_monitor(&self, out_monitor: *mut HMONITOR) -> HRESULT;
     pub unsafe fn get_name(&self, out_string: *mut HSTRING) -> HRESULT;
     pub unsafe fn get_wallpaper(&self, out_string: *mut HSTRING) -> HRESULT;
@@ -443,7 +441,7 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
 
     pub unsafe fn find_desktop(
         &self,
-        guid: *const DesktopID,
+        guid: *const GUID,
         out_desktop: *mut Option<IVirtualDesktop>,
     ) -> HRESULT;
 
