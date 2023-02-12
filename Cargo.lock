@@ -9,37 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "com"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a30a2b2a013da986dc5cc3eda3d19c0d59d53f835be1b2356eb8d00f000c793"
-dependencies = [
- "com_macros",
-]
-
-[[package]]
-name = "com_macros"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7606b05842fea68ddcc89e8053b8860ebcb2a0ba8d6abfe3a148e5d5a8d3f0c1"
-dependencies = [
- "com_macros_support",
- "proc-macro2",
- "syn",
-]
-
-[[package]]
-name = "com_macros_support"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97e9a6d20f4ac8830e309a455d7e9416e65c6af5a97c88c55fbb4c2012e107da"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "crossbeam-channel"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -64,6 +33,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "once_cell",
+ "windows",
  "winvd",
 ]
 
@@ -234,7 +204,6 @@ checksum = "447660ad36a13288b1db4d4248e857b510e8c3a225c822ba4fb748c0aafecffd"
 name = "winvd"
 version = "0.0.20"
 dependencies = [
- "com",
  "crossbeam-channel",
  "once_cell",
  "winapi",

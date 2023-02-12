@@ -20,3 +20,8 @@ crate-type = ["cdylib"]
 winvd = { path = "../", features = ["crossbeam-channel"] }
 once_cell = "1.5.0"
 crossbeam-channel = { version = "0.5" }
+windows = { version = "*", features = [
+    "implement",
+    "Win32_System_Com",
+    "Win32_UI_Shell_Common", # for IObjectArray
+] }

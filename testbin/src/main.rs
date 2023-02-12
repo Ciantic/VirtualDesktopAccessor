@@ -1,9 +1,5 @@
 use std::{thread, time::Duration};
-use winvd::{
-    create_desktop, get_current_desktop, get_desktops,
-    helpers::{get_current_desktop_number, get_desktop_count, go_to_desktop_number},
-    remove_desktop, set_event_sender, VirtualDesktopEvent, VirtualDesktopEventSender,
-};
+use winvd::*;
 
 fn main() {
     // Desktop count
@@ -13,6 +9,7 @@ fn main() {
     // Desktops are:
     println!("Desktops are: {:?}", get_desktops().unwrap());
 
+    /*
     let (sender, receiver) = crossbeam_channel::unbounded();
     set_event_sender(VirtualDesktopEventSender::Crossbeam(sender)).unwrap();
 
@@ -45,7 +42,7 @@ fn main() {
                 println!("<- Desktop {:?} moved from {} to {}", desk, old, new);
             }
         })
-    });
+    }); */
 
     thread::spawn(|| {
         thread::sleep(Duration::from_secs(1));
@@ -58,7 +55,7 @@ fn main() {
         desk.set_name("This is a new desktop!").unwrap();
         println!("New desktop with name: {}", desk.get_name().unwrap());
 
-        remove_desktop(&desk, &get_current_desktop().unwrap()).unwrap();
+        desk.remove(&get_current_desktop().unwrap()).unwrap();
         println!("Deleted desktop {:?}", desk);
     });
 

@@ -49,13 +49,13 @@ fn map_win_err(er: ::windows::core::Error) -> Error {
     Error::ComError(HRESULT::from_i32(er.code().0))
 }
 
-fn create_service_provider() -> Result<IServiceProvider> {
+fn get_iservice_provider() -> Result<IServiceProvider> {
     COM_INIT.with(|_| unsafe {
         CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_ALL).map_err(map_win_err)
     })
 }
 
-fn create_vd_notification_service(
+fn get_ivirtual_desktop_notification_service(
     provider: &IServiceProvider,
 ) -> Result<IVirtualDesktopNotificationService> {
     COM_INIT.with(|_| {
@@ -75,7 +75,7 @@ fn create_vd_notification_service(
     })
 }
 
-fn create_vd_manager_jold(provider: &IServiceProvider) -> Result<IVirtualDesktopManager> {
+fn get_ivirtual_desktop_manager(provider: &IServiceProvider) -> Result<IVirtualDesktopManager> {
     COM_INIT.with(|_| {
         let mut obj = std::ptr::null_mut::<c_void>();
         unsafe {
@@ -93,7 +93,9 @@ fn create_vd_manager_jold(provider: &IServiceProvider) -> Result<IVirtualDesktop
     })
 }
 
-fn create_vd_manager(provider: &IServiceProvider) -> Result<IVirtualDesktopManagerInternal> {
+fn get_ivirtual_desktop_manager_internal(
+    provider: &IServiceProvider,
+) -> Result<IVirtualDesktopManagerInternal> {
     COM_INIT.with(|_| {
         let mut obj = std::ptr::null_mut::<c_void>();
         unsafe {
@@ -111,7 +113,9 @@ fn create_vd_manager(provider: &IServiceProvider) -> Result<IVirtualDesktopManag
     })
 }
 
-fn create_view_collection(provider: &IServiceProvider) -> Result<IApplicationViewCollection> {
+fn get_iapplication_view_collection(
+    provider: &IServiceProvider,
+) -> Result<IApplicationViewCollection> {
     COM_INIT.with(|_| {
         let mut obj = std::ptr::null_mut::<c_void>();
         unsafe {
@@ -129,7 +133,9 @@ fn create_view_collection(provider: &IServiceProvider) -> Result<IApplicationVie
     })
 }
 
-fn create_pinned_apps(provider: &IServiceProvider) -> Result<IVirtualDesktopPinnedApps> {
+fn get_ivirtual_desktop_pinned_apps(
+    provider: &IServiceProvider,
+) -> Result<IVirtualDesktopPinnedApps> {
     COM_INIT.with(|_| {
         let mut obj = std::ptr::null_mut::<c_void>();
         unsafe {
@@ -402,8 +408,8 @@ fn _is_window_on_current_desktop(manager: &IVirtualDesktopManager, hwnd: HWND) -
     })
 }
 
-fn get_desktop_by_window(
-    man2: &IVirtualDesktopManagerInternal,
+fn get_idesktop_by_window(
+    manager_internal: &IVirtualDesktopManagerInternal,
     manager: &IVirtualDesktopManager,
     hwnd: HWND,
 ) -> Result<IVirtualDesktop> {
@@ -423,7 +429,7 @@ fn get_desktop_by_window(
             return Err(Error::WindowNotFound);
         }
 
-        get_idesktop_by_guid(man2, &desktop_id)
+        get_idesktop_by_guid(manager_internal, &desktop_id)
     })
 }
 
@@ -433,10 +439,10 @@ pub mod windowing {
 
     pub fn move_window_to_desktop_number(hwnd: HWND, number: u32) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_number(&manager, number)?;
-            let vc = create_view_collection(&provider)?;
+            let vc = get_iapplication_view_collection(&provider)?;
             let view = get_iapplication_view_for_hwnd(&vc, hwnd)?;
             move_view_to_desktop(&manager, &view, &desktop)
         })
@@ -444,19 +450,19 @@ pub mod windowing {
 
     pub fn is_window_on_current_desktop(hwnd: HWND) -> Result<bool> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager_jold(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager(&provider)?;
             _is_window_on_current_desktop(&manager, hwnd)
         })
     }
 
     pub fn is_window_on_desktop_number(hwnd: HWND, number: u32) -> Result<bool> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager_jold(&provider)?;
-            let man2 = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager(&provider)?;
+            let man2 = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_number(&man2, number)?;
-            let desktop2 = get_desktop_by_window(&man2, &manager, hwnd)?;
+            let desktop2 = get_idesktop_by_window(&man2, &manager, hwnd)?;
             let g1 = get_idesktop_guid(&desktop);
             let g2 = get_idesktop_guid(&desktop2);
             Ok(g1 == g2)
@@ -464,19 +470,19 @@ pub mod windowing {
     }
 
     pub fn get_desktop_number_by_window(hwnd: HWND) -> Result<u32> {
-        let provider = create_service_provider()?;
-        let manager = create_vd_manager_jold(&provider)?;
-        let man2 = create_vd_manager(&provider)?;
-        let desktop2 = get_desktop_by_window(&man2, &manager, hwnd)?;
+        let provider = get_iservice_provider()?;
+        let manager = get_ivirtual_desktop_manager(&provider)?;
+        let man2 = get_ivirtual_desktop_manager_internal(&provider)?;
+        let desktop2 = get_idesktop_by_window(&man2, &manager, hwnd)?;
         get_idesktop_number(&man2, &desktop2)
     }
 
     /// Is window pinned?
     pub fn is_pinned_window(hwnd: HWND) -> Result<bool> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let view_collection = create_view_collection(&provider)?;
-            let apps = create_pinned_apps(&provider)?;
+            let provider = get_iservice_provider()?;
+            let view_collection = get_iapplication_view_collection(&provider)?;
+            let apps = get_ivirtual_desktop_pinned_apps(&provider)?;
             let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
             is_view_pinned(&apps, view)
         })
@@ -485,9 +491,9 @@ pub mod windowing {
     /// Pin window
     pub fn pin_window(hwnd: HWND) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let view_collection = create_view_collection(&provider)?;
-            let apps = create_pinned_apps(&provider)?;
+            let provider = get_iservice_provider()?;
+            let view_collection = get_iapplication_view_collection(&provider)?;
+            let apps = get_ivirtual_desktop_pinned_apps(&provider)?;
             let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
             pin_view(&apps, view)
         })
@@ -496,9 +502,9 @@ pub mod windowing {
     /// Unpin window
     pub fn unpin_window(hwnd: HWND) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let view_collection = create_view_collection(&provider)?;
-            let apps = create_pinned_apps(&provider)?;
+            let provider = get_iservice_provider()?;
+            let view_collection = get_iapplication_view_collection(&provider)?;
+            let apps = get_ivirtual_desktop_pinned_apps(&provider)?;
             let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
             upin_view(&apps, view)
         })
@@ -507,9 +513,9 @@ pub mod windowing {
     /// Is pinned app
     pub fn is_pinned_app(hwnd: HWND) -> Result<bool> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let view_collection = create_view_collection(&provider)?;
-            let apps = create_pinned_apps(&provider)?;
+            let provider = get_iservice_provider()?;
+            let view_collection = get_iapplication_view_collection(&provider)?;
+            let apps = get_ivirtual_desktop_pinned_apps(&provider)?;
             let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
             let app_id = get_iapplication_id_for_view(&view)?;
             is_app_id_pinned(&apps, app_id)
@@ -519,9 +525,9 @@ pub mod windowing {
     /// Pin app
     pub fn pin_app(hwnd: HWND) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let view_collection = create_view_collection(&provider)?;
-            let apps = create_pinned_apps(&provider)?;
+            let provider = get_iservice_provider()?;
+            let view_collection = get_iapplication_view_collection(&provider)?;
+            let apps = get_ivirtual_desktop_pinned_apps(&provider)?;
             let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
             let app_id = get_iapplication_id_for_view(&view)?;
             pin_app_id(&apps, app_id)
@@ -531,9 +537,9 @@ pub mod windowing {
     /// Unpin app
     pub fn unpin_app(hwnd: HWND) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let view_collection = create_view_collection(&provider)?;
-            let apps = create_pinned_apps(&provider)?;
+            let provider = get_iservice_provider()?;
+            let view_collection = get_iapplication_view_collection(&provider)?;
+            let apps = get_ivirtual_desktop_pinned_apps(&provider)?;
             let view = get_iapplication_view_for_hwnd(&view_collection, hwnd)?;
             let app_id = get_iapplication_id_for_view(&view)?;
             unpin_app_id(&apps, app_id)
@@ -547,56 +553,42 @@ pub mod normal {
     use windows::core::GUID;
 
     #[derive(Copy, Clone, PartialEq)]
-    pub struct Desktop {
-        pub(crate) id: GUID,
-    }
+    pub struct Desktop(GUID);
 
     impl Debug for Desktop {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Desktop({:?})", self.id)
+            write!(f, "Desktop({:?})", self.0)
         }
     }
 
     impl Desktop {
         pub(crate) fn empty() -> Desktop {
-            Desktop {
-                id: GUID::default(),
-            }
-        }
-
-        pub fn new() -> Result<Desktop> {
-            COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let desktop = create_idesktop(&manager)?;
-                let id = get_idesktop_guid(&desktop)?;
-                Ok(Desktop { id })
-            })
+            Desktop(GUID::default())
         }
 
         pub fn get_name(&self) -> Result<String> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let desktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let desktop = get_idesktop_by_guid(&manager, &self.get_id())?;
                 get_idesktop_name(&desktop)
             })
         }
 
         pub fn set_name(&self, name: &str) -> Result<()> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
                 set_idesktop_name(&manager, &idesktop, name)
             })
         }
 
         pub fn get_index(&self) -> Result<u32> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
                 let index = get_idesktop_number(&manager, &idesktop)?;
                 Ok(index)
             })
@@ -604,62 +596,86 @@ pub mod normal {
 
         pub fn get_wallpaper(&self) -> Result<String> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
                 get_idesktop_wallpaper(&idesktop)
             })
         }
 
         pub fn set_wallpaper(&self, path: &str) -> Result<()> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
                 set_idesktop_wallpaper(&manager, &idesktop, path)
             })
         }
 
         pub fn switch_to(&self) -> Result<()> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
                 switch_to_idesktop(&manager, &idesktop)
             })
         }
 
         pub fn remove(&self, fallback_desktop: &Desktop) -> Result<()> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let manager = create_vd_manager(&provider)?;
-                let idesktop = get_idesktop_by_guid(&manager, &self.id)?;
-                let fallback_idesktop = get_idesktop_by_guid(&manager, &fallback_desktop.id)?;
+                let provider = get_iservice_provider()?;
+                let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+                let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
+                let fallback_idesktop = get_idesktop_by_guid(&manager, &fallback_desktop.0)?;
                 remove_idesktop(&manager, &idesktop, &fallback_idesktop)
             })
         }
 
         pub fn get_id(&self) -> GUID {
-            self.id
+            self.0
         }
 
-        pub fn has_window(hwnd: HWND) -> Result<bool> {
-            // TODO: IS WINDOW ON DESKTOP?
-            todo!()
+        pub fn has_window(&self, hwnd: HWND) -> Result<bool> {
+            COM_INIT.with(|_| {
+                let provider = get_iservice_provider()?;
+                let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
+                let manager = get_ivirtual_desktop_manager(&provider)?;
+                let desktop = get_idesktop_by_window(&manager_internal, &manager, hwnd)?;
+                let desktop_id = get_idesktop_guid(&desktop)?;
+                Ok(desktop_id == self.get_id())
+            })
         }
     }
 
-    // TODO: GET DESKTOP BY ID
+    pub fn create_desktop() -> Result<Desktop> {
+        COM_INIT.with(|_| {
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+            let desktop = create_idesktop(&manager)?;
+            let id = get_idesktop_guid(&desktop)?;
+            Ok(Desktop(id))
+        })
+    }
+
+    pub fn get_current_desktop() -> Result<Desktop> {
+        COM_INIT.with(|_| {
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+            let desktop = get_current_idesktop(&manager)?;
+            let id = get_idesktop_guid(&desktop)?;
+            Ok(Desktop(id))
+        })
+    }
 
     pub fn get_desktops() -> Result<Vec<Desktop>> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktops: Result<Vec<Desktop>> = get_idesktops(&manager)?
                 .into_iter()
                 .map(|d| -> Result<Desktop> {
                     let mut desktop = Desktop::empty();
-                    unsafe { d.get_id(&mut desktop.id).as_result()? };
+                    unsafe { d.get_id(&mut desktop.0).as_result()? };
                     Ok(desktop)
                 })
                 .collect();
@@ -669,21 +685,32 @@ pub mod normal {
 
     pub fn get_desktop_by_index(index: u32) -> Result<Desktop> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_number(&manager, index)?;
             let id = get_idesktop_guid(&desktop)?;
-            Ok(Desktop { id })
+            Ok(Desktop(id))
         })
     }
 
     pub fn get_desktop_by_guid(guid: &GUID) -> Result<Desktop> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_guid(&manager, &guid)?;
             let id = get_idesktop_guid(&desktop)?;
-            Ok(Desktop { id })
+            Ok(Desktop(id))
+        })
+    }
+
+    pub fn get_desktop_by_window(hwnd: HWND) -> Result<Desktop> {
+        COM_INIT.with(|_| {
+            let provider = get_iservice_provider()?;
+            let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
+            let manager = get_ivirtual_desktop_manager(&provider)?;
+            let desktop = get_idesktop_by_window(&manager_internal, &manager, hwnd)?;
+            let id = get_idesktop_guid(&desktop)?;
+            Ok(Desktop(id))
         })
     }
 }
@@ -691,10 +718,19 @@ pub mod normal {
 pub mod numbered {
     use super::*;
 
+    pub fn get_desktop_count() -> Result<u32> {
+        COM_INIT.with(|_| {
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+            let desktops = get_idesktops_array(&manager)?;
+            unsafe { desktops.GetCount().map_err(map_win_err) }
+        })
+    }
+
     pub fn go_to_desktop_number(number: u32) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_number(&manager, number)?;
             switch_to_idesktop(&manager, &desktop)
         })
@@ -702,8 +738,8 @@ pub mod numbered {
 
     pub fn get_current_desktop_number() -> Result<u32> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktops = get_idesktops(&manager)?;
             let current = get_current_idesktop(&manager)?;
             for (i, desktop) in desktops.iter().enumerate() {
@@ -717,8 +753,8 @@ pub mod numbered {
 
     pub fn set_name_by_desktop_number(number: u32, name: &str) -> Result<()> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_number(&manager, number)?;
             let name = HSTRING::from(name);
             unsafe { manager.set_name(ComIn::new(&desktop), name).as_result() }
@@ -727,8 +763,8 @@ pub mod numbered {
 
     pub fn get_name_by_desktop_number(number: u32) -> Result<String> {
         COM_INIT.with(|_| {
-            let provider = create_service_provider()?;
-            let manager = create_vd_manager(&provider)?;
+            let provider = get_iservice_provider()?;
+            let manager = get_ivirtual_desktop_manager_internal(&provider)?;
             let desktop = get_idesktop_by_number(&manager, number)?;
             let mut name = HSTRING::new();
             unsafe { desktop.get_name(&mut name).as_result()? }
@@ -754,7 +790,8 @@ mod tests {
         let mut name = HSTRING::new();
         unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
 
-        let manager = create_vd_manager(&create_service_provider().unwrap()).unwrap();
+        let manager =
+            get_ivirtual_desktop_manager_internal(&get_iservice_provider().unwrap()).unwrap();
         let number = get_idesktop_number(&manager, &desktop_new).unwrap_or(99999);
 
         println!("{}: {} {:?} {:?}", prefix, number, gid, name.to_string());
@@ -770,8 +807,8 @@ mod tests {
     impl TestVDNotifications {
         pub fn new(number_times_desktop_changed: Sender<()>) -> Result<Self> {
             COM_INIT.with(|_| {
-                let provider = create_service_provider()?;
-                let service = create_vd_notification_service(&provider)?;
+                let provider = get_iservice_provider()?;
+                let service = get_ivirtual_desktop_notification_service(&provider)?;
                 let notification = TestVDNotifications {
                     cookie: Rc::new(Mutex::new(0)),
                     number_times_desktop_changed: Rc::new(number_times_desktop_changed),
@@ -794,8 +831,8 @@ mod tests {
 
     impl Drop for TestVDNotifications {
         fn drop(&mut self) {
-            let provider = create_service_provider().unwrap();
-            let service = create_vd_notification_service(&provider).unwrap();
+            let provider = get_iservice_provider().unwrap();
+            let service = get_ivirtual_desktop_notification_service(&provider).unwrap();
             let cookie = *self.cookie.lock().unwrap();
             unsafe { service.unregister(cookie) };
         }
@@ -929,9 +966,9 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let notification = TestVDNotifications::new(tx);
 
-        let provider = create_service_provider().unwrap();
-        let service = create_vd_notification_service(&provider).unwrap();
-        let manager = create_vd_manager(&provider).unwrap();
+        let provider = get_iservice_provider().unwrap();
+        let service = get_ivirtual_desktop_notification_service(&provider).unwrap();
+        let manager = get_ivirtual_desktop_manager_internal(&provider).unwrap();
 
         // Get current desktop
         let mut current_desk: Option<IVirtualDesktop> = None;
@@ -990,8 +1027,9 @@ mod tests {
     fn test_list_desktops() {
         unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
 
-        let provider = create_service_provider().unwrap();
-        let manager: IVirtualDesktopManagerInternal = create_vd_manager(&provider).unwrap();
+        let provider = get_iservice_provider().unwrap();
+        let manager: IVirtualDesktopManagerInternal =
+            get_ivirtual_desktop_manager_internal(&provider).unwrap();
 
         // let desktops: *mut IObjectArray = std::ptr::null_mut();
         let mut desktops = None;

@@ -10,7 +10,6 @@ homepage = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 repository = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 
 [dependencies]
-com = "0.2.0"
 windows = { version = "*", features = [
     "implement",
     "Win32_System_Com",
