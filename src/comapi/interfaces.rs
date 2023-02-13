@@ -362,7 +362,7 @@ pub unsafe trait IVirtualDesktopNotification: IUnknown {
 pub unsafe trait IVirtualDesktopNotificationService: IUnknown {
     pub unsafe fn register(
         &self,
-        notification: ComIn<IVirtualDesktopNotification>,
+        notification: *mut std::ffi::c_void, // *const IVirtualDesktopNotification,
         out_cookie: *mut DWORD,
     ) -> HRESULT;
 
