@@ -15,7 +15,7 @@ use windows::{
     },
 };
 
-type HWND = u32;
+type HWND_ = u32;
 
 type APPID_PWSTR = *mut *mut std::ffi::c_void;
 
@@ -376,7 +376,7 @@ fn get_iapplication_id_for_view(view: &IApplicationView) -> Result<APPID_PWSTR> 
 
 fn get_iapplication_view_for_hwnd(
     view_collection: &IApplicationViewCollection,
-    hwnd: HWND,
+    hwnd: HWND_,
 ) -> Result<IApplicationView> {
     com_sta();
     let mut view = None;
@@ -436,7 +436,7 @@ fn unpin_app_id(apps: &IVirtualDesktopPinnedApps, app_id: APPID_PWSTR) -> Result
     unsafe { apps.unpin_app(app_id as *mut _).as_result() }
 }
 
-fn _is_window_on_current_desktop(manager: &IVirtualDesktopManager, hwnd: HWND) -> Result<bool> {
+fn _is_window_on_current_desktop(manager: &IVirtualDesktopManager, hwnd: HWND_) -> Result<bool> {
     com_sta();
     let mut is_on_desktop = false;
     unsafe {
@@ -450,7 +450,7 @@ fn _is_window_on_current_desktop(manager: &IVirtualDesktopManager, hwnd: HWND) -
 fn get_idesktop_by_window(
     manager_internal: &IVirtualDesktopManagerInternal,
     manager: &IVirtualDesktopManager,
-    hwnd: HWND,
+    hwnd: HWND_,
 ) -> Result<IVirtualDesktop> {
     com_sta();
     let mut desktop_id = GUID::default();
@@ -657,7 +657,7 @@ pub mod normal {
             remove_idesktop(&manager, &idesktop, &fallback_idesktop)
         }
 
-        pub fn has_window(&self, hwnd: HWND) -> Result<bool> {
+        pub fn has_window(&self, hwnd: HWND_) -> Result<bool> {
             com_sta();
             let provider = get_iservice_provider()?;
             let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -667,7 +667,7 @@ pub mod normal {
             Ok(desktop_id == self.get_id())
         }
 
-        pub fn move_window(&self, hwnd: HWND) -> Result<()> {
+        pub fn move_window(&self, hwnd: HWND_) -> Result<()> {
             com_sta();
             let provider = get_iservice_provider()?;
             let manager = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -736,7 +736,7 @@ pub mod normal {
         Ok(Desktop(id))
     }
 
-    pub fn get_desktop_by_window(hwnd: HWND) -> Result<Desktop> {
+    pub fn get_desktop_by_window(hwnd: HWND_) -> Result<Desktop> {
         com_sta();
         let provider = get_iservice_provider()?;
         let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -802,9 +802,47 @@ mod tests {
         time::Duration,
     };
 
+    use windows::Win32::{
+        Foundation::HWND,
+        System::Threading::{CreateThread, WaitForSingleObject, THREAD_CREATION_FLAGS},
+        UI::WindowsAndMessaging::{
+            DispatchMessageW, GetMessageW, PostQuitMessage, PostThreadMessageW, TranslateMessage,
+            MSG, WM_QUIT, WM_USER,
+        },
+    };
+
     use super::normal::*;
     use super::numbered::*;
     use super::*;
+
+    unsafe extern "system" fn handler(_arg: *mut c_void) -> u32 {
+        let mut msg = MSG::default();
+        unsafe {
+            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        0
+    }
+
+    fn create_thread() {
+        let thread_id = None;
+        let handle = unsafe {
+            CreateThread(
+                None,
+                0,
+                Some(handler),
+                None,
+                THREAD_CREATION_FLAGS::default(),
+                thread_id,
+            )
+        }
+        .unwrap();
+
+        // Join the thread
+        unsafe { WaitForSingleObject(handle, u32::MAX) };
+    }
 
     fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
         com_sta();
@@ -837,7 +875,7 @@ mod tests {
             number_times_desktop_changed: Sender<()>,
         ) -> Result<Box<TestVDNotificationsWrapper>> {
             println!("CREATED IN THREAD {:?}", std::thread::current().id());
-            com_mta();
+            com_sta();
             let provider = get_iservice_provider()?;
             let service = get_ivirtual_desktop_notification_service(&provider)?;
             let ptr = TestVDNotifications {};
@@ -987,12 +1025,27 @@ mod tests {
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_threading_two() {
         com_sta();
+
         let (tx, rx) = std::sync::mpsc::channel();
-        let notification = TestVDNotificationsWrapper::new(tx);
+        let notification_thread = std::thread::spawn(|| {
+            com_sta();
+            println!("Notification thread {:?}", std::thread::current().id());
+            let _notification = TestVDNotificationsWrapper::new(tx).unwrap();
+            let mut msg = MSG::default();
+            unsafe {
+                while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
+                    if (msg.message == WM_USER + 0x10) {
+                        PostQuitMessage(0);
+                    }
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+        });
 
         let current_desktop = get_current_desktop_number().unwrap();
 
-        for _ in 0..15 {
+        for _ in 0..999 {
             go_to_desktop_number(0).unwrap();
             // std::thread::sleep(Duration::from_millis(4));
             go_to_desktop_number(1).unwrap();
@@ -1028,28 +1081,34 @@ mod tests {
 
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_listener_manual() {
+        println!("Main thread is {:?}", std::thread::current().id());
+
         let (tx, rx) = std::sync::mpsc::channel();
-        println!("THREAD IS {:?}", std::thread::current().id());
         std::thread::spawn(|| {
-            println!("SPAWNED THREAD {:?}", std::thread::current().id());
+            println!("Notification thread {:?}", std::thread::current().id());
             let _notification = TestVDNotificationsWrapper::new(tx).unwrap();
-            Box::into_raw(_notification);
-            std::thread::sleep(Duration::from_secs(2));
+            let mut msg = MSG::default();
+            unsafe {
+                while (GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool()) {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
         })
         .join()
         .unwrap();
         // while sleep
 
-        std::thread::sleep(Duration::from_secs(1));
-        // go_to_desktop_number(0).unwrap();
-        // std::thread::sleep(Duration::from_millis(4));
-        // go_to_desktop_number(2).unwrap();
-        std::thread::sleep(Duration::from_secs(1));
-        std::thread::sleep(Duration::from_secs(1));
-        std::thread::sleep(Duration::from_secs(1));
-        std::thread::sleep(Duration::from_secs(1));
-        std::thread::sleep(Duration::from_secs(1));
-        std::thread::sleep(Duration::from_secs(1));
+        // std::thread::sleep(Duration::from_secs(1));
+        // // go_to_desktop_number(0).unwrap();
+        // // std::thread::sleep(Duration::from_millis(4));
+        // // go_to_desktop_number(2).unwrap();
+        // std::thread::sleep(Duration::from_secs(1));
+        // std::thread::sleep(Duration::from_secs(1));
+        // std::thread::sleep(Duration::from_secs(1));
+        // std::thread::sleep(Duration::from_secs(1));
+        // std::thread::sleep(Duration::from_secs(1));
+        // std::thread::sleep(Duration::from_secs(1));
     }
 
     /// This test switched desktop and prints out the changed desktop

@@ -206,7 +206,6 @@ version = "0.0.20"
 dependencies = [
  "crossbeam-channel",
  "once_cell",
- "winapi",
  "windows",
  "windows-implement",
  "windows-interface",

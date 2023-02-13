@@ -29,11 +29,11 @@ mod tests {
     use std::sync::{Mutex, Once};
     use std::thread;
     use std::time::Duration;
-    use winapi::um::winuser::FindWindowW;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
 
     static INIT: Once = Once::new();
-
-    type HWND = u32;
 
     // Run the tests synchronously
     fn sync_test<T>(test: T)
@@ -164,9 +164,10 @@ mod tests {
     fn test_move_notepad_between_desktops() {
         sync_test(|| {
             // Get notepad
-            let notepad_hwnd: HWND = unsafe {
+            let notepad_hwnd: u32 = unsafe {
                 let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
-                FindWindowW(notepad.as_ptr(), std::ptr::null()) as HWND
+                let pw = PCWSTR::from_raw(notepad.as_ptr());
+                FindWindowW(pw, PCWSTR::null()).0 as u32
             };
             assert!(
                 notepad_hwnd != 0,
@@ -212,9 +213,10 @@ mod tests {
     fn test_pin_notepad() {
         sync_test(|| {
             // Get notepad
-            let notepad_hwnd: HWND = unsafe {
+            let notepad_hwnd: u32 = unsafe {
                 let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
-                FindWindowW(notepad.as_ptr(), std::ptr::null()) as HWND
+                let pw = PCWSTR::from_raw(notepad.as_ptr());
+                FindWindowW(pw, PCWSTR::null()).0 as u32
             };
             assert!(
                 notepad_hwnd != 0,
@@ -255,9 +257,10 @@ mod tests {
     fn test_pin_notepad_app() {
         sync_test(|| {
             // Get notepad
-            let notepad_hwnd: HWND = unsafe {
+            let notepad_hwnd: u32 = unsafe {
                 let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
-                FindWindowW(notepad.as_ptr(), std::ptr::null()) as HWND
+                let pw = PCWSTR::from_raw(notepad.as_ptr());
+                FindWindowW(pw, PCWSTR::null()).0 as u32
             };
             assert!(
                 notepad_hwnd != 0,
