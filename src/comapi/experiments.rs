@@ -370,36 +370,13 @@ mod tests {
         assert_eq!(changes, 1999);
     }
 
-    #[test]
-    fn test_initialize() {
-
-        /*
-
-        unsafe {
-            CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap();
-        }
-        println!("CoInitializeEx COINIT_APARTMENTTHREADED");
-        std::thread::spawn(|| unsafe {
-            CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
-            println!("CoInitializeEx COINIT_MULTITHREADED");
-            CoUninitialize();
-            println!("CoUninitialize COINIT_MULTITHREADED");
-        })
-        .join()
-        .unwrap();
-
-        unsafe {
-            CoUninitialize();
-        }
-        println!("CoUninitialize COINIT_APARTMENTTHREADED");
-         */
-    }
-
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_listener_manual() {
         println!("Main thread is {:?}", std::thread::current().id());
 
         std::thread::spawn(|| {
+            com_sta();
+
             println!("Notification thread {:?}", std::thread::current().id());
             let _notification = SimpleVirtualDesktopNotificationWrapper::new().unwrap();
             let mut msg = MSG::default();
@@ -412,18 +389,6 @@ mod tests {
         })
         .join()
         .unwrap();
-        // while sleep
-
-        // std::thread::sleep(Duration::from_secs(1));
-        // // go_to_desktop_number(0).unwrap();
-        // // std::thread::sleep(Duration::from_millis(4));
-        // // go_to_desktop_number(2).unwrap();
-        // std::thread::sleep(Duration::from_secs(1));
-        // std::thread::sleep(Duration::from_secs(1));
-        // std::thread::sleep(Duration::from_secs(1));
-        // std::thread::sleep(Duration::from_secs(1));
-        // std::thread::sleep(Duration::from_secs(1));
-        // std::thread::sleep(Duration::from_secs(1));
     }
 
     /// This test switched desktop and prints out the changed desktop

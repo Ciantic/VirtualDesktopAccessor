@@ -1,3 +1,6 @@
+/// Purpose of this module is to provide helpers to access functions in interfaces module, not for direct consumption
+///
+/// All functions here either take in a reference to an interface or initializes a com interace.
 use super::interfaces::*;
 use super::Result;
 use crate::{Error, HRESULT};
