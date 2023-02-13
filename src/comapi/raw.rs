@@ -36,7 +36,7 @@ impl ComInit {
                 dwcoinit,
                 std::thread::current().id()
             );
-            CoInitializeEx(None, dwcoinit).unwrap();
+            let _ = CoInitializeEx(None, dwcoinit);
         }
         ComInit::CoInitializeEx(dwcoinit)
     }

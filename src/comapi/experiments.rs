@@ -316,6 +316,8 @@ mod tests {
         go_to_desktop_number(current_desktop).unwrap();
 
         // Windows pushes the notification events to the queue, but it takes a while for them to be processed, I don't know a way to wait out until the push queue is empty
+        //
+        // 8 seconds is not accurate, increase if test fails
         std::thread::sleep(Duration::from_secs(8));
 
         // Send a message to the notification thread to quit and join it
@@ -332,6 +334,38 @@ mod tests {
 
         println!("Desktop changes {}", changes);
 
+        // 5*2 + 1 = 11
+        assert_eq!(changes, 1999);
+    }
+
+    #[test]
+    fn test_mta_notifications() {
+        com_sta();
+
+        let notification_thread = std::thread::spawn(move || {
+            com_mta();
+
+            println!("Notification thread {:?}", std::thread::current().id());
+            let _notification = SimpleVirtualDesktopNotificationWrapper::new().unwrap();
+            std::thread::sleep(Duration::from_secs(15));
+            let value = _notification.number_times_desktop_changed.borrow_mut();
+            *value
+        });
+
+        // Start switching desktops in rapid fashion
+        let current_desktop = get_current_desktop_number().unwrap();
+
+        for _ in 0..999 {
+            go_to_desktop_number(0).unwrap();
+            // std::thread::sleep(Duration::from_millis(4));
+            go_to_desktop_number(1).unwrap();
+        }
+
+        // Finally return to same desktop we were
+        std::thread::sleep(Duration::from_millis(13));
+        go_to_desktop_number(current_desktop).unwrap();
+        let changes = notification_thread.join().unwrap();
+        println!("Desktop changes {}", changes);
         // 5*2 + 1 = 11
         assert_eq!(changes, 1999);
     }
