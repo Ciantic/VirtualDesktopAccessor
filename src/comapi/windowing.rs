@@ -2,7 +2,7 @@ type HWND = u32;
 use super::raw::*;
 use super::Result;
 
-pub fn move_window_to_desktop_number(hwnd: HWND, number: u32) -> Result<()> {
+pub fn move_window_to_desktop_index(hwnd: HWND, number: u32) -> Result<()> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -19,7 +19,7 @@ pub fn is_window_on_current_desktop(hwnd: HWND) -> Result<bool> {
     _is_window_on_current_desktop(&manager, hwnd)
 }
 
-pub fn is_window_on_desktop_number(hwnd: HWND, number: u32) -> Result<bool> {
+pub fn is_window_on_desktop_index(hwnd: HWND, number: u32) -> Result<bool> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager(&provider)?;
@@ -31,7 +31,7 @@ pub fn is_window_on_desktop_number(hwnd: HWND, number: u32) -> Result<bool> {
     Ok(g1 == g2)
 }
 
-pub fn get_desktop_number_by_window(hwnd: HWND) -> Result<u32> {
+pub fn get_desktop_index_by_window(hwnd: HWND) -> Result<u32> {
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager(&provider)?;
     let man2 = get_ivirtual_desktop_manager_internal(&provider)?;

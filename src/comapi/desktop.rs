@@ -83,7 +83,7 @@ pub fn remove_desktop(desktop: &Desktop, fallback_desktop: &Desktop) -> Result<(
     remove_idesktop(&manager, &idesktop, &fallback_idesktop)
 }
 
-pub fn window_is_on_desktop(desktop: &Desktop, hwnd: HWND_) -> Result<bool> {
+pub fn is_window_on_desktop(desktop: &Desktop, hwnd: HWND_) -> Result<bool> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -123,14 +123,6 @@ pub fn get_current_desktop() -> Result<Desktop> {
     let desktop = get_current_idesktop(&manager)?;
     let id = get_idesktop_guid(&desktop)?;
     Ok(Desktop(id))
-}
-
-pub fn get_desktop_count() -> Result<u32> {
-    com_sta();
-    let provider = get_iservice_provider()?;
-    let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-    let desktops = get_idesktops_array(&manager)?;
-    unsafe { desktops.GetCount().map_err(map_win_err) }
 }
 
 pub fn get_desktops() -> Result<Vec<Desktop>> {

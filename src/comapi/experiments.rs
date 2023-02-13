@@ -303,17 +303,17 @@ mod tests {
         };
 
         // Start switching desktops in rapid fashion
-        let current_desktop = get_current_desktop_number().unwrap();
+        let current_desktop = get_current_desktop_index().unwrap();
 
         for _ in 0..999 {
-            go_to_desktop_number(0).unwrap();
+            switch_to_desktop_index(0).unwrap();
             // std::thread::sleep(Duration::from_millis(4));
-            go_to_desktop_number(1).unwrap();
+            switch_to_desktop_index(1).unwrap();
         }
 
         // Finally return to same desktop we were
         std::thread::sleep(Duration::from_millis(13));
-        go_to_desktop_number(current_desktop).unwrap();
+        switch_to_desktop_index(current_desktop).unwrap();
 
         // Windows pushes the notification events to the queue, but it takes a while for them to be processed, I don't know a way to wait out until the push queue is empty
         //
@@ -353,17 +353,17 @@ mod tests {
         });
 
         // Start switching desktops in rapid fashion
-        let current_desktop = get_current_desktop_number().unwrap();
+        let current_desktop = get_current_desktop_index().unwrap();
 
         for _ in 0..999 {
-            go_to_desktop_number(0).unwrap();
+            switch_to_desktop_index(0).unwrap();
             // std::thread::sleep(Duration::from_millis(4));
-            go_to_desktop_number(1).unwrap();
+            switch_to_desktop_index(1).unwrap();
         }
 
         // Finally return to same desktop we were
         std::thread::sleep(Duration::from_millis(13));
-        go_to_desktop_number(current_desktop).unwrap();
+        switch_to_desktop_index(current_desktop).unwrap();
         let changes = notification_thread.join().unwrap();
         println!("Desktop changes {}", changes);
         // 5*2 + 1 = 11

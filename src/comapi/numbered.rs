@@ -6,7 +6,15 @@ use super::interfaces::ComIn;
 use super::raw::*;
 use super::Result;
 
-pub fn go_to_desktop_number(number: u32) -> Result<()> {
+pub fn get_desktop_count() -> Result<u32> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+    let desktops = get_idesktops_array(&manager)?;
+    unsafe { desktops.GetCount().map_err(map_win_err) }
+}
+
+pub fn switch_to_desktop_index(number: u32) -> Result<()> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -14,7 +22,7 @@ pub fn go_to_desktop_number(number: u32) -> Result<()> {
     switch_to_idesktop(&manager, &desktop)
 }
 
-pub fn get_current_desktop_number() -> Result<u32> {
+pub fn get_current_desktop_index() -> Result<u32> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -28,7 +36,7 @@ pub fn get_current_desktop_number() -> Result<u32> {
     Err(Error::DesktopNotFound)
 }
 
-pub fn set_name_by_desktop_number(number: u32, name: &str) -> Result<()> {
+pub fn set_name_by_desktop_index(number: u32, name: &str) -> Result<()> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
@@ -37,7 +45,7 @@ pub fn set_name_by_desktop_number(number: u32, name: &str) -> Result<()> {
     unsafe { manager.set_name(ComIn::new(&desktop), name).as_result() }
 }
 
-pub fn get_name_by_desktop_number(number: u32) -> Result<String> {
+pub fn get_name_by_desktop_index(number: u32) -> Result<String> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;

@@ -115,15 +115,15 @@ mod tests {
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_threading_two() {
         sync_test(|| {
-            let current_desktop = get_current_desktop_number().unwrap();
+            let current_desktop = get_current_desktop_index().unwrap();
 
             for _ in 0..999 {
-                go_to_desktop_number(0).unwrap();
+                switch_to_desktop_index(0).unwrap();
                 // std::thread::sleep(Duration::from_millis(4));
-                go_to_desktop_number(1).unwrap();
+                switch_to_desktop_index(1).unwrap();
             }
             // std::thread::sleep(Duration::from_millis(3));
-            go_to_desktop_number(current_desktop).unwrap();
+            switch_to_desktop_index(current_desktop).unwrap();
         })
     }
 
@@ -141,21 +141,21 @@ mod tests {
     #[test]
     fn test_desktop_moves() {
         sync_test(|| {
-            let current_desktop = get_current_desktop_number().unwrap();
+            let current_desktop = get_current_desktop_index().unwrap();
 
             // Go to desktop 0, ensure it worked
-            go_to_desktop_number(0).unwrap();
-            assert_eq!(get_current_desktop_number().unwrap(), 0);
+            switch_to_desktop_index(0).unwrap();
+            assert_eq!(get_current_desktop_index().unwrap(), 0);
             std::thread::sleep(Duration::from_millis(400));
 
             // Go to desktop 1, ensure it worked
-            go_to_desktop_number(1).unwrap();
-            assert_eq!(get_current_desktop_number().unwrap(), 1);
+            switch_to_desktop_index(1).unwrap();
+            assert_eq!(get_current_desktop_index().unwrap(), 1);
             std::thread::sleep(Duration::from_millis(400));
 
             // Go to desktop where it was, ensure it worked
-            go_to_desktop_number(current_desktop).unwrap();
-            assert_eq!(get_current_desktop_number().unwrap(), current_desktop);
+            switch_to_desktop_index(current_desktop).unwrap();
+            assert_eq!(get_current_desktop_index().unwrap(), current_desktop);
             std::thread::sleep(Duration::from_millis(400));
         })
     }
@@ -174,12 +174,12 @@ mod tests {
                 "Notepad requires to be running for this test"
             );
 
-            let current_desktop = get_current_desktop_number().unwrap();
+            let current_desktop = get_current_desktop_index().unwrap();
             assert!(current_desktop != 0, "Current desktop must not be 0");
 
             let notepad_is_on_current_desktop = is_window_on_current_desktop(notepad_hwnd).unwrap();
             let notepad_is_on_specific_desktop =
-                is_window_on_desktop_number(notepad_hwnd, current_desktop).unwrap();
+                is_window_on_desktop_index(notepad_hwnd, current_desktop).unwrap();
             assert!(
                 notepad_is_on_current_desktop,
                 "Notepad must be on this desktop"
@@ -190,18 +190,18 @@ mod tests {
             );
 
             // Move notepad current desktop -> 0 -> 1 -> current desktop
-            move_window_to_desktop_number(notepad_hwnd, 0).unwrap();
-            let notepad_desktop = get_desktop_number_by_window(notepad_hwnd).unwrap();
+            move_window_to_desktop_index(notepad_hwnd, 0).unwrap();
+            let notepad_desktop = get_desktop_index_by_window(notepad_hwnd).unwrap();
             assert_eq!(notepad_desktop, 0, "Notepad should have moved to desktop 0");
             std::thread::sleep(Duration::from_millis(300));
 
-            move_window_to_desktop_number(notepad_hwnd, 1).unwrap();
-            let notepad_desktop = get_desktop_number_by_window(notepad_hwnd).unwrap();
+            move_window_to_desktop_index(notepad_hwnd, 1).unwrap();
+            let notepad_desktop = get_desktop_index_by_window(notepad_hwnd).unwrap();
             assert_eq!(notepad_desktop, 1, "Notepad should have moved to desktop 1");
             std::thread::sleep(Duration::from_millis(300));
 
-            move_window_to_desktop_number(notepad_hwnd, current_desktop).unwrap();
-            let notepad_desktop = get_desktop_number_by_window(notepad_hwnd).unwrap();
+            move_window_to_desktop_index(notepad_hwnd, current_desktop).unwrap();
+            let notepad_desktop = get_desktop_index_by_window(notepad_hwnd).unwrap();
             assert_eq!(
                 notepad_desktop, current_desktop,
                 "Notepad should have moved to desktop 0"
@@ -234,19 +234,19 @@ mod tests {
                 "Notepad must not be pinned at the start of the test"
             );
 
-            let current_desktop = get_current_desktop_number().unwrap();
+            let current_desktop = get_current_desktop_index().unwrap();
 
             // Pin notepad and go to desktop 0 and back
             pin_window(notepad_hwnd).unwrap();
-            go_to_desktop_number(0).unwrap();
+            switch_to_desktop_index(0).unwrap();
 
             assert_eq!(is_pinned_window(notepad_hwnd).unwrap(), true);
             std::thread::sleep(Duration::from_millis(1000));
 
-            go_to_desktop_number(current_desktop).unwrap();
+            switch_to_desktop_index(current_desktop).unwrap();
             unpin_window(notepad_hwnd).unwrap();
             assert_eq!(
-                is_window_on_desktop_number(notepad_hwnd, current_desktop).unwrap(),
+                is_window_on_desktop_index(notepad_hwnd, current_desktop).unwrap(),
                 true
             );
             std::thread::sleep(Duration::from_millis(1000));
@@ -278,19 +278,19 @@ mod tests {
                 "Notepad must not be pinned at the start of the test"
             );
 
-            let current_desktop = get_current_desktop_number().unwrap();
+            let current_desktop = get_current_desktop_index().unwrap();
 
             // Pin notepad and go to desktop 0 and back
             pin_app(notepad_hwnd).unwrap();
             assert_eq!(is_pinned_app(notepad_hwnd).unwrap(), true);
 
-            go_to_desktop_number(0).unwrap();
+            switch_to_desktop_index(0).unwrap();
             std::thread::sleep(Duration::from_millis(1000));
-            go_to_desktop_number(current_desktop).unwrap();
+            switch_to_desktop_index(current_desktop).unwrap();
 
             unpin_app(notepad_hwnd).unwrap();
             assert_eq!(
-                is_window_on_desktop_number(notepad_hwnd, current_desktop).unwrap(),
+                is_window_on_desktop_index(notepad_hwnd, current_desktop).unwrap(),
                 true
             );
             std::thread::sleep(Duration::from_millis(1000));
@@ -327,19 +327,19 @@ mod tests {
     /// Test some errors
     #[test]
     fn test_errors() {
-        let err = set_name_by_desktop_number(99999, "").unwrap_err();
+        let err = set_name_by_desktop_index(99999, "").unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = go_to_desktop_number(99999).unwrap_err();
+        let err = switch_to_desktop_index(99999).unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = get_desktop_number_by_window(9999999).unwrap_err();
+        let err = get_desktop_index_by_window(9999999).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);
 
-        let err = move_window_to_desktop_number(0, 99999).unwrap_err();
+        let err = move_window_to_desktop_index(0, 99999).unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = move_window_to_desktop_number(999999, 0).unwrap_err();
+        let err = move_window_to_desktop_index(999999, 0).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);
     }
 }

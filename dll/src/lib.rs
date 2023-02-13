@@ -11,7 +11,7 @@ type HWND = u32;
 
 #[no_mangle]
 pub extern "C" fn GetCurrentDesktopNumber() -> i32 {
-    get_current_desktop_number().map_or(-1, |x| x as i32)
+    get_current_desktop_index().map_or(-1, |x| x as i32)
 }
 
 #[no_mangle]
@@ -29,7 +29,7 @@ pub extern "C" fn GetDesktopIdByNumber(number: i32) -> GUID {
 
 #[no_mangle]
 pub extern "C" fn GetDesktopNumber() -> i32 {
-    get_current_desktop_number().map_or(-1, |x| x as i32)
+    get_current_desktop_index().map_or(-1, |x| x as i32)
 }
 
 #[no_mangle]
@@ -54,18 +54,18 @@ pub extern "C" fn IsWindowOnCurrentVirtualDesktop(hwnd: HWND) -> i32 {
 
 #[no_mangle]
 pub extern "C" fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
-    move_window_to_desktop_number(hwnd as u32, desktop_number as u32).map_or(-1, |_| 1)
+    move_window_to_desktop_index(hwnd as u32, desktop_number as u32).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
 pub extern "C" fn GoToDesktopNumber(desktop_number: i32) {
-    go_to_desktop_number(desktop_number as u32).unwrap_or_default()
+    switch_to_desktop_index(desktop_number as u32).unwrap_or_default()
 }
 
 #[no_mangle]
 pub extern "C" fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32 {
     let name_str = unsafe { CStr::from_ptr(in_name_ptr).to_string_lossy() };
-    set_name_by_desktop_number(desktop_number as u32, &name_str).map_or(-1, |_| 1)
+    set_name_by_desktop_index(desktop_number as u32, &name_str).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
@@ -181,7 +181,7 @@ pub extern "C" fn UnPinApp(hwnd: HWND) {
 #[no_mangle]
 pub extern "C" fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
     get_desktop_by_index(desktop_number as u32).map_or(-1, |x| {
-        window_is_on_desktop(&x, hwnd as u32).map_or(-1, |b| b as i32)
+        is_window_on_desktop(&x, hwnd as u32).map_or(-1, |b| b as i32)
     })
 }
 
@@ -238,14 +238,14 @@ mod tests {
     }
     #[test]
     fn test_dll_set_desktop_name() {
-        let current_desktop_name = get_name_by_desktop_number(0).unwrap();
+        let current_desktop_name = get_name_by_desktop_index(0).unwrap();
         let name = "Testi 😉";
         assert_ne!(current_desktop_name, name);
 
         let name_cstr = std::ffi::CString::new(name).unwrap();
         let res = SetDesktopName(0, name_cstr.as_ptr() as *mut i8);
-        let new_name = get_name_by_desktop_number(0).unwrap();
-        set_name_by_desktop_number(0, &current_desktop_name).unwrap();
+        let new_name = get_name_by_desktop_index(0).unwrap();
+        set_name_by_desktop_index(0, &current_desktop_name).unwrap();
         assert_eq!(new_name, name);
         assert_eq!(res, 1);
     }
