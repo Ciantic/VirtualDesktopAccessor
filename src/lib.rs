@@ -2,7 +2,7 @@ mod comapi;
 mod error;
 mod hresult;
 
-pub use comapi::normal::*;
+pub use comapi::desktop::*;
 pub use comapi::numbered::*;
 pub use comapi::windowing::*;
 pub use error::Error;
