@@ -180,8 +180,9 @@ pub extern "C" fn UnPinApp(hwnd: HWND) {
 }
 #[no_mangle]
 pub extern "C" fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
-    get_desktop_by_index(desktop_number as u32)
-        .map_or(-1, |x| x.has_window(hwnd as u32).map_or(-1, |b| b as i32))
+    get_desktop_by_index(desktop_number as u32).map_or(-1, |x| {
+        window_is_on_desktop(&x, hwnd as u32).map_or(-1, |b| b as i32)
+    })
 }
 
 #[no_mangle]
@@ -201,7 +202,7 @@ pub extern "C" fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_num
     let fallback_desk = get_desktop_by_index(fallback_desktop_number as u32);
     let remove_desk = get_desktop_by_index(remove_desktop_number as u32);
     if let (Ok(fd), Ok(rd)) = (fallback_desk, remove_desk) {
-        rd.remove(&fd).map_or(-1, |_| 1)
+        remove_desktop(&rd, &fd).map_or(-1, |_| 1)
     } else {
         -1
     }

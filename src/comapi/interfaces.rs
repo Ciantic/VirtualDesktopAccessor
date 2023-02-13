@@ -1,3 +1,4 @@
+#[allow(non_upper_case_globals)]
 use std::{ffi::c_void, ops::Deref};
 use windows::{
     core::{IUnknown, IUnknown_Vtbl, GUID, HSTRING},
@@ -36,24 +37,32 @@ impl<'a, T> Deref for ComIn<'a, T> {
     }
 }
 
+#[allow(non_upper_case_globals)]
 pub const CLSID_ImmersiveShell: GUID = GUID {
     data1: 0xC2F03A33,
     data2: 0x21F5,
     data3: 0x47FA,
     data4: [0xB4, 0xBB, 0x15, 0x63, 0x62, 0xA2, 0xF2, 0x39],
 };
+
+#[allow(dead_code)]
+#[allow(non_upper_case_globals)]
 pub const CLSID_IVirtualNotificationService: GUID = GUID {
     data1: 0xA501FDEC,
     data2: 0x4A09,
     data3: 0x464C,
     data4: [0xAE, 0x4E, 0x1B, 0x9C, 0x21, 0xB8, 0x49, 0x18],
 };
+
+#[allow(non_upper_case_globals)]
 pub const CLSID_VirtualDesktopManagerInternal: GUID = GUID {
     data1: 0xC5E0CDCA,
     data2: 0x7B6E,
     data3: 0x41B2,
     data4: [0x9F, 0xC4, 0xD9, 0x39, 0x75, 0xCC, 0x46, 0x7B],
 };
+
+#[allow(non_upper_case_globals)]
 pub const CLSID_VirtualDesktopPinnedApps: GUID = GUID {
     data1: 0xb5a399e7,
     data2: 0x1c87,

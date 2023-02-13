@@ -64,43 +64,47 @@ impl Desktop {
         let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
         set_idesktop_wallpaper(&manager, &idesktop, path)
     }
+}
 
-    pub fn switch_to(&self) -> Result<()> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        switch_to_idesktop(&manager, &idesktop)
-    }
+pub fn switch_to_desktop(desktop: &Desktop) -> Result<()> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+    let idesktop = get_idesktop_by_guid(&manager, &desktop.get_id())?;
+    switch_to_idesktop(&manager, &idesktop)
+}
 
-    pub fn remove(&self, fallback_desktop: &Desktop) -> Result<()> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        let fallback_idesktop = get_idesktop_by_guid(&manager, &fallback_desktop.0)?;
-        remove_idesktop(&manager, &idesktop, &fallback_idesktop)
-    }
+pub fn remove_desktop(desktop: &Desktop, fallback_desktop: &Desktop) -> Result<()> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+    let idesktop = get_idesktop_by_guid(&manager, &desktop.get_id())?;
+    let fallback_idesktop = get_idesktop_by_guid(&manager, &fallback_desktop.0)?;
+    remove_idesktop(&manager, &idesktop, &fallback_idesktop)
+}
 
-    pub fn has_window(&self, hwnd: HWND_) -> Result<bool> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
-        let manager = get_ivirtual_desktop_manager(&provider)?;
-        let desktop = get_idesktop_by_window(&manager_internal, &manager, hwnd)?;
-        let desktop_id = get_idesktop_guid(&desktop)?;
-        Ok(desktop_id == self.get_id())
-    }
+pub fn window_is_on_desktop(desktop: &Desktop, hwnd: HWND_) -> Result<bool> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
+    let manager = get_ivirtual_desktop_manager(&provider)?;
 
-    pub fn move_window(&self, hwnd: HWND_) -> Result<()> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let vc = get_iapplication_view_collection(&provider)?;
-        let view = get_iapplication_view_for_hwnd(&vc, hwnd)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        move_view_to_desktop(&manager, &view, &idesktop)
-    }
+    // Get desktop of the window
+    let desktop_win = get_idesktop_by_window(&manager_internal, &manager, hwnd)?;
+    let desktop_win_id = get_idesktop_guid(&desktop_win)?;
+
+    // If ID matches with given desktop, return true
+    Ok(desktop_win_id == desktop.get_id())
+}
+
+pub fn move_window_to_desktop(desktop: &Desktop, hwnd: HWND_) -> Result<()> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+    let vc = get_iapplication_view_collection(&provider)?;
+    let view = get_iapplication_view_for_hwnd(&vc, hwnd)?;
+    let idesktop = get_idesktop_by_guid(&manager, &desktop.get_id())?;
+    move_view_to_desktop(&manager, &view, &idesktop)
 }
 
 pub fn create_desktop() -> Result<Desktop> {
@@ -128,6 +132,7 @@ pub fn get_desktop_count() -> Result<u32> {
     let desktops = get_idesktops_array(&manager)?;
     unsafe { desktops.GetCount().map_err(map_win_err) }
 }
+
 pub fn get_desktops() -> Result<Vec<Desktop>> {
     com_sta();
     let provider = get_iservice_provider()?;

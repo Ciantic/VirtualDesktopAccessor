@@ -55,7 +55,7 @@ fn main() {
         desk.set_name("This is a new desktop!").unwrap();
         println!("New desktop with name: {}", desk.get_name().unwrap());
 
-        desk.remove(&get_current_desktop().unwrap()).unwrap();
+        remove_desktop(&desk, &get_current_desktop().unwrap()).unwrap();
         println!("Deleted desktop {:?}", desk);
     });
 

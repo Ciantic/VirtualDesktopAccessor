@@ -23,6 +23,8 @@ type APPIDPWSTR = *mut *mut std::ffi::c_void;
 
 enum ComInit {
     CoInitializeEx(COINIT),
+
+    #[allow(dead_code)]
     CoIncrementMTAUsage(CO_MTA_USAGE_COOKIE),
 }
 
@@ -44,6 +46,7 @@ impl ComInit {
         ComInit::CoInitializeEx(dwcoinit)
     }
 
+    #[allow(dead_code)]
     pub fn new_increment_mta() -> Self {
         let cookie = unsafe {
             #[cfg(debug_assertions)]
@@ -78,6 +81,7 @@ thread_local! {
     static COM_INIT: RefCell<Option<ComInit>>  = RefCell::new(None);
 }
 
+/// Initialize thread as STA (Single threaded apartment)
 pub fn com_sta() {
     COM_INIT.with(|f| {
         let mut m = f.borrow_mut();
@@ -88,6 +92,8 @@ pub fn com_sta() {
     });
 }
 
+#[allow(dead_code)]
+/// Initialize thread as MTA (Multi threaded apartment)
 pub fn com_mta() {
     COM_INIT.with(|f| {
         let mut m = f.borrow_mut();
