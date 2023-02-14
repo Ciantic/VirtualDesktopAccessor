@@ -24,14 +24,6 @@ impl Desktop {
         self.0
     }
 
-    pub fn get_name(&self) -> Result<String> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let desktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        get_idesktop_name(&desktop)
-    }
-
     pub fn set_name(&self, name: &str) -> Result<()> {
         com_sta();
         let provider = get_iservice_provider()?;
@@ -166,4 +158,12 @@ pub fn get_desktop_by_window(hwnd: HWND_) -> Result<Desktop> {
     let desktop = get_idesktop_by_window(&manager_internal, &manager, hwnd)?;
     let id = get_idesktop_guid(&desktop)?;
     Ok(Desktop(id))
+}
+
+pub fn get_desktop_name_by_guid(guid: &GUID) -> Result<String> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+    let desktop = get_idesktop_by_guid(&manager, &guid)?;
+    get_idesktop_name(&desktop)
 }

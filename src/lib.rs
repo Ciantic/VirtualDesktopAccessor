@@ -95,7 +95,7 @@ mod tests {
                 for _ in 0..555 {
                     threads.push(std::thread::spawn(|| {
                         get_desktops().unwrap().iter().for_each(|d| {
-                            let n = d.get_name().unwrap();
+                            let n = get_desktop_name_by_guid(&d.get_id()).unwrap();
                             let i = d.get_index().unwrap();
                             let j = d.get_index().unwrap();
                             println!("Thread {n} {i} {j} {:?}", std::thread::current().id());
@@ -302,7 +302,7 @@ mod tests {
     fn test_rename_desktop() {
         let desktops = get_desktops().unwrap();
         let first_desktop = desktops.get(0).take().unwrap();
-        let first_desktop_name_before = first_desktop.get_name().unwrap();
+        let first_desktop_name_before = get_desktop_name_by_guid(&first_desktop.get_id()).unwrap();
 
         // Pre-condition
         assert_ne!(
@@ -315,7 +315,7 @@ mod tests {
 
         // Ensure it worked
         assert_eq!(
-            first_desktop.get_name().unwrap(),
+            get_desktop_name_by_guid(&first_desktop.get_id()).unwrap(),
             "Example Desktop",
             "Rename failed"
         );

@@ -75,7 +75,7 @@ pub extern "C" fn GetDesktopName(
     out_utf8_len: usize,
 ) -> i32 {
     if let Ok(desktop) = get_desktop_by_index(desktop_number as u32) {
-        let name = desktop.get_name().unwrap_or_default();
+        let name = get_desktop_name_by_guid(&desktop.get_id()).unwrap_or_default();
         let name_str = CString::new(name).unwrap();
         let name_bytes = name_str.as_bytes_with_nul();
         if name_bytes.len() > out_utf8_len {
