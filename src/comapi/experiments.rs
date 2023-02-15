@@ -2,7 +2,6 @@ use crate::hresult::HRESULT;
 
 use super::raw::*;
 
-// use super::desktop::*;
 use super::desktop::*;
 use super::interfaces::*;
 use super::*;

@@ -1,3 +1,13 @@
+//! winvd - crate for accessing the Windows Virtual Desktop API
+//!
+//! All functions taking `Into<Desktop>` can take either a index or a GUID.
+//!
+//! # Examples
+//! * Get first desktop name by index `get_desktop(0).get_name().unwrap()`
+//! * Get second desktop name by index `get_desktop(1).get_name().unwrap()`
+//! * Get desktop name by GUID `get_desktop(GUID(123...)).get_name().unwrap()`
+//! * Switch to fifth desktop by index `switch_desktop(4).unwrap()`
+//! * Get third desktop name `get_desktop(2).get_name().unwrap()`
 mod comapi;
 mod error;
 mod hresult;

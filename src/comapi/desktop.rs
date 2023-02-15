@@ -10,59 +10,6 @@ use windows::{
 
 use super::raw::*;
 
-/*
-#[derive(Copy, Clone, PartialEq)]
-pub struct Desktop(GUID);
-
-impl Debug for Desktop {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Desktop({:?})", self.0)
-    }
-}
-
-impl Desktop {
-    pub(crate) fn empty() -> Desktop {
-        Desktop(GUID::default())
-    }
-
-    pub fn get_id(&self) -> GUID {
-        self.0
-    }
-
-    pub fn set_name(&self, name: &str) -> Result<()> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        set_idesktop_name(&manager, &idesktop, name)
-    }
-
-    pub fn get_index(&self) -> Result<u32> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        let index = get_idesktop_number(&manager, &idesktop)?;
-        Ok(index)
-    }
-
-    pub fn get_wallpaper(&self) -> Result<String> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        get_idesktop_wallpaper(&idesktop)
-    }
-
-    pub fn set_wallpaper(&self, path: &str) -> Result<()> {
-        com_sta();
-        let provider = get_iservice_provider()?;
-        let manager = get_ivirtual_desktop_manager_internal(&provider)?;
-        let idesktop = get_idesktop_by_guid(&manager, &self.get_id())?;
-        set_idesktop_wallpaper(&manager, &idesktop, path)
-    }
-} */
-
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum DesktopInternal {
     Index(u32),
@@ -70,37 +17,38 @@ enum DesktopInternal {
     IndexGuid(u32, GUID),
 }
 
+/// You can construct Desktop instance with `get_desktop` by index or GUID.
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub struct DesktopTest(DesktopInternal);
+pub struct Desktop(DesktopInternal);
 
 // Impl from u32 to DesktopTest
-impl From<u32> for DesktopTest {
+impl From<u32> for Desktop {
     fn from(index: u32) -> Self {
-        DesktopTest(DesktopInternal::Index(index))
+        Desktop(DesktopInternal::Index(index))
     }
 }
 
 // Impl from i32 to DesktopTest
-impl From<i32> for DesktopTest {
+impl From<i32> for Desktop {
     fn from(index: i32) -> Self {
-        DesktopTest(DesktopInternal::Index(index as u32))
+        Desktop(DesktopInternal::Index(index as u32))
     }
 }
 
 // Impl from GUID to DesktopTest
-impl From<GUID> for DesktopTest {
+impl From<GUID> for Desktop {
     fn from(guid: GUID) -> Self {
-        DesktopTest(DesktopInternal::Guid(guid))
+        Desktop(DesktopInternal::Guid(guid))
     }
 }
 
 // Impl from &GUID to DesktopTest
-impl From<&GUID> for DesktopTest {
+impl From<&GUID> for Desktop {
     fn from(guid: &GUID) -> Self {
-        DesktopTest(DesktopInternal::Guid(*guid))
+        Desktop(DesktopInternal::Guid(*guid))
     }
 }
-impl DesktopTest {
+impl Desktop {
     fn get_ivirtual_desktop(
         &self,
         manager: &IVirtualDesktopManagerInternal,
@@ -191,17 +139,36 @@ impl DesktopTest {
 }
 
 /// Get desktop by index or GUID
-pub fn get_desktop<T>(desktop: T) -> DesktopTest
+///
+/// # Examples
+/// * Get first desktop by index `get_desktop(0)`
+/// * Get second desktop by index `get_desktop(1)`
+/// * Get desktop by GUID `get_desktop(GUID(0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0]))`
+///
+/// Note: This function does not check if the desktop exists.
+pub fn get_desktop<T>(desktop: T) -> Desktop
 where
-    T: Into<DesktopTest>,
+    T: Into<Desktop>,
 {
     desktop.into()
 }
 
+/// Test if desktop exists
+// pub fn desktop_exists<T>(desktop: T) -> Result<bool>
+// where
+//     T: Into<Desktop>,
+// {
+//     com_sta();
+//     let provider = get_iservice_provider()?;
+//     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
+//     let idesktop = desktop.into().get_ivirtual_desktop(&manager)?;
+//     get_idesktop_guid(&idesktop).map(|_| true)
+// }
+
 /// Switch desktop by index or GUID
 pub fn switch_desktop<T>(desktop: T) -> Result<()>
 where
-    T: Into<DesktopTest>,
+    T: Into<Desktop>,
 {
     com_sta();
     let provider = get_iservice_provider()?;
@@ -213,8 +180,8 @@ where
 /// Remove desktop by index or GUID
 pub fn remove_desktop<T, F>(desktop: T, fallback_desktop: F) -> Result<()>
 where
-    T: Into<DesktopTest>,
-    F: Into<DesktopTest>,
+    T: Into<Desktop>,
+    F: Into<Desktop>,
 {
     com_sta();
     let provider = get_iservice_provider()?;
@@ -227,7 +194,7 @@ where
 /// Is window on desktop by index or GUID
 pub fn is_window_on_desktop<T>(desktop: T, hwnd: HWND) -> Result<bool>
 where
-    T: Into<DesktopTest>,
+    T: Into<Desktop>,
 {
     com_sta();
     let provider = get_iservice_provider()?;
@@ -245,7 +212,7 @@ where
 /// Move window to desktop by index or GUID
 pub fn move_window_to_desktop<T>(desktop: T, hwnd: HWND) -> Result<()>
 where
-    T: Into<DesktopTest>,
+    T: Into<Desktop>,
 {
     com_sta();
     let provider = get_iservice_provider()?;
@@ -257,50 +224,50 @@ where
 }
 
 /// Create desktop
-pub fn create_desktop() -> Result<DesktopTest> {
+pub fn create_desktop() -> Result<Desktop> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
     let desktop = create_idesktop(&manager)?;
     let id = get_idesktop_guid(&desktop)?;
-    Ok(DesktopTest(DesktopInternal::Guid(id)))
+    Ok(Desktop(DesktopInternal::Guid(id)))
 }
 
 /// Get current desktop
-pub fn get_current_desktop() -> Result<DesktopTest> {
+pub fn get_current_desktop() -> Result<Desktop> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
     let desktop = get_current_idesktop(&manager)?;
     let id = get_idesktop_guid(&desktop)?;
-    Ok(DesktopTest(DesktopInternal::Guid(id)))
+    Ok(Desktop(DesktopInternal::Guid(id)))
 }
 
 /// Get all desktops
-pub fn get_desktops() -> Result<Vec<DesktopTest>> {
+pub fn get_desktops() -> Result<Vec<Desktop>> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager = get_ivirtual_desktop_manager_internal(&provider)?;
     get_idesktops(&manager)?
         .into_iter()
         .enumerate()
-        .map(|(i, d)| -> Result<DesktopTest> {
+        .map(|(i, d)| -> Result<Desktop> {
             let mut guid = GUID::default();
             unsafe { d.get_id(&mut guid).as_result()? };
-            Ok(DesktopTest(DesktopInternal::IndexGuid(i as u32, guid)))
+            Ok(Desktop(DesktopInternal::IndexGuid(i as u32, guid)))
         })
         .collect()
 }
 
 /// Get desktop by window
-pub fn get_desktop_by_window(hwnd: HWND) -> Result<DesktopTest> {
+pub fn get_desktop_by_window(hwnd: HWND) -> Result<Desktop> {
     com_sta();
     let provider = get_iservice_provider()?;
     let manager_internal = get_ivirtual_desktop_manager_internal(&provider)?;
     let manager = get_ivirtual_desktop_manager(&provider)?;
     let desktop = get_idesktop_by_window(&manager_internal, &manager, hwnd)?;
     let id = get_idesktop_guid(&desktop)?;
-    Ok(DesktopTest(DesktopInternal::Guid(id)))
+    Ok(Desktop(DesktopInternal::Guid(id)))
 }
 
 /// Get desktop count
