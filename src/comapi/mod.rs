@@ -4,8 +4,6 @@ mod interfaces;
 mod raw;
 
 pub mod desktop;
-pub mod numbered;
-pub mod windowing;
 
 #[cfg(test)]
 mod experiments;

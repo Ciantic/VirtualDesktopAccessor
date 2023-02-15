@@ -13,8 +13,6 @@ mod error;
 mod hresult;
 
 pub use comapi::desktop::*;
-pub use comapi::numbered::*;
-pub use comapi::windowing::*;
 pub use error::Error;
 pub(crate) use hresult::HRESULT;
 
@@ -124,14 +122,14 @@ mod tests {
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_threading_two() {
         sync_test(|| {
-            let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
+            let current_desktop = get_current_desktop().unwrap();
 
             for _ in 0..999 {
                 switch_desktop(0).unwrap();
                 // std::thread::sleep(Duration::from_millis(4));
                 switch_desktop(1).unwrap();
             }
-            // std::thread::sleep(Duration::from_millis(3));
+            std::thread::sleep(Duration::from_millis(15));
             switch_desktop(current_desktop).unwrap();
         })
     }

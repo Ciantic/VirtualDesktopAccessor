@@ -34,12 +34,12 @@ enum ComInit {
 impl ComInit {
     pub fn new_ex(dwcoinit: COINIT) -> Self {
         unsafe {
-            #[cfg(debug_assertions)]
-            println!(
-                "CoInitializeEx {:?} {:?}",
-                dwcoinit,
-                std::thread::current().id()
-            );
+            // #[cfg(debug_assertions)]
+            // println!(
+            //     "CoInitializeEx {:?} {:?}",
+            //     dwcoinit,
+            //     std::thread::current().id()
+            // );
             let _ = CoInitializeEx(None, dwcoinit);
         }
         ComInit::CoInitializeEx(dwcoinit)
@@ -48,8 +48,8 @@ impl ComInit {
     #[allow(dead_code)]
     pub fn new_increment_mta() -> Self {
         let cookie = unsafe {
-            #[cfg(debug_assertions)]
-            println!("CoIncrementMTAUsage {:?}", std::thread::current().id());
+            // #[cfg(debug_assertions)]
+            // println!("CoIncrementMTAUsage {:?}", std::thread::current().id());
             CoIncrementMTAUsage().unwrap()
         };
         ComInit::CoIncrementMTAUsage(cookie)
@@ -60,16 +60,16 @@ impl Drop for ComInit {
     fn drop(&mut self) {
         match &self {
             ComInit::CoIncrementMTAUsage(cookie) => unsafe {
-                #[cfg(debug_assertions)]
-                println!(
-                    "CoDecrementMTAUsage {:?} {:?}",
-                    cookie,
-                    std::thread::current().id()
-                );
+                // #[cfg(debug_assertions)]
+                // println!(
+                //     "CoDecrementMTAUsage {:?} {:?}",
+                //     cookie,
+                //     std::thread::current().id()
+                // );
                 CoDecrementMTAUsage(cookie.clone()).unwrap();
             },
             ComInit::CoInitializeEx(_) => unsafe {
-                println!("CoUninitialize {:?}", std::thread::current().id());
+                // println!("CoUninitialize {:?}", std::thread::current().id());
                 CoUninitialize();
             },
         }
@@ -89,6 +89,21 @@ pub fn com_sta() {
             *m = Some(ComInit::new_ex(COINIT_APARTMENTTHREADED));
         }
     });
+}
+
+/// Creates a new thread, executes the function in STA and returns the result
+pub fn com_sta_thread<A, R>(f: A) -> R
+where
+    A: FnOnce() -> R,
+    A: Send + 'static,
+    R: Send + 'static,
+{
+    std::thread::spawn(|| {
+        com_sta();
+        f()
+    })
+    .join()
+    .unwrap()
 }
 
 #[allow(dead_code)]
