@@ -95,10 +95,9 @@ mod tests {
                 for _ in 0..555 {
                     threads.push(std::thread::spawn(|| {
                         get_desktops().unwrap().iter().for_each(|d| {
-                            let n = get_desktop_name_by_guid(&d.get_id()).unwrap();
+                            let n = d.get_name().unwrap();
                             let i = d.get_index().unwrap();
-                            let j = d.get_index().unwrap();
-                            println!("Thread {n} {i} {j} {:?}", std::thread::current().id());
+                            println!("Thread {n} {i} {:?}", std::thread::current().id());
                         })
                     }));
                 }
@@ -115,47 +114,47 @@ mod tests {
     #[test] // TODO: Commented out, use only on occasion when needed!
     fn test_threading_two() {
         sync_test(|| {
-            let current_desktop = get_current_desktop_index().unwrap();
+            let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
 
             for _ in 0..999 {
-                switch_to_desktop_index(0).unwrap();
+                switch_desktop(0).unwrap();
                 // std::thread::sleep(Duration::from_millis(4));
-                switch_to_desktop_index(1).unwrap();
+                switch_desktop(1).unwrap();
             }
             // std::thread::sleep(Duration::from_millis(3));
-            switch_to_desktop_index(current_desktop).unwrap();
+            switch_desktop(current_desktop).unwrap();
         })
     }
 
     #[test]
     fn test_desktop_get() {
         sync_test(|| {
-            let desktop = get_desktop_by_index(0).unwrap();
-            let id = desktop.get_id();
-
-            // No errors by getting desktop
-            get_desktop_by_guid(&id).unwrap();
+            let desktop = get_desktop(0).get_id().unwrap();
+            get_desktop(&desktop).get_index().unwrap();
         })
     }
 
     #[test]
     fn test_desktop_moves() {
         sync_test(|| {
-            let current_desktop = get_current_desktop_index().unwrap();
+            let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
 
             // Go to desktop 0, ensure it worked
-            switch_to_desktop_index(0).unwrap();
-            assert_eq!(get_current_desktop_index().unwrap(), 0);
+            switch_desktop(0).unwrap();
+            assert_eq!(get_current_desktop().unwrap().get_index().unwrap(), 0);
             std::thread::sleep(Duration::from_millis(400));
 
             // Go to desktop 1, ensure it worked
-            switch_to_desktop_index(1).unwrap();
-            assert_eq!(get_current_desktop_index().unwrap(), 1);
+            switch_desktop(1).unwrap();
+            assert_eq!(get_current_desktop().unwrap().get_index().unwrap(), 1);
             std::thread::sleep(Duration::from_millis(400));
 
             // Go to desktop where it was, ensure it worked
-            switch_to_desktop_index(current_desktop).unwrap();
-            assert_eq!(get_current_desktop_index().unwrap(), current_desktop);
+            switch_desktop(current_desktop).unwrap();
+            assert_eq!(
+                get_current_desktop().unwrap().get_index().unwrap(),
+                current_desktop
+            );
             std::thread::sleep(Duration::from_millis(400));
         })
     }
@@ -164,22 +163,25 @@ mod tests {
     fn test_move_notepad_between_desktops() {
         sync_test(|| {
             // Get notepad
-            let notepad_hwnd: u32 = unsafe {
+            let notepad_hwnd = unsafe {
                 let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
                 let pw = PCWSTR::from_raw(notepad.as_ptr());
-                FindWindowW(pw, PCWSTR::null()).0 as u32
+                FindWindowW(pw, PCWSTR::null())
             };
             assert!(
-                notepad_hwnd != 0,
+                notepad_hwnd != HWND::default(),
                 "Notepad requires to be running for this test"
             );
 
-            let current_desktop = get_current_desktop_index().unwrap();
-            assert!(current_desktop != 0, "Current desktop must not be 0");
+            let current_desktop = get_current_desktop().unwrap();
+            assert!(
+                0 != current_desktop.get_index().unwrap(),
+                "Current desktop must not be 0"
+            );
 
             let notepad_is_on_current_desktop = is_window_on_current_desktop(notepad_hwnd).unwrap();
             let notepad_is_on_specific_desktop =
-                is_window_on_desktop_index(notepad_hwnd, current_desktop).unwrap();
+                is_window_on_desktop(current_desktop, notepad_hwnd).unwrap();
             assert!(
                 notepad_is_on_current_desktop,
                 "Notepad must be on this desktop"
@@ -190,18 +192,24 @@ mod tests {
             );
 
             // Move notepad current desktop -> 0 -> 1 -> current desktop
-            move_window_to_desktop_index(notepad_hwnd, 0).unwrap();
-            let notepad_desktop = get_desktop_index_by_window(notepad_hwnd).unwrap();
+            move_window_to_desktop(0, notepad_hwnd).unwrap();
+            let notepad_desktop = get_desktop_by_window(notepad_hwnd)
+                .unwrap()
+                .get_index()
+                .unwrap();
             assert_eq!(notepad_desktop, 0, "Notepad should have moved to desktop 0");
             std::thread::sleep(Duration::from_millis(300));
 
-            move_window_to_desktop_index(notepad_hwnd, 1).unwrap();
-            let notepad_desktop = get_desktop_index_by_window(notepad_hwnd).unwrap();
+            move_window_to_desktop(1, notepad_hwnd).unwrap();
+            let notepad_desktop = get_desktop_by_window(notepad_hwnd)
+                .unwrap()
+                .get_index()
+                .unwrap();
             assert_eq!(notepad_desktop, 1, "Notepad should have moved to desktop 1");
             std::thread::sleep(Duration::from_millis(300));
 
-            move_window_to_desktop_index(notepad_hwnd, current_desktop).unwrap();
-            let notepad_desktop = get_desktop_index_by_window(notepad_hwnd).unwrap();
+            move_window_to_desktop(current_desktop, notepad_hwnd).unwrap();
+            let notepad_desktop = get_desktop_by_window(notepad_hwnd).unwrap();
             assert_eq!(
                 notepad_desktop, current_desktop,
                 "Notepad should have moved to desktop 0"
@@ -213,13 +221,13 @@ mod tests {
     fn test_pin_notepad() {
         sync_test(|| {
             // Get notepad
-            let notepad_hwnd: u32 = unsafe {
+            let notepad_hwnd = unsafe {
                 let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
                 let pw = PCWSTR::from_raw(notepad.as_ptr());
-                FindWindowW(pw, PCWSTR::null()).0 as u32
+                FindWindowW(pw, PCWSTR::null())
             };
             assert!(
-                notepad_hwnd != 0,
+                notepad_hwnd != HWND::default(),
                 "Notepad requires to be running for this test"
             );
             assert_eq!(
@@ -234,19 +242,19 @@ mod tests {
                 "Notepad must not be pinned at the start of the test"
             );
 
-            let current_desktop = get_current_desktop_index().unwrap();
+            let current_desktop = get_current_desktop().unwrap();
 
             // Pin notepad and go to desktop 0 and back
             pin_window(notepad_hwnd).unwrap();
-            switch_to_desktop_index(0).unwrap();
+            switch_desktop(0).unwrap();
 
             assert_eq!(is_pinned_window(notepad_hwnd).unwrap(), true);
             std::thread::sleep(Duration::from_millis(1000));
 
-            switch_to_desktop_index(current_desktop).unwrap();
+            switch_desktop(current_desktop).unwrap();
             unpin_window(notepad_hwnd).unwrap();
             assert_eq!(
-                is_window_on_desktop_index(notepad_hwnd, current_desktop).unwrap(),
+                is_window_on_desktop(current_desktop, notepad_hwnd).unwrap(),
                 true
             );
             std::thread::sleep(Duration::from_millis(1000));
@@ -257,13 +265,13 @@ mod tests {
     fn test_pin_notepad_app() {
         sync_test(|| {
             // Get notepad
-            let notepad_hwnd: u32 = unsafe {
+            let notepad_hwnd = unsafe {
                 let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
                 let pw = PCWSTR::from_raw(notepad.as_ptr());
-                FindWindowW(pw, PCWSTR::null()).0 as u32
+                FindWindowW(pw, PCWSTR::null())
             };
             assert!(
-                notepad_hwnd != 0,
+                notepad_hwnd != HWND::default(),
                 "Notepad requires to be running for this test"
             );
             assert_eq!(
@@ -278,19 +286,19 @@ mod tests {
                 "Notepad must not be pinned at the start of the test"
             );
 
-            let current_desktop = get_current_desktop_index().unwrap();
+            let current_desktop = get_current_desktop().unwrap();
 
             // Pin notepad and go to desktop 0 and back
             pin_app(notepad_hwnd).unwrap();
             assert_eq!(is_pinned_app(notepad_hwnd).unwrap(), true);
 
-            switch_to_desktop_index(0).unwrap();
+            switch_desktop(0).unwrap();
             std::thread::sleep(Duration::from_millis(1000));
-            switch_to_desktop_index(current_desktop).unwrap();
+            switch_desktop(current_desktop).unwrap();
 
             unpin_app(notepad_hwnd).unwrap();
             assert_eq!(
-                is_window_on_desktop_index(notepad_hwnd, current_desktop).unwrap(),
+                is_window_on_desktop(current_desktop, notepad_hwnd).unwrap(),
                 true
             );
             std::thread::sleep(Duration::from_millis(1000));
@@ -302,7 +310,7 @@ mod tests {
     fn test_rename_desktop() {
         let desktops = get_desktops().unwrap();
         let first_desktop = desktops.get(0).take().unwrap();
-        let first_desktop_name_before = get_desktop_name_by_guid(&first_desktop.get_id()).unwrap();
+        let first_desktop_name_before = first_desktop.get_name().unwrap();
 
         // Pre-condition
         assert_ne!(
@@ -315,7 +323,7 @@ mod tests {
 
         // Ensure it worked
         assert_eq!(
-            get_desktop_name_by_guid(&first_desktop.get_id()).unwrap(),
+            first_desktop.get_name().unwrap(),
             "Example Desktop",
             "Rename failed"
         );
@@ -327,19 +335,19 @@ mod tests {
     /// Test some errors
     #[test]
     fn test_errors() {
-        let err = set_name_by_desktop_index(99999, "").unwrap_err();
+        let err = get_desktop(99999).set_name("").unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = switch_to_desktop_index(99999).unwrap_err();
+        let err = switch_desktop(99999).unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = get_desktop_index_by_window(9999999).unwrap_err();
+        let err = get_desktop_by_window(HWND(9999999)).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);
 
-        let err = move_window_to_desktop_index(0, 99999).unwrap_err();
+        let err = move_window_to_desktop(99999, HWND::default()).unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = move_window_to_desktop_index(999999, 0).unwrap_err();
+        let err = move_window_to_desktop(0, HWND(999999)).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);
     }
 }

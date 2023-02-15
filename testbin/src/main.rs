@@ -52,13 +52,15 @@ fn main() {
         println!("Create desktop {:?}", desk);
 
         // Set and get the name of the new desktop
-        desk.set_name("This is a new desktop!").unwrap();
+        get_desktop(desk)
+            .set_name("This is a new desktop!")
+            .unwrap();
         println!(
             "New desktop with name: {}",
-            get_desktop_name_by_guid(&desk.get_id()).unwrap()
+            get_desktop(desk).get_name().unwrap()
         );
 
-        remove_desktop(&desk, &get_current_desktop().unwrap()).unwrap();
+        remove_desktop(desk, get_current_desktop().unwrap()).unwrap();
         println!("Deleted desktop {:?}", desk);
     });
 

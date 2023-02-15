@@ -2,7 +2,7 @@
 use std::{ffi::c_void, ops::Deref};
 use windows::{
     core::{IUnknown, IUnknown_Vtbl, GUID, HSTRING},
-    Win32::UI::Shell::Common::IObjectArray,
+    Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
 
 use crate::HRESULT;
@@ -69,7 +69,6 @@ pub const CLSID_VirtualDesktopPinnedApps: GUID = GUID {
     data3: 0x46b8,
     data4: [0x88, 0xe9, 0xfc, 0x57, 0x47, 0xb1, 0x71, 0xbd],
 };
-type HWND = u32;
 type BOOL = i32;
 type DWORD = u32;
 type INT = i32;

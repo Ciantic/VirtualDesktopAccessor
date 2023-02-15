@@ -5,6 +5,7 @@ use super::interfaces::*;
 use super::Result;
 use crate::{Error, HRESULT};
 use std::{cell::RefCell, ffi::c_void};
+use windows::Win32::Foundation::HWND;
 use windows::{
     core::{Interface, Vtable, GUID, HSTRING},
     Win32::{
@@ -16,8 +17,6 @@ use windows::{
         UI::Shell::Common::IObjectArray,
     },
 };
-
-type HWND_ = u32;
 
 type APPIDPWSTR = *mut *mut std::ffi::c_void;
 
@@ -217,7 +216,7 @@ pub fn get_idesktops_array(manager: &IVirtualDesktopManagerInternal) -> Result<I
     Ok(desktops.unwrap())
 }
 
-pub fn get_idesktop_number(
+pub fn get_idesktop_index(
     manager: &IVirtualDesktopManagerInternal,
     desktop: &IVirtualDesktop,
 ) -> Result<u32> {
@@ -280,7 +279,7 @@ pub fn set_idesktop_name(
     Ok(())
 }
 
-pub fn get_idesktop_by_number(
+pub fn get_idesktop_by_index(
     manager: &IVirtualDesktopManagerInternal,
     index: u32,
 ) -> Result<IVirtualDesktop> {
@@ -382,7 +381,7 @@ pub fn get_iapplication_id_for_view(view: &IApplicationView) -> Result<APPIDPWST
 
 pub fn get_iapplication_view_for_hwnd(
     view_collection: &IApplicationViewCollection,
-    hwnd: HWND_,
+    hwnd: HWND,
 ) -> Result<IApplicationView> {
     com_sta();
     let mut view = None;
@@ -442,10 +441,7 @@ pub fn unpin_app_id(apps: &IVirtualDesktopPinnedApps, app_id: APPIDPWSTR) -> Res
     unsafe { apps.unpin_app(app_id as *mut _).as_result() }
 }
 
-pub fn _is_window_on_current_desktop(
-    manager: &IVirtualDesktopManager,
-    hwnd: HWND_,
-) -> Result<bool> {
+pub fn _is_window_on_current_desktop(manager: &IVirtualDesktopManager, hwnd: HWND) -> Result<bool> {
     com_sta();
     let mut is_on_desktop = false;
     unsafe {
@@ -459,7 +455,7 @@ pub fn _is_window_on_current_desktop(
 pub fn get_idesktop_by_window(
     manager_internal: &IVirtualDesktopManagerInternal,
     manager: &IVirtualDesktopManager,
-    hwnd: HWND_,
+    hwnd: HWND,
 ) -> Result<IVirtualDesktop> {
     com_sta();
     let mut desktop_id = GUID::default();

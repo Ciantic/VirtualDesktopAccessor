@@ -5,14 +5,20 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
-use windows::core::GUID;
+use windows::{core::GUID, Win32::Foundation::HWND};
 use winvd::*;
-type HWND = u32;
+
+type HWND_ = u32;
 
 #[no_mangle]
 pub extern "C" fn GetCurrentDesktopNumber() -> i32 {
-    get_current_desktop_index().map_or(-1, |x| x as i32)
+    get_current_desktop().map_or(-1, |x| x.get_index().map_or(-1, |x| x as i32))
 }
+
+// #[no_mangle]
+// pub extern "C" fn GetDesktopNumber() -> i32 {
+//     get_current_desktop_index_OLDD().map_or(-1, |x| x as i32)
+// }
 
 #[no_mangle]
 pub extern "C" fn GetDesktopCount() -> i32 {
@@ -24,48 +30,49 @@ pub extern "C" fn GetDesktopIdByNumber(number: i32) -> GUID {
     if number < 0 {
         return GUID::default();
     }
-    get_desktop_by_index(number as u32).map_or(GUID::default(), |desktop| desktop.get_id())
-}
-
-#[no_mangle]
-pub extern "C" fn GetDesktopNumber() -> i32 {
-    get_current_desktop_index().map_or(-1, |x| x as i32)
+    get_desktop(number).get_id().map_or(GUID::default(), |x| x)
 }
 
 #[no_mangle]
 pub extern "C" fn GetDesktopNumberById(desktop_id: GUID) -> i32 {
-    get_desktop_by_guid(&desktop_id).map_or(-1, |x| x.get_index().map_or(-1, |y| y as i32))
+    get_desktop(&desktop_id)
+        .get_index()
+        .map_or(-1, |x| x as i32)
 }
 
 #[no_mangle]
 pub extern "C" fn GetWindowDesktopId(hwnd: HWND) -> GUID {
-    get_desktop_by_window(hwnd as u32).map_or(GUID::default(), |x| x.get_id())
+    get_desktop_by_window(hwnd).map_or(GUID::default(), |x| {
+        x.get_id().map_or(GUID::default(), |y| y)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn GetWindowDesktopNumber(hwnd: HWND) -> i32 {
-    get_desktop_by_window(hwnd as u32).map_or(-1, |x| x.get_index().map_or(-1, |y| y as i32))
+    get_desktop_by_window(hwnd).map_or(-1, |x| x.get_index().map_or(-1, |y| y as i32))
 }
 
 #[no_mangle]
 pub extern "C" fn IsWindowOnCurrentVirtualDesktop(hwnd: HWND) -> i32 {
-    is_window_on_current_desktop(hwnd as u32).map_or(-1, |x| x as i32)
+    is_window_on_current_desktop(hwnd).map_or(-1, |x| x as i32)
 }
 
 #[no_mangle]
 pub extern "C" fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
-    move_window_to_desktop_index(hwnd as u32, desktop_number as u32).map_or(-1, |_| 1)
+    move_window_to_desktop(desktop_number as u32, hwnd).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
 pub extern "C" fn GoToDesktopNumber(desktop_number: i32) {
-    switch_to_desktop_index(desktop_number as u32).unwrap_or_default()
+    switch_desktop(desktop_number as u32).unwrap_or_default()
 }
 
 #[no_mangle]
 pub extern "C" fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32 {
     let name_str = unsafe { CStr::from_ptr(in_name_ptr).to_string_lossy() };
-    set_name_by_desktop_index(desktop_number as u32, &name_str).map_or(-1, |_| 1)
+    get_desktop(desktop_number)
+        .set_name(&name_str)
+        .map_or(-1, |_| 1)
 }
 
 #[no_mangle]
@@ -74,8 +81,7 @@ pub extern "C" fn GetDesktopName(
     out_utf8_ptr: *mut u8,
     out_utf8_len: usize,
 ) -> i32 {
-    if let Ok(desktop) = get_desktop_by_index(desktop_number as u32) {
-        let name = get_desktop_name_by_guid(&desktop.get_id()).unwrap_or_default();
+    if let Ok(name) = get_desktop(desktop_number).get_name() {
         let name_str = CString::new(name).unwrap();
         let name_bytes = name_str.as_bytes_with_nul();
         if name_bytes.len() > out_utf8_len {
@@ -90,7 +96,7 @@ pub extern "C" fn GetDesktopName(
     }
 }
 
-static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<u32, u32>>>> =
+static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<HWND_, u32>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 #[no_mangle]
@@ -140,13 +146,13 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
         });
     }
      */
-    a.insert(listener_hwnd as u32, message_offset);
+    a.insert(listener_hwnd.0 as u32, message_offset);
 }
 
 #[no_mangle]
 pub extern "C" fn UnregisterPostMessageHook(listener_hwnd: HWND) {
     let mut a = LISTENER_HWNDS.lock().unwrap();
-    a.remove(&(listener_hwnd as u32));
+    a.remove(&(listener_hwnd.0 as u32));
     if a.len() == 0 {
         // let mut static_thread = LISTENER_THREAD.lock().unwrap();
         // let mut static_sender = LISTENER_SENDER.lock().unwrap();
@@ -156,33 +162,31 @@ pub extern "C" fn UnregisterPostMessageHook(listener_hwnd: HWND) {
 }
 #[no_mangle]
 pub extern "C" fn IsPinnedWindow(hwnd: HWND) -> i32 {
-    is_pinned_window(hwnd as u32).map_or(-1, |x| x as i32)
+    is_pinned_window(hwnd).map_or(-1, |x| x as i32)
 }
 #[no_mangle]
 pub extern "C" fn PinWindow(hwnd: HWND) {
-    pin_window(hwnd as u32).unwrap_or_default()
+    pin_window(hwnd).unwrap_or_default()
 }
 #[no_mangle]
 pub extern "C" fn UnPinWindow(hwnd: HWND) {
-    unpin_window(hwnd as u32).unwrap_or_default()
+    unpin_window(hwnd).unwrap_or_default()
 }
 #[no_mangle]
 pub extern "C" fn IsPinnedApp(hwnd: HWND) -> i32 {
-    is_pinned_app(hwnd as u32).map_or(-1, |x| x as i32)
+    is_pinned_app(hwnd).map_or(-1, |x| x as i32)
 }
 #[no_mangle]
 pub extern "C" fn PinApp(hwnd: HWND) {
-    pin_app(hwnd as u32).unwrap_or_default()
+    pin_app(hwnd).unwrap_or_default()
 }
 #[no_mangle]
 pub extern "C" fn UnPinApp(hwnd: HWND) {
-    unpin_app(hwnd as u32).unwrap_or_default()
+    unpin_app(hwnd).unwrap_or_default()
 }
 #[no_mangle]
 pub extern "C" fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
-    get_desktop_by_index(desktop_number as u32).map_or(-1, |x| {
-        is_window_on_desktop(&x, hwnd as u32).map_or(-1, |b| b as i32)
-    })
+    is_window_on_desktop(desktop_number, hwnd).map_or(-1, |b| b as i32)
 }
 
 #[no_mangle]
@@ -199,13 +203,7 @@ pub extern "C" fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_num
     if remove_desktop_number == fallback_desktop_number {
         return -1;
     }
-    let fallback_desk = get_desktop_by_index(fallback_desktop_number as u32);
-    let remove_desk = get_desktop_by_index(remove_desktop_number as u32);
-    if let (Ok(fd), Ok(rd)) = (fallback_desk, remove_desk) {
-        remove_desktop(&rd, &fd).map_or(-1, |_| 1)
-    } else {
-        -1
-    }
+    remove_desktop(remove_desktop_number, fallback_desktop_number).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
@@ -238,14 +236,14 @@ mod tests {
     }
     #[test]
     fn test_dll_set_desktop_name() {
-        let current_desktop_name = get_name_by_desktop_index(0).unwrap();
+        let current_desktop_name = get_desktop(0).get_name().unwrap();
         let name = "Testi 😉";
         assert_ne!(current_desktop_name, name);
 
         let name_cstr = std::ffi::CString::new(name).unwrap();
         let res = SetDesktopName(0, name_cstr.as_ptr() as *mut i8);
-        let new_name = get_name_by_desktop_index(0).unwrap();
-        set_name_by_desktop_index(0, &current_desktop_name).unwrap();
+        let new_name = get_desktop(0).get_name().unwrap();
+        get_desktop(0).set_name(&current_desktop_name).unwrap();
         assert_eq!(new_name, name);
         assert_eq!(res, 1);
     }

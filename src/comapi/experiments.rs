@@ -3,8 +3,8 @@ use crate::hresult::HRESULT;
 use super::raw::*;
 
 // use super::desktop::*;
+use super::desktop::*;
 use super::interfaces::*;
-use super::numbered::*;
 use super::*;
 
 use std::borrow::Borrow;
@@ -71,7 +71,7 @@ fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
     unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
 
     let manager = get_ivirtual_desktop_manager_internal(&get_iservice_provider().unwrap()).unwrap();
-    let number = get_idesktop_number(&manager, &desktop_new).unwrap_or(99999);
+    let number = get_idesktop_index(&manager, &desktop_new).unwrap_or(99999);
 
     println!(
         "{}: {} {:?} {:?} {:?}",
@@ -235,9 +235,9 @@ impl IVirtualDesktopNotification_Impl for SimpleVirtualDesktopNotification {
     }
 
     unsafe fn view_virtual_desktop_changed(&self, view: IApplicationView) -> HRESULT {
-        let mut hwnd = 0 as _;
+        let mut hwnd = HWND::default();
         view.get_thumbnail_window(&mut hwnd);
-        println!("View in desktop changed, HWND {}", hwnd);
+        println!("View in desktop changed, HWND {:?}", hwnd);
         HRESULT(0)
     }
 }
@@ -303,17 +303,17 @@ mod tests {
         };
 
         // Start switching desktops in rapid fashion
-        let current_desktop = get_current_desktop_index().unwrap();
+        let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
 
         for _ in 0..999 {
-            switch_to_desktop_index(0).unwrap();
+            switch_desktop(0).unwrap();
             // std::thread::sleep(Duration::from_millis(4));
-            switch_to_desktop_index(1).unwrap();
+            switch_desktop(1).unwrap();
         }
 
         // Finally return to same desktop we were
         std::thread::sleep(Duration::from_millis(13));
-        switch_to_desktop_index(current_desktop).unwrap();
+        switch_desktop(current_desktop).unwrap();
 
         // Windows pushes the notification events to the queue, but it takes a while for them to be processed, I don't know a way to wait out until the push queue is empty
         //
@@ -353,17 +353,17 @@ mod tests {
         });
 
         // Start switching desktops in rapid fashion
-        let current_desktop = get_current_desktop_index().unwrap();
+        let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
 
         for _ in 0..999 {
-            switch_to_desktop_index(0).unwrap();
+            switch_desktop(0).unwrap();
             // std::thread::sleep(Duration::from_millis(4));
-            switch_to_desktop_index(1).unwrap();
+            switch_desktop(1).unwrap();
         }
 
         // Finally return to same desktop we were
         std::thread::sleep(Duration::from_millis(13));
-        switch_to_desktop_index(current_desktop).unwrap();
+        switch_desktop(current_desktop).unwrap();
         let changes = notification_thread.join().unwrap();
         println!("Desktop changes {}", changes);
         // 5*2 + 1 = 11
