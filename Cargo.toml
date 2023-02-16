@@ -20,7 +20,7 @@ windows = { version = "*", features = [
     "Win32_System_Threading",       # For CreateThread
     "Win32_Security",               # For CreateThread
 ] }
-
+memoize = { version = "0.4.0" }
 windows-interface = { version = "*" }
 windows-implement = { version = "*" }
 once_cell = "1.5.0"

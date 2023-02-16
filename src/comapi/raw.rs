@@ -4,14 +4,16 @@
 use super::interfaces::*;
 use super::Result;
 use crate::{Error, HRESULT};
+use std::time::Duration;
 use std::{cell::RefCell, ffi::c_void};
 use windows::Win32::Foundation::HWND;
+use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
 use windows::{
     core::{Interface, Vtable, GUID, HSTRING},
     Win32::{
         System::Com::{
             CoCreateInstance, CoDecrementMTAUsage, CoIncrementMTAUsage, CoInitializeEx,
-            CoUninitialize, CLSCTX_ALL, COINIT, COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED,
+            CoUninitialize, COINIT, COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED,
             CO_MTA_USAGE_COOKIE,
         },
         UI::Shell::Common::IObjectArray,
@@ -126,9 +128,12 @@ pub fn map_win_err(er: ::windows::core::Error) -> Error {
     Error::ComError(HRESULT::from_i32(er.code().0))
 }
 
+// #[memoize::memoize(TimeToLive: Duration::from_millis(500))]
 pub fn get_iservice_provider() -> Result<IServiceProvider> {
     com_sta();
-    unsafe { CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_ALL).map_err(map_win_err) }
+    unsafe {
+        CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_LOCAL_SERVER).map_err(map_win_err)
+    }
 }
 
 pub fn get_ivirtual_desktop_notification_service(
@@ -167,7 +172,7 @@ pub fn get_ivirtual_desktop_manager(provider: &IServiceProvider) -> Result<IVirt
     Ok(unsafe { IVirtualDesktopManager::from_raw(obj) })
 }
 
-pub fn get_ivirtual_desktop_manager_internal(
+pub fn get_ivirtual_desktop_manager_internal_for_provider(
     provider: &IServiceProvider,
 ) -> Result<IVirtualDesktopManagerInternal> {
     com_sta();
@@ -184,6 +189,13 @@ pub fn get_ivirtual_desktop_manager_internal(
     assert_eq!(obj.is_null(), false);
 
     Ok(unsafe { IVirtualDesktopManagerInternal::from_raw(obj) })
+}
+
+// #[memoize::memoize(TimeToLive: Duration::from_millis(500))]
+pub fn get_ivirtual_desktop_manager_internal_noparams() -> Result<IVirtualDesktopManagerInternal> {
+    com_sta();
+    let provider = get_iservice_provider()?;
+    get_ivirtual_desktop_manager_internal_for_provider(&provider)
 }
 
 pub fn get_iapplication_view_collection(
