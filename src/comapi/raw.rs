@@ -4,6 +4,8 @@
 use super::interfaces::*;
 use super::Result;
 use crate::{Error, HRESULT};
+use std::cell::Ref;
+use std::rc::Rc;
 use std::time::Duration;
 use std::{cell::RefCell, ffi::c_void};
 use windows::Win32::Foundation::HWND;
@@ -192,7 +194,7 @@ pub fn get_ivirtual_desktop_manager_internal_for_provider(
 }
 
 // #[memoize::memoize(TimeToLive: Duration::from_millis(500))]
-pub fn get_ivirtual_desktop_manager_internal_noparams() -> Result<IVirtualDesktopManagerInternal> {
+pub fn get_ivirtual_desktop_manager_internal() -> Result<IVirtualDesktopManagerInternal> {
     com_sta();
     let provider = get_iservice_provider()?;
     get_ivirtual_desktop_manager_internal_for_provider(&provider)

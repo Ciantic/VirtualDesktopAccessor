@@ -59,7 +59,7 @@ pub extern "C" fn IsWindowOnCurrentVirtualDesktop(hwnd: HWND) -> i32 {
 
 #[no_mangle]
 pub extern "C" fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
-    move_window_to_desktop(desktop_number as u32, hwnd).map_or(-1, |_| 1)
+    move_window_to_desktop(desktop_number as u32, &hwnd).map_or(-1, |_| 1)
 }
 
 #[no_mangle]

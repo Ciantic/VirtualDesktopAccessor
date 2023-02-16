@@ -63,20 +63,15 @@ fn create_thread() {
 }
 
 fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
-    com_sta();
     let mut gid = GUID::default();
     unsafe { desktop_new.get_id(&mut gid).panic_if_failed() };
 
     let mut name = HSTRING::new();
     unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
 
-    let manager = get_ivirtual_desktop_manager_internal_noparams().unwrap();
-    let number = get_idesktop_index(&manager, &desktop_new).unwrap_or(99999);
-
     println!(
-        "{}: {} {:?} {:?} {:?}",
+        "{}: {:?} {:?} {:?}",
         prefix,
-        number,
         gid,
         name.to_string(),
         std::thread::current().id()
@@ -477,7 +472,7 @@ mod tests {
     #[test]
     fn test_register_notifications() {
         let _notification = SimpleVirtualDesktopNotificationWrapper::new();
-        let manager = get_ivirtual_desktop_manager_internal_noparams().unwrap();
+        let manager = get_ivirtual_desktop_manager_internal().unwrap();
 
         // Get current desktop
         let mut current_desk: Option<IVirtualDesktop> = None;
@@ -537,7 +532,7 @@ mod tests {
         unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
 
         let manager: IVirtualDesktopManagerInternal =
-            get_ivirtual_desktop_manager_internal_noparams().unwrap();
+            get_ivirtual_desktop_manager_internal().unwrap();
 
         // let desktops: *mut IObjectArray = std::ptr::null_mut();
         let mut desktops = None;

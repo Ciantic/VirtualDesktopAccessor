@@ -13,7 +13,7 @@ mod error;
 mod hresult;
 
 pub use comapi::desktop::*;
-pub use error::Error;
+pub use comapi::Error;
 pub(crate) use hresult::HRESULT;
 
 // Import OutputDebugStringA
@@ -200,7 +200,7 @@ mod tests {
             );
 
             // Move notepad current desktop -> 0 -> 1 -> current desktop
-            move_window_to_desktop(0, notepad_hwnd).unwrap();
+            move_window_to_desktop(0, &notepad_hwnd).unwrap();
             let notepad_desktop = get_desktop_by_window(notepad_hwnd)
                 .unwrap()
                 .get_index()
@@ -208,7 +208,7 @@ mod tests {
             assert_eq!(notepad_desktop, 0, "Notepad should have moved to desktop 0");
             std::thread::sleep(Duration::from_millis(300));
 
-            move_window_to_desktop(1, notepad_hwnd).unwrap();
+            move_window_to_desktop(1, &notepad_hwnd).unwrap();
             let notepad_desktop = get_desktop_by_window(notepad_hwnd)
                 .unwrap()
                 .get_index()
@@ -216,10 +216,10 @@ mod tests {
             assert_eq!(notepad_desktop, 1, "Notepad should have moved to desktop 1");
             std::thread::sleep(Duration::from_millis(300));
 
-            move_window_to_desktop(current_desktop, notepad_hwnd).unwrap();
+            move_window_to_desktop(current_desktop, &notepad_hwnd).unwrap();
             let notepad_desktop = get_desktop_by_window(notepad_hwnd).unwrap();
-            assert_eq!(
-                notepad_desktop, current_desktop,
+            assert!(
+                notepad_desktop.try_eq(&current_desktop).unwrap(),
                 "Notepad should have moved to desktop 0"
             );
         })
@@ -352,10 +352,10 @@ mod tests {
         let err = get_desktop_by_window(HWND(9999999)).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);
 
-        let err = move_window_to_desktop(99999, HWND::default()).unwrap_err();
+        let err = move_window_to_desktop(99999, &HWND::default()).unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
-        let err = move_window_to_desktop(0, HWND(999999)).unwrap_err();
+        let err = move_window_to_desktop(0, &HWND(999999)).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);
     }
 }
