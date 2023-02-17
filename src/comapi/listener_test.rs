@@ -1,4 +1,3 @@
-use crate::comapi::raw2::com_objects;
 use crate::hresult::HRESULT;
 
 use super::raw2::*;

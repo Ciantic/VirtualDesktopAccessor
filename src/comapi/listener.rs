@@ -27,7 +27,7 @@ use super::Result;
 pub enum VirtualDesktopEventSender {
     Std(std::sync::mpsc::Sender<VirtualDesktopEvent>),
 
-    #[cfg(feature = "crossbeam-channel")]
+    // #[cfg(feature = "crossbeam-channel")]
     Crossbeam(crossbeam_channel::Sender<VirtualDesktopEvent>),
 }
 
@@ -38,7 +38,7 @@ impl VirtualDesktopEventSender {
                 sender.send(event).map_err(|_| Error::SenderError)
             }
 
-            #[cfg(feature = "crossbeam-channel")]
+            // #[cfg(feature = "crossbeam-channel")]
             VirtualDesktopEventSender::Crossbeam(sender) => {
                 sender.try_send(event).map_err(|_| Error::SenderError)
             }
@@ -59,28 +59,26 @@ pub enum VirtualDesktopEvent {
 
 struct SimpleVirtualDesktopNotificationWrapper {
     cookie: u32,
-    ptr: IVirtualDesktopNotification,
-    number_times_desktop_changed: Rc<RefCell<u32>>,
+    ptr: Pin<Box<IVirtualDesktopNotification>>,
+    com_objects: ComObjects,
 }
 
 impl SimpleVirtualDesktopNotificationWrapper {
     pub fn new(
+        com_objects: ComObjects,
         sender: VirtualDesktopEventSender,
     ) -> Result<Pin<Box<SimpleVirtualDesktopNotificationWrapper>>> {
         println!(
             "Notification service created in thread {:?}",
             std::thread::current().id()
         );
-        let number_times_desktop_changed = Rc::new(RefCell::new(0));
-
-        let ptr = SimpleVirtualDesktopNotification { sender };
-        let mut notification = Pin::new(Box::new(SimpleVirtualDesktopNotificationWrapper {
-            cookie: 0,
-            ptr: ptr.into(),
-            number_times_desktop_changed,
+        let ptr = Pin::new(Box::new(SimpleVirtualDesktopNotification { sender }.into()));
+        let notification = Pin::new(Box::new(SimpleVirtualDesktopNotificationWrapper {
+            cookie: com_objects.register_for_notifications(&ptr)?,
+            ptr,
+            com_objects,
         }));
 
-        notification.cookie = com_objects().register_for_notifications(&notification.ptr)?;
         println!(
             "Registered notification {} {:?}",
             notification.cookie,
@@ -298,6 +296,7 @@ mod tests {
         let (tx, rx) = crossbeam_channel::unbounded();
         let notifications_thread = std::thread::spawn(|| {
             let notifications = SimpleVirtualDesktopNotificationWrapper::new(
+                ComObjects::new(),
                 VirtualDesktopEventSender::Crossbeam(tx),
             )
             .unwrap();
@@ -317,6 +316,7 @@ mod tests {
         let (tx, rx) = crossbeam_channel::unbounded();
         let notifications_thread = std::thread::spawn(|| {
             let notifications = SimpleVirtualDesktopNotificationWrapper::new(
+                ComObjects::new(),
                 VirtualDesktopEventSender::Crossbeam(tx),
             )
             .unwrap();

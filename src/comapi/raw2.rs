@@ -42,6 +42,8 @@ pub enum Error {
     /// Unable to create service, ensure that explorer.exe is running
     ServiceNotCreated,
 
+    ServiceNotConnected,
+
     /// Some unhandled COM error
     ComError(HRESULT),
 
@@ -54,33 +56,40 @@ pub enum Error {
     SenderError,
 }
 
-impl From<HRESULT> for Error {
-    fn from(hr: HRESULT) -> Self {
-        Error::ComError(hr)
-    }
-}
-impl From<HRESULT> for Result<()> {
-    fn from(item: HRESULT) -> Self {
-        if !item.failed() {
-            Ok(())
-        } else {
-            Err(item.into())
-        }
-    }
-}
+// impl From<HRESULT> for Error {
+//     fn from(hr: HRESULT) -> Self {
+//         if hr == HRESULT(0x800706BA) {
+//             // Explorer.exe has mostlikely crashed
+//             return Error::ServiceNotConnected;
+//         }
+
+//         Error::ComError(hr)
+//     }
+// }
+// impl From<HRESULT> for Result<()> {
+//     fn from(item: HRESULT) -> Self {
+//         if !item.failed() {
+//             Ok(())
+//         } else {
+//             Err(item.into())
+//         }
+//     }
+// }
 
 fn map_win_err(er: ::windows::core::Error) -> Error {
     Error::ComError(HRESULT::from_i32(er.code().0))
 }
 
-struct ComSta(CO_MTA_USAGE_COOKIE);
+struct ComSta();
 impl ComSta {
     fn new(init: COINIT) -> Self {
         // For some reason thread local drop gives access violation without CoIncrementMTAUsage
-        let cookie = unsafe { CoIncrementMTAUsage().unwrap() };
+        // let cookie = unsafe { CoIncrementMTAUsage().unwrap() };
+        // We are not using thread locals
+
         unsafe { CoInitializeEx(None, init).unwrap() };
 
-        ComSta(cookie)
+        ComSta()
     }
 }
 impl Drop for ComSta {
@@ -93,23 +102,53 @@ impl Drop for ComSta {
     }
 }
 
-thread_local! {
-    static COM_INIT: Rc<ComObjects>  = Rc::new(ComObjects::new(COINIT_APARTMENTTHREADED));
+type ComFn = Box<dyn FnOnce(&ComObjects) + Send + 'static>;
+
+static WORKER_CHANNEL: once_cell::sync::Lazy<(
+    crossbeam_channel::Sender<ComFn>,
+    std::thread::JoinHandle<()>,
+)> = once_cell::sync::Lazy::new(|| {
+    let (sender, receiver) = crossbeam_channel::unbounded::<ComFn>();
+    (
+        sender,
+        std::thread::spawn(move || {
+            let com = ComObjects::new();
+            for f in receiver {
+                f(&com);
+            }
+        }),
+    )
+});
+
+/// This is a helper function to initialize and run COM related functions in a known thread
+///
+/// Virtual Desktop COM Objects don't like to being called from different threads rapidly, something goes wrong. This function ensures that all COM calls are done in a single thread.
+pub fn with_com_objects<F, T>(f: F) -> Result<T>
+where
+    F: FnOnce(&ComObjects) -> Result<T> + Send + 'static,
+    T: Send + 'static,
+{
+    // Oneshot channel
+    let (sender, receiver) = std::sync::mpsc::channel();
+
+    WORKER_CHANNEL
+        .0
+        .send(Box::new(move |c| {
+            let r = f(c);
+            sender.send(r).unwrap();
+        }))
+        .unwrap();
+    receiver.recv().unwrap()
+
+    // Naive implementation that causes illegal memory access on rapid threading test
+    //
+    // std::thread::spawn(|| {
+    //     let com = ComObjects::new();
+    //     f(&com)
+    // })
+    // .join()
+    // .unwrap()
 }
-
-// thread_local! {
-//     static COM_INIT_MTA: Rc<ComObjects>  = Rc::new(ComObjects::new(COINIT_MULTITHREADED));
-// }
-
-/// Initialize thread as STA (Single threaded apartment)
-pub fn com_objects() -> Rc<ComObjects> {
-    COM_INIT.with(|f| f.clone())
-}
-
-/// Initialize thread as STA (Multi threaded apartment)
-// pub fn com_objects_mta() -> Rc<ComObjects> {
-//     COM_INIT_MTA.with(|f| f.clone())
-// }
 
 pub trait ComObjectsAsResult {
     fn as_result(&self) -> Result<Rc<ComObjects>>;
@@ -127,6 +166,8 @@ pub(crate) enum DesktopInternal {
     Guid(GUID),
     IndexGuid(u32, GUID),
 }
+unsafe impl Send for DesktopInternal {}
+unsafe impl Sync for DesktopInternal {}
 
 // Impl equality for DesktopInternal
 impl DesktopInternal {
@@ -142,8 +183,11 @@ impl DesktopInternal {
             (DesktopInternal::Guid(a), DesktopInternal::IndexGuid(_, b)) => Ok(a == b),
             (DesktopInternal::IndexGuid(_, a), DesktopInternal::Guid(b)) => Ok(a == b),
             _ => {
-                let com_objects = com_objects();
-                Ok(com_objects.get_desktop_id(&self)? == com_objects.get_desktop_id(&other)?)
+                let self_ = self.clone();
+                let other_ = other.clone();
+                with_com_objects(move |f| {
+                    Ok(f.get_desktop_id(&self_)? == f.get_desktop_id(&other_)?)
+                })
             }
         }
     }
@@ -242,7 +286,7 @@ impl Drop for ComObjects {
  */
 
 impl ComObjects {
-    pub fn new(init: COINIT) -> Self {
+    pub fn new() -> Self {
         Self {
             provider: RefCell::new(None),
             manager: RefCell::new(None),
@@ -250,7 +294,7 @@ impl ComObjects {
             notification_service: RefCell::new(None),
             pinned_apps: RefCell::new(None),
             view_collection: RefCell::new(None),
-            com_sta: ComSta::new(init),
+            com_sta: ComSta::new(COINIT_APARTMENTTHREADED),
         }
     }
 
@@ -351,7 +395,7 @@ impl ComObjects {
             .ok_or(Error::ServiceNotCreated)
     }
 
-    fn get_pinned_apps(&self) -> Result<Weak<IVirtualDesktopPinnedApps>> {
+    fn get_pinned_apps(&self) -> Result<Rc<IVirtualDesktopPinnedApps>> {
         let mut pinned_apps = self.pinned_apps.borrow_mut();
         if pinned_apps.is_none() {
             let provider = self.get_provider()?;
@@ -371,7 +415,7 @@ impl ComObjects {
         pinned_apps
             .as_ref()
             .ok_or(Error::ServiceNotCreated)
-            .map(|a| Rc::downgrade(a))
+            .map(|a| Rc::clone(a))
     }
 
     fn get_view_collection(&self) -> Result<Rc<IApplicationViewCollection>> {
@@ -532,7 +576,7 @@ impl ComObjects {
     }
 
     pub(crate) fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
-        let desktop = self.get_idesktop(desktop)?;
+        let desktop = self.get_idesktop(&desktop)?;
         unsafe {
             self.get_manager_internal()?
                 .switch_desktop(0, ComIn::new(&desktop))
@@ -651,8 +695,6 @@ impl ComObjects {
         unsafe {
             let mut value = false;
             self.get_pinned_apps()?
-                .upgrade()
-                .ok_or(Error::ServiceNotCreated)?
                 .is_view_pinned(ComIn::new(&view), &mut value)
                 .as_result()?;
             Ok(value)
@@ -663,8 +705,6 @@ impl ComObjects {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             self.get_pinned_apps()?
-                .upgrade()
-                .ok_or(Error::ServiceNotCreated)?
                 .pin_view(ComIn::new(&view))
                 .as_result()?;
         }
@@ -675,8 +715,6 @@ impl ComObjects {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             self.get_pinned_apps()?
-                .upgrade()
-                .ok_or(Error::ServiceNotCreated)?
                 .unpin_view(ComIn::new(&view))
                 .as_result()?;
         }
@@ -698,8 +736,6 @@ impl ComObjects {
         unsafe {
             let mut value = false;
             self.get_pinned_apps()?
-                .upgrade()
-                .ok_or(Error::ServiceNotCreated)?
                 .is_app_pinned(app_id, &mut value)
                 .as_result()?;
             Ok(value)
@@ -710,11 +746,7 @@ impl ComObjects {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
         unsafe {
-            self.get_pinned_apps()?
-                .upgrade()
-                .ok_or(Error::ServiceNotCreated)?
-                .pin_app(app_id)
-                .as_result()?;
+            self.get_pinned_apps()?.pin_app(app_id).as_result()?;
         }
         Ok(())
     }
@@ -723,11 +755,7 @@ impl ComObjects {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
         unsafe {
-            self.get_pinned_apps()?
-                .upgrade()
-                .ok_or(Error::ServiceNotCreated)?
-                .unpin_app(app_id)
-                .as_result()?;
+            self.get_pinned_apps()?.unpin_app(app_id).as_result()?;
         }
         Ok(())
     }
@@ -784,76 +812,16 @@ pub fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        pin::Pin,
-        sync::{Arc, Condvar, Mutex},
-        time::Duration,
-    };
-
-    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
-
-    use crate::comapi::raw2::{com_objects, ComObjectsAsResult};
-
     use super::*;
-
-    // thread_local! {
-    //     static COM_OBJECTS: Pin<Box<ComObjects>>  = Pin::new(Box::new(ComObjects::new()));
-    // }
-
-    // #[test]
-    // fn test_com_objects_allocation() {
-    //     std::thread::spawn(|| {
-    //         COM_OBJECTS.with(|com_objects| {
-    //             let _provider = com_objects.get_provider().unwrap();
-    //             let _manager = com_objects.get_manager().unwrap();
-    //             let _manager_internal = com_objects.get_manager_internal().unwrap();
-    //             let _notification_service = com_objects.get_notification_service().unwrap();
-    //             let _pinned_apps = com_objects.get_pinned_apps().unwrap();
-    //             let _view_collection = com_objects.get_view_collection().unwrap();
-    //         });
-    //     })
-    //     .join()
-    //     .unwrap();
-    // }
 
     #[test]
     fn test_com_objects_non_thread_local() {
-        let com_objects = super::ComObjects::new(COINIT_APARTMENTTHREADED);
+        let com_objects = super::ComObjects::new();
         let _provider = com_objects.get_provider().unwrap();
         let _manager = com_objects.get_manager().unwrap();
         let _manager_internal = com_objects.get_manager_internal().unwrap();
         let _notification_service = com_objects.get_notification_service().unwrap();
         let _pinned_apps = com_objects.get_pinned_apps().unwrap();
         let _view_collection = com_objects.get_view_collection().unwrap();
-    }
-
-    #[test]
-    fn test_com_objects_thread_local() {
-        let _provider = com_objects().get_provider().unwrap();
-        let _manager = com_objects().get_manager().unwrap();
-        let _manager_internal = com_objects().get_manager_internal().unwrap();
-        let _notification_service = com_objects().get_notification_service().unwrap();
-        let _pinned_apps = com_objects().get_pinned_apps().unwrap();
-        let _view_collection = com_objects().get_view_collection().unwrap();
-    }
-
-    #[test]
-    fn test_switch_desktops_rapidly() {
-        let objects = com_objects();
-
-        // Start switching desktops in rapid fashion
-        let current_desktop = objects.get_current_desktop().unwrap();
-
-        for _ in 0..1999 {
-            objects.switch_desktop(&0.into()).unwrap();
-            // std::thread::sleep(Duration::from_millis(4));
-            objects.switch_desktop(&1.into()).unwrap();
-        }
-
-        // Finally return to same desktop we were
-        std::thread::sleep(Duration::from_millis(13));
-        objects.switch_desktop(&current_desktop).unwrap();
-        std::thread::sleep(Duration::from_millis(13));
-        println!("End of program");
     }
 }

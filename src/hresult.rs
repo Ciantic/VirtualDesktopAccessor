@@ -26,6 +26,9 @@ impl HRESULT {
 
     pub fn as_result(&self) -> Result<(), Error> {
         if self.failed() {
+            if self.0 == 0x800706BA {
+                return Err(Error::ServiceNotConnected);
+            }
             Err(Error::ComError(self.clone()))
         } else {
             Ok(())
