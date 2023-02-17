@@ -282,9 +282,13 @@ pub fn remove_event_sender(index: u32) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use windows::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, GetMessageW, PostQuitMessage, TranslateMessage, MSG, WM_USER,
     };
+
+    use crate::{get_current_desktop, switch_desktop};
 
     use super::*;
 
@@ -305,5 +309,38 @@ mod tests {
         }
 
         notifications_thread.join().unwrap();
+    }
+
+    #[test]
+    fn test_switch_desktops_rapidly() {
+        println!("This thread is {:?}", std::thread::current().id());
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let notifications_thread = std::thread::spawn(|| {
+            let notifications = SimpleVirtualDesktopNotificationWrapper::new(
+                VirtualDesktopEventSender::Crossbeam(tx),
+            )
+            .unwrap();
+            notifications.msg_loop();
+        });
+
+        let current_desktop = get_current_desktop().unwrap();
+
+        for _ in 0..999 {
+            switch_desktop(0).unwrap();
+            // std::thread::sleep(Duration::from_millis(4));
+            switch_desktop(1).unwrap();
+        }
+
+        // Finally return to same desktop we were
+        std::thread::sleep(Duration::from_millis(13));
+        switch_desktop(current_desktop).unwrap();
+        std::thread::sleep(Duration::from_millis(13));
+
+        for item in rx {
+            println!("Received {:?}", item);
+        }
+
+        notifications_thread.join().unwrap();
+        println!("End of program");
     }
 }
