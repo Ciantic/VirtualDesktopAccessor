@@ -13,6 +13,7 @@ mod error;
 mod hresult;
 
 pub use comapi::desktop::*;
+pub use comapi::listener::*;
 pub use comapi::Error;
 pub(crate) use hresult::HRESULT;
 
