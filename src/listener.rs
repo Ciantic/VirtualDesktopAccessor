@@ -12,16 +12,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, GetMessageW, PostQuitMessage, TranslateMessage, MSG, WM_USER,
 };
 
+use crate::comobjects::*;
 use crate::hresult::HRESULT;
-use crate::Desktop;
-
-use super::interfaces::{
+use crate::interfaces::{
     ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
-
-use super::raw2::*;
-use super::Result;
+use crate::Desktop;
+use crate::Result;
 
 #[derive(Debug, Clone)]
 pub enum VirtualDesktopEventSender {

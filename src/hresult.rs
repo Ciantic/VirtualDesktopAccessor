@@ -41,12 +41,6 @@ impl HRESULT {
             panic!("HRESULT failed: {:?}", self);
         }
     }
-
-    /// Create value
-    #[inline]
-    pub fn from_i32(v: i32) -> HRESULT {
-        HRESULT(v as u32)
-    }
 }
 
 impl Default for HRESULT {
@@ -58,12 +52,6 @@ impl Default for HRESULT {
 impl Debug for HRESULT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "HRESULT(0x{:X})", self.0)
-    }
-}
-
-impl From<i32> for HRESULT {
-    fn from(item: i32) -> Self {
-        HRESULT::from_i32(item)
     }
 }
 

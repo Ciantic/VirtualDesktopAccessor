@@ -8,14 +8,16 @@
 //! * Get desktop name by GUID `get_desktop(GUID(123...)).get_name().unwrap()`
 //! * Switch to fifth desktop by index `switch_desktop(4).unwrap()`
 //! * Get third desktop name `get_desktop(2).get_name().unwrap()`
-mod comapi;
-mod error;
+mod comobjects;
+mod desktop;
 mod hresult;
+mod interfaces;
+mod listener;
 
-pub use comapi::desktop::*;
-pub use comapi::listener::*;
-pub use comapi::Error;
-pub(crate) use hresult::HRESULT;
+pub use comobjects::Error;
+pub use desktop::*;
+pub use listener::*;
+pub type Result<T> = std::result::Result<T, Error>;
 
 // Import OutputDebugStringA
 #[cfg(feature = "debug")]
@@ -354,7 +356,7 @@ mod tests {
         assert_eq!(err, Error::WindowNotFound);
 
         let err = move_window_to_desktop(99999, &HWND::default()).unwrap_err();
-        assert_eq!(err, Error::DesktopNotFound);
+        assert_eq!(err, Error::WindowNotFound);
 
         let err = move_window_to_desktop(0, &HWND(999999)).unwrap_err();
         assert_eq!(err, Error::WindowNotFound);

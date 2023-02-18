@@ -1,9 +1,10 @@
+use crate::hresult::HRESULT;
+
 /// Purpose of this module is to provide helpers to access functions in interfaces module, not for direct consumption
 ///
 /// All functions here either take in a reference to an interface or initializes a com interace.
 use super::interfaces::*;
 use super::Result;
-use crate::HRESULT;
 use std::convert::TryFrom;
 use std::rc::Rc;
 use std::rc::Weak;
@@ -77,7 +78,7 @@ pub enum Error {
 // }
 
 fn map_win_err(er: ::windows::core::Error) -> Error {
-    Error::ComError(HRESULT::from_i32(er.code().0))
+    Error::ComError(HRESULT(er.code().0 as u32))
 }
 
 struct ComSta();
@@ -513,7 +514,14 @@ impl ComObjects {
         unsafe {
             self.get_manager_internal()?
                 .move_view_to_desktop(ComIn::new(&view), ComIn::new(&desktop))
-                .as_result()?
+                .as_result()
+                .map_err(|e| {
+                    if e == Error::ComError(HRESULT(0x8002802B)) {
+                        Error::DesktopNotFound
+                    } else {
+                        e
+                    }
+                })?
         }
         Ok(())
     }
@@ -523,7 +531,14 @@ impl ComObjects {
         unsafe {
             self.get_view_collection()?
                 .get_view_for_hwnd(hwnd.clone(), &mut view)
-                .as_result()?
+                .as_result()
+                .map_err(|er| {
+                    if er == Error::ComError(HRESULT(0x8002802B)) {
+                        Error::WindowNotFound
+                    } else {
+                        er
+                    }
+                })?
         }
         view.ok_or(Error::WindowNotFound)
     }
