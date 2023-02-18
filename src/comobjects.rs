@@ -162,7 +162,7 @@ impl ComObjectsAsResult for Weak<ComObjects> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) enum DesktopInternal {
+pub enum DesktopInternal {
     Index(u32),
     Guid(GUID),
     IndexGuid(u32, GUID),
@@ -543,7 +543,7 @@ impl ComObjects {
         view.ok_or(Error::WindowNotFound)
     }
 
-    pub(crate) fn get_desktop_index(&self, id: &DesktopInternal) -> Result<u32> {
+    pub fn get_desktop_index(&self, id: &DesktopInternal) -> Result<u32> {
         match id {
             DesktopInternal::Index(id) => Ok(*id),
             DesktopInternal::Guid(guid) => self.get_desktop_index_by_guid(guid),
@@ -551,7 +551,7 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn get_desktop_id(&self, desktop: &DesktopInternal) -> Result<GUID> {
+    pub fn get_desktop_id(&self, desktop: &DesktopInternal) -> Result<GUID> {
         match desktop {
             DesktopInternal::Index(id) => self.get_desktop_guid_by_index(*id),
             DesktopInternal::Guid(guid) => Ok(*guid),
@@ -559,7 +559,7 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn get_desktops(&self) -> Result<Vec<DesktopInternal>> {
+    pub fn get_desktops(&self) -> Result<Vec<DesktopInternal>> {
         let desktops = self.get_idesktops_array()?;
         let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
         let mut result = Vec::with_capacity(count as usize);
@@ -571,7 +571,7 @@ impl ComObjects {
         Ok(result)
     }
 
-    pub(crate) fn register_for_notifications(
+    pub fn register_for_notifications(
         &self,
         notification: &IVirtualDesktopNotification,
     ) -> Result<u32> {
@@ -585,12 +585,12 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn unregister_for_notifications(&self, cookie: u32) -> Result<()> {
+    pub fn unregister_for_notifications(&self, cookie: u32) -> Result<()> {
         let notification_service = self.get_notification_service()?;
         unsafe { notification_service.unregister(cookie).as_result() }
     }
 
-    pub(crate) fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
+    pub fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
         let desktop = self.get_idesktop(&desktop)?;
         unsafe {
             self.get_manager_internal()?
@@ -600,7 +600,7 @@ impl ComObjects {
         Ok(())
     }
 
-    pub(crate) fn create_desktop(&self) -> Result<DesktopInternal> {
+    pub fn create_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
         unsafe {
             self.get_manager_internal()?
@@ -613,7 +613,7 @@ impl ComObjects {
         Ok(DesktopInternal::IndexGuid(index, id))
     }
 
-    pub(crate) fn remove_desktop(
+    pub fn remove_desktop(
         &self,
         desktop: &DesktopInternal,
         fallback_desktop: &DesktopInternal,
@@ -628,17 +628,13 @@ impl ComObjects {
         Ok(())
     }
 
-    pub(crate) fn is_window_on_desktop(
-        &self,
-        window: &HWND,
-        desktop: &DesktopInternal,
-    ) -> Result<bool> {
+    pub fn is_window_on_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<bool> {
         self.get_desktop_by_window(window)
             .map(|id| id.try_eq(&desktop))?
             .or(Ok(false))
     }
 
-    pub(crate) fn is_window_on_current_desktop(&self, window: &HWND) -> Result<bool> {
+    pub fn is_window_on_current_desktop(&self, window: &HWND) -> Result<bool> {
         unsafe {
             let mut value = false;
             self.get_manager()?
@@ -653,29 +649,25 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn move_window_to_desktop(
-        &self,
-        window: &HWND,
-        desktop: &DesktopInternal,
-    ) -> Result<()> {
+    pub fn move_window_to_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         self.move_view_to_desktop(&view, desktop)
     }
 
-    // pub(crate) fn get_desktop<T>(&self, desktop: T) -> Desktop
+    // pub fn get_desktop<T>(&self, desktop: T) -> Desktop
     // where
     //     T: Into<Desktop>,
     // {
     //     desktop.into()
     // }
 
-    pub(crate) fn get_desktop_count(&self) -> Result<u32> {
+    pub fn get_desktop_count(&self) -> Result<u32> {
         let desktops = self.get_idesktops_array()?;
         let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
         Ok(count)
     }
 
-    pub(crate) fn get_desktop_by_window(&self, window: &HWND) -> Result<DesktopInternal> {
+    pub fn get_desktop_by_window(&self, window: &HWND) -> Result<DesktopInternal> {
         let mut desktop = GUID::default();
         unsafe {
             self.get_manager()?
@@ -693,7 +685,7 @@ impl ComObjects {
         Ok(DesktopInternal::Guid(desktop))
     }
 
-    pub(crate) fn get_current_desktop(&self) -> Result<DesktopInternal> {
+    pub fn get_current_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
         unsafe {
             self.get_manager_internal()?
@@ -705,7 +697,7 @@ impl ComObjects {
         Ok(DesktopInternal::Guid(id))
     }
 
-    pub(crate) fn is_pinned_window(&self, window: &HWND) -> Result<bool> {
+    pub fn is_pinned_window(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             let mut value = false;
@@ -716,7 +708,7 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn pin_window(&self, window: &HWND) -> Result<()> {
+    pub fn pin_window(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             self.get_pinned_apps()?
@@ -726,7 +718,7 @@ impl ComObjects {
         Ok(())
     }
 
-    pub(crate) fn unpin_window(&self, window: &HWND) -> Result<()> {
+    pub fn unpin_window(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             self.get_pinned_apps()?
@@ -745,7 +737,7 @@ impl ComObjects {
         Ok(app_id)
     }
 
-    pub(crate) fn is_pinned_app(&self, window: &HWND) -> Result<bool> {
+    pub fn is_pinned_app(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
         unsafe {
@@ -757,7 +749,7 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn pin_app(&self, window: &HWND) -> Result<()> {
+    pub fn pin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
         unsafe {
@@ -766,7 +758,7 @@ impl ComObjects {
         Ok(())
     }
 
-    pub(crate) fn unpin_app(&self, window: &HWND) -> Result<()> {
+    pub fn unpin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
         unsafe {
@@ -775,7 +767,7 @@ impl ComObjects {
         Ok(())
     }
 
-    pub(crate) fn get_desktop_name(&self, desktop: &DesktopInternal) -> Result<String> {
+    pub fn get_desktop_name(&self, desktop: &DesktopInternal) -> Result<String> {
         let desktop = self.get_idesktop(&desktop)?;
         let mut name = HSTRING::default();
         unsafe {
@@ -784,7 +776,7 @@ impl ComObjects {
         Ok(name.to_string())
     }
 
-    pub(crate) fn set_desktop_name(&self, desktop: &DesktopInternal, name: &str) -> Result<()> {
+    pub fn set_desktop_name(&self, desktop: &DesktopInternal, name: &str) -> Result<()> {
         let desktop = self.get_idesktop(&desktop)?;
         let manager_internal = self.get_manager_internal()?;
 
@@ -795,7 +787,7 @@ impl ComObjects {
         }
     }
 
-    pub(crate) fn get_desktop_wallpaper(&self, desktop: &DesktopInternal) -> Result<String> {
+    pub fn get_desktop_wallpaper(&self, desktop: &DesktopInternal) -> Result<String> {
         let desktop = self.get_idesktop(&desktop)?;
         let mut path = HSTRING::default();
         unsafe {
@@ -804,11 +796,7 @@ impl ComObjects {
         Ok(path.to_string())
     }
 
-    pub(crate) fn set_desktop_wallpaper(
-        &self,
-        desktop: &DesktopInternal,
-        path: &str,
-    ) -> Result<()> {
+    pub fn set_desktop_wallpaper(&self, desktop: &DesktopInternal, path: &str) -> Result<()> {
         let manager_internal = self.get_manager_internal()?;
         let desktop = self.get_idesktop(&desktop)?;
         unsafe {
