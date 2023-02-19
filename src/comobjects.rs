@@ -101,7 +101,7 @@ impl Drop for ComSta {
     }
 }
 
-type ComFn = Box<dyn FnOnce(&ComObjects) + Send + 'static>;
+type ComFn = Box<dyn Fn(&ComObjects) + Send + 'static>;
 
 static WORKER_CHANNEL: once_cell::sync::Lazy<(
     crossbeam_channel::Sender<ComFn>,
@@ -124,7 +124,7 @@ static WORKER_CHANNEL: once_cell::sync::Lazy<(
 /// Virtual Desktop COM Objects don't like to being called from different threads rapidly, something goes wrong. This function ensures that all COM calls are done in a single thread.
 pub fn with_com_objects<F, T>(f: F) -> Result<T>
 where
-    F: FnOnce(&ComObjects) -> Result<T> + Send + 'static,
+    F: Fn(&ComObjects) -> Result<T> + Send + 'static,
     T: Send + 'static,
 {
     // Oneshot channel
@@ -133,8 +133,17 @@ where
     WORKER_CHANNEL
         .0
         .send(Box::new(move |c| {
-            let r = f(c);
-            sender.send(r).unwrap();
+            for _ in 0..5 {
+                let r = f(c);
+                if let Err(Error::ServiceNotConnected) = r {
+                    // Explorer.exe has mostlikely crashed, retry the function
+                    c.drop_services();
+                    continue;
+                }
+
+                sender.send(r).unwrap();
+                return;
+            }
         }))
         .unwrap();
     receiver.recv().unwrap()
@@ -393,6 +402,15 @@ impl ComObjects {
             .as_ref()
             .map(|v| Rc::clone(&v))
             .ok_or(Error::ServiceNotCreated)
+    }
+
+    pub fn drop_services(&self) {
+        self.provider.borrow_mut().take();
+        self.manager.borrow_mut().take();
+        self.manager_internal.borrow_mut().take();
+        self.notification_service.borrow_mut().take();
+        self.pinned_apps.borrow_mut().take();
+        self.view_collection.borrow_mut().take();
     }
 
     fn get_idesktops_array(&self) -> Result<IObjectArray> {

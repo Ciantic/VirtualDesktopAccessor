@@ -126,7 +126,7 @@ where
 pub fn switch_desktop<T>(desktop: T) -> Result<()>
 where
     T: Into<Desktop>,
-    T: Send + 'static,
+    T: Send + 'static + Copy,
 {
     with_com_objects(move |o| o.switch_desktop(&desktop.into().into()))
 }
@@ -135,7 +135,7 @@ where
 pub fn remove_desktop<T>(desktop: T, fallback_desktop: T) -> Result<()>
 where
     T: Into<Desktop>,
-    T: Send + 'static,
+    T: Send + 'static + Copy,
 {
     with_com_objects(move |o| {
         o.remove_desktop(&desktop.into().into(), &fallback_desktop.into().into())
@@ -146,7 +146,7 @@ where
 pub fn is_window_on_desktop<T>(desktop: T, hwnd: HWND) -> Result<bool>
 where
     T: Into<Desktop>,
-    T: Send + 'static,
+    T: Send + 'static + Copy,
 {
     with_com_objects(move |o| o.is_window_on_desktop(&hwnd, &desktop.into().into()))
 }
@@ -155,7 +155,7 @@ where
 pub fn move_window_to_desktop<T>(desktop: T, hwnd: &HWND) -> Result<()>
 where
     T: Into<Desktop>,
-    T: Send + 'static,
+    T: Send + 'static + Copy,
 {
     let hwnd = hwnd.clone();
     with_com_objects(move |o| o.move_window_to_desktop(&hwnd, &desktop.into().into()))

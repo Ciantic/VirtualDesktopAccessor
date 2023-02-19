@@ -65,18 +65,19 @@ struct DesktopEventListener<'a> {
 
 /// Starts a listener thread, returns a stopping function
 pub(crate) fn start_listener_thread(sender: DesktopEventSender) -> Box<dyn FnOnce()> {
-    let winapi_thread_id_pair = Arc::new((Mutex::new(0 as u32), Condvar::new()));
-    let winapi_thread_id_pair_2 = Arc::clone(&winapi_thread_id_pair);
+    // Channel for thread id
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    // Main notification thread, with STA message loop
     let notification_thread = std::thread::spawn(move || {
-        {
-            // Send the current thread id to parent thread
-            let (lock, cvar) = &*winapi_thread_id_pair_2;
-            let mut started = lock.lock().unwrap();
-            *started = unsafe { GetCurrentThreadId() };
-            cvar.notify_one();
-        }
+        // Send the Windows specific thread id to the main thread
+        tx.send(unsafe { GetCurrentThreadId() }).unwrap();
+        drop(tx);
+
         let com_objects = ComObjects::new();
         let _listener = DesktopEventListener::new(&com_objects, sender).unwrap();
+
+        // STA message loop
         let mut msg = MSG::default();
         unsafe {
             while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
@@ -90,14 +91,8 @@ pub(crate) fn start_listener_thread(sender: DesktopEventSender) -> Box<dyn FnOnc
     });
 
     // Wait until the thread has started, and sent it's Windows specific thread id
-    let win_thread_id = {
-        let (lock, cvar) = &*winapi_thread_id_pair;
-        let mut started = lock.lock().unwrap();
-        while *started == 0 {
-            started = cvar.wait(started).unwrap();
-        }
-        *started
-    };
+    let win_thread_id = rx.recv().unwrap();
+    drop(rx);
 
     Box::new(move || {
         log_output("Stopping listener thread");
@@ -323,11 +318,6 @@ pub fn remove_event_sender(index: u32) {
 
 #[cfg(test)]
 mod tests {
-    use windows::Win32::{
-        Foundation::{LPARAM, WPARAM},
-        UI::WindowsAndMessaging::PostThreadMessageW,
-    };
-
     use super::*;
     use crate::{get_current_desktop, switch_desktop};
     use std::time::Duration;
