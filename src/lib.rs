@@ -20,18 +20,22 @@ pub use listener::*;
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Import OutputDebugStringA
-#[cfg(feature = "debug")]
+#[cfg(debug_assertions)]
 extern "system" {
     fn OutputDebugStringA(lpOutputString: *const i8);
 }
 
-#[cfg(feature = "debug")]
+#[cfg(debug_assertions)]
 pub(crate) fn log_output(s: &str) {
     unsafe {
         println!("{}", s);
         OutputDebugStringA(s.as_ptr() as *const i8);
     }
 }
+
+#[cfg(not(debug_assertions))]
+#[inline]
+pub(crate) fn log_output(_s: &str) {}
 
 #[cfg(test)]
 mod tests {
@@ -53,43 +57,7 @@ mod tests {
     {
         static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
-        /*
-        INIT.call_once(|| {
-            let (a, b) = std::sync::mpsc::channel::<VirtualDesktopEvent>();
-
-            set_event_sender(changelistener::VirtualDesktopEventSender::Std(a.clone())).unwrap();
-
-            thread::spawn(move || {
-                b.iter().for_each(|msg| match msg {
-                    VirtualDesktopEvent::DesktopChanged(old, new) => {
-                        println!(
-                            "<- Desktop changed from {:?} to {:?}",
-                            old.get_index().unwrap(),
-                            new.get_index().unwrap()
-                        );
-                    }
-                    VirtualDesktopEvent::DesktopCreated(desk) => {
-                        println!("<- New desktop created {:?}", desk);
-                    }
-                    VirtualDesktopEvent::DesktopDestroyed(desk) => {
-                        println!("<- Desktop destroyed {:?}", desk);
-                    }
-                    VirtualDesktopEvent::WindowChanged(hwnd) => {
-                        println!("<- Window changed {:?}", hwnd);
-                    }
-                    VirtualDesktopEvent::DesktopNameChanged(desk, name) => {
-                        println!("<- Name of {:?} changed to {}", desk, name);
-                    }
-                    VirtualDesktopEvent::DesktopWallpaperChanged(desk, name) => {
-                        println!("<- Wallpaper of {:?} changed to {}", desk, name);
-                    }
-                    VirtualDesktopEvent::DesktopMoved(desk, old, new) => {
-                        println!("<- Desktop {:?} moved from {} to {}", desk, old, new);
-                    }
-                });
-            });
-        });
-         */
+        // !! TODO: Start a listener
 
         let _t = SEMAPHORE.lock().unwrap();
         test()

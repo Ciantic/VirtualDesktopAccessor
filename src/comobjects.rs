@@ -1,4 +1,5 @@
 use crate::hresult::HRESULT;
+use crate::log_output;
 
 /// Purpose of this module is to provide helpers to access functions in interfaces module, not for direct consumption
 ///
@@ -83,22 +84,19 @@ fn map_win_err(er: ::windows::core::Error) -> Error {
 
 struct ComSta();
 impl ComSta {
-    fn new(init: COINIT) -> Self {
-        // For some reason thread local drop gives access violation without CoIncrementMTAUsage
-        // let cookie = unsafe { CoIncrementMTAUsage().unwrap() };
-        // We are not using thread locals
+    fn new() -> Self {
+        #[cfg(debug_assertions)]
+        log_output("CoInitializeEx COINIT_APARTMENTTHREADED");
 
-        unsafe { CoInitializeEx(None, init).unwrap() };
-
+        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
         ComSta()
     }
 }
 impl Drop for ComSta {
     fn drop(&mut self) {
-        // This panics
-        // unsafe {
-        //     CoDecrementMTAUsage(self.0);
-        // }
+        #[cfg(debug_assertions)]
+        log_output("CoUninitialize");
+
         unsafe { CoUninitialize() };
     }
 }
@@ -247,45 +245,6 @@ pub struct ComObjects {
     com_sta: ComSta,
 }
 
-/*
-impl Drop for ComObjects {
-    fn drop(&mut self) {
-        fn dropp<T: Interface + std::fmt::Debug>(t: &mut Option<Rc<T>>) -> Option<*const T> {
-            let tt = t.take();
-            println!("Take {:?}", tt);
-            if let Some(t) = tt {
-                println!("Drop {}", Rc::strong_count(&t));
-                Some(Rc::into_raw(t))
-            } else {
-                None
-            }
-        }
-        {
-            println!("Drop contents");
-            // drop(self.manager.take().take());
-            // drop(self.manager_internal.take().take());
-            // drop(self.notification_service.take().take());
-            // drop(self.pinned_apps.take().take());
-            // drop(self.view_collection.take().take());
-            // dropp(&mut self.provider.borrow_mut());
-
-            // let wot = self.provider.take();
-            // match wot {
-            //     Some(rcc) => {
-            //         let count = Rc::strong_count(&rcc);
-            //         println!("Drop provider, count: {}", count);
-            //     }
-            //     None => {}
-            // }
-        }
-        unsafe {
-            println!("CoUninitialize");
-            CoUninitialize();
-        }
-    }
-}
- */
-
 impl ComObjects {
     pub fn new() -> Self {
         Self {
@@ -295,17 +254,9 @@ impl ComObjects {
             notification_service: RefCell::new(None),
             pinned_apps: RefCell::new(None),
             view_collection: RefCell::new(None),
-            com_sta: ComSta::new(COINIT_APARTMENTTHREADED),
+            com_sta: ComSta::new(),
         }
     }
-
-    /*
-    pub fn get_desktop(&self, idesk: ComIn<IVirtualDesktop>) -> Result<DesktopInternal> {
-        let mut out_guid = GUID::default();
-        unsafe { idesk.get_id(&mut out_guid).as_result()? };
-        Ok(DesktopInternal::Guid(out_guid))
-    }
-    */
 
     fn get_provider(&self) -> Result<Rc<IServiceProvider>> {
         let mut provider = self.provider.borrow_mut();

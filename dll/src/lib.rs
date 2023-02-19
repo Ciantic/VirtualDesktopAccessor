@@ -102,50 +102,9 @@ static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<HWND_, u32>>>> =
 #[no_mangle]
 pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) {
     let mut a = LISTENER_HWNDS.lock().unwrap();
-    /*
-    if a.len() == 0 {
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        set_event_sender(VirtualDesktopEventSender::Crossbeam(sender)).unwrap();
-        thread::spawn(move || {
-            receiver.iter().for_each(|msg| match msg {
-                VirtualDesktopEvent::DesktopChanged(_old, new) => {
-                    let hwnds = LISTENER_HWNDS.lock();
-                    if let Ok(hwnds) = hwnds {
-                        for (hwnd, offset) in hwnds.iter() {
-                            // println!("Sending message {} to {}", *offset, *hwnd);
-                            unsafe {
-                                PostMessageW(
-                                    *hwnd as _,
-                                    *offset,
-                                    0,
-                                    new.get_index().map_or(-1, |x| x as i32),
-                                );
-                            }
-                        }
-                    }
-                }
-                VirtualDesktopEvent::DesktopCreated(_desk) => {
-                    // println!("<- New desktop created {:?}", desk);
-                }
-                VirtualDesktopEvent::DesktopDestroyed(_desk) => {
-                    // println!("<- Desktop destroyed {:?}", desk);
-                }
-                VirtualDesktopEvent::WindowChanged(_hwnd) => {
-                    // println!("<- Window changed {:?}", hwnd);
-                }
-                VirtualDesktopEvent::DesktopNameChanged(_desk, _name) => {
-                    // println!("<- Name of {:?} changed to {}", desk, name);
-                }
-                VirtualDesktopEvent::DesktopWallpaperChanged(_desk, _name) => {
-                    // println!("<- Wallpaper of {:?} changed to {}", desk, name);
-                }
-                VirtualDesktopEvent::DesktopMoved(_desk, _old, _new) => {
-                    // println!("<- Desktop {:?} moved from {} to {}", desk, old, new);
-                }
-            });
-        });
-    }
-     */
+
+    // !! TODO: START A LISTENER
+
     a.insert(listener_hwnd.0 as u32, message_offset);
 }
 
@@ -154,10 +113,7 @@ pub extern "C" fn UnregisterPostMessageHook(listener_hwnd: HWND) {
     let mut a = LISTENER_HWNDS.lock().unwrap();
     a.remove(&(listener_hwnd.0 as u32));
     if a.len() == 0 {
-        // let mut static_thread = LISTENER_THREAD.lock().unwrap();
-        // let mut static_sender = LISTENER_SENDER.lock().unwrap();
-        // static_sender.take();
-        // static_thread.take().unwrap().join().unwrap();
+        // !! TODO: DROP A LISTENER
     }
 }
 #[no_mangle]
