@@ -379,7 +379,7 @@ pub unsafe trait IVirtualDesktopNotificationService: IUnknown {
 
 #[windows_interface::interface("b2f925b9-5a0f-4d2e-9f4d-2b1507593c10")]
 pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
-    pub unsafe fn get_count(&self, monitor: HMONITOR, out_count: *mut UINT) -> HRESULT;
+    pub unsafe fn get_desktop_count(&self, monitor: HMONITOR, out_count: *mut UINT) -> HRESULT;
 
     pub unsafe fn move_view_to_desktop(
         &self,

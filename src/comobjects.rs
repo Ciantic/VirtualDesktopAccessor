@@ -42,8 +42,12 @@ pub enum Error {
     RemoveDesktopFailed,
 
     /// Unable to create service, ensure that explorer.exe is running
+    ClassNotRegistered,
+
+    /// Unable to create service, ensure that explorer.exe is running
     ServiceNotCreated,
 
+    /// Unable to connect to service
     ServiceNotConnected,
 
     /// Some unhandled COM error
@@ -58,28 +62,20 @@ pub enum Error {
     SenderError,
 }
 
-// impl From<HRESULT> for Error {
-//     fn from(hr: HRESULT) -> Self {
-//         if hr == HRESULT(0x800706BA) {
-//             // Explorer.exe has mostlikely crashed
-//             return Error::ServiceNotConnected;
-//         }
-
-//         Error::ComError(hr)
-//     }
-// }
-// impl From<HRESULT> for Result<()> {
-//     fn from(item: HRESULT) -> Self {
-//         if !item.failed() {
-//             Ok(())
-//         } else {
-//             Err(item.into())
-//         }
-//     }
-// }
-
+/// Windows Rust API for some reason stores HRESULT as i32, this is a helper to
+/// interpret it as u32.
+///
+/// u32 is more convienient because values like 0x80040154 are searchable,
+/// unlike i32 values which are not common.
 fn map_win_err(er: ::windows::core::Error) -> Error {
-    Error::ComError(HRESULT(er.code().0 as u32))
+    if er.code().0 == unsafe { std::mem::transmute(0x80040154 as u32) } {
+        return Error::ClassNotRegistered;
+    }
+    if er.code().0 == unsafe { std::mem::transmute(0x800706BA as u32) } {
+        return Error::ServiceNotConnected;
+    }
+
+    Error::ComError(HRESULT(unsafe { std::mem::transmute(er.code().0) }))
 }
 
 struct ComSta();
@@ -136,9 +132,17 @@ where
             for _ in 0..5 {
                 let r = f(c);
                 if let Err(Error::ServiceNotConnected) = r {
+                    #[cfg(debug_assertions)]
+                    log_output("Explorer.exe has mostlikely crashed, retry the function");
+
                     // Explorer.exe has mostlikely crashed, retry the function
                     c.drop_services();
                     continue;
+                }
+
+                #[cfg(debug_assertions)]
+                if let Err(er) = &r {
+                    log_output(&format!("with_com_objects failed with {:?}", er));
                 }
 
                 sender.send(r).unwrap();
@@ -160,12 +164,6 @@ where
 
 pub trait ComObjectsAsResult {
     fn as_result(&self) -> Result<Rc<ComObjects>>;
-}
-
-impl ComObjectsAsResult for Weak<ComObjects> {
-    fn as_result(&self) -> Result<Rc<ComObjects>> {
-        self.upgrade().ok_or(Error::ServiceNotCreated)
-    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -280,7 +278,7 @@ impl ComObjects {
         provider
             .as_ref()
             .map(|v| Rc::clone(&v))
-            .ok_or(Error::ServiceNotCreated)
+            .ok_or(Error::ComAllocatedNullPtr)
     }
 
     fn get_manager(&self) -> Result<Rc<IVirtualDesktopManager>> {
@@ -303,7 +301,7 @@ impl ComObjects {
         manager
             .as_ref()
             .map(|v| Rc::clone(&v))
-            .ok_or(Error::ServiceNotCreated)
+            .ok_or(Error::ComAllocatedNullPtr)
     }
 
     fn get_manager_internal(&self) -> Result<Rc<IVirtualDesktopManagerInternal>> {
@@ -328,7 +326,7 @@ impl ComObjects {
         manager_internal
             .as_ref()
             .map(|v| Rc::clone(&v))
-            .ok_or(Error::ServiceNotCreated)
+            .ok_or(Error::ComAllocatedNullPtr)
     }
 
     fn get_notification_service(&self) -> Result<Rc<IVirtualDesktopNotificationService>> {
@@ -353,7 +351,7 @@ impl ComObjects {
         notification_service
             .as_ref()
             .map(|v| Rc::clone(&v))
-            .ok_or(Error::ServiceNotCreated)
+            .ok_or(Error::ComAllocatedNullPtr)
     }
 
     fn get_pinned_apps(&self) -> Result<Rc<IVirtualDesktopPinnedApps>> {
@@ -375,7 +373,7 @@ impl ComObjects {
         }
         pinned_apps
             .as_ref()
-            .ok_or(Error::ServiceNotCreated)
+            .ok_or(Error::ComAllocatedNullPtr)
             .map(|a| Rc::clone(a))
     }
 
@@ -401,7 +399,7 @@ impl ComObjects {
         view_collection
             .as_ref()
             .map(|v| Rc::clone(&v))
-            .ok_or(Error::ServiceNotCreated)
+            .ok_or(Error::ComAllocatedNullPtr)
     }
 
     pub fn drop_services(&self) {
@@ -411,6 +409,31 @@ impl ComObjects {
         self.notification_service.borrow_mut().take();
         self.pinned_apps.borrow_mut().take();
         self.view_collection.borrow_mut().take();
+    }
+
+    pub(crate) fn is_connected(&self) -> bool {
+        // TODO: What is a best way to check if service is connected?
+
+        // Calling any method yields an error  if service is not connected.
+        match self.get_manager_internal() {
+            Ok(manager_internal) => {
+                let mut out_count = 0;
+                let res = unsafe {
+                    manager_internal
+                        .get_desktop_count(0, &mut out_count)
+                        .as_result()
+                };
+                match res {
+                    Ok(_) => true,
+                    Err(Error::ClassNotRegistered) => false,
+                    Err(Error::ServiceNotConnected) => false,
+                    Err(_) => true,
+                }
+            }
+            Err(Error::ClassNotRegistered) => false,
+            Err(Error::ServiceNotConnected) => false,
+            Err(_) => true,
+        }
     }
 
     fn get_idesktops_array(&self) -> Result<IObjectArray> {
@@ -545,6 +568,7 @@ impl ComObjects {
         notification: &IVirtualDesktopNotification,
     ) -> Result<u32> {
         let notification_service = self.get_notification_service()?;
+
         unsafe {
             let mut cookie = 0;
             notification_service

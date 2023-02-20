@@ -10,13 +10,14 @@
 //! * Get third desktop name `get_desktop(2).get_name().unwrap()`
 mod comobjects;
 mod desktop;
+mod events;
 mod hresult;
 mod interfaces;
 mod listener;
 
 pub use comobjects::Error;
 pub use desktop::*;
-pub use listener::*;
+pub use events::*;
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Import OutputDebugStringA
@@ -36,6 +37,15 @@ pub(crate) fn log_output(s: &str) {
 #[cfg(not(debug_assertions))]
 #[inline]
 pub(crate) fn log_output(_s: &str) {}
+
+// Log format macro
+#[macro_export]
+macro_rules! log_format {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        $crate::log_output(&format!($($arg)*));
+    };
+}
 
 #[cfg(test)]
 mod tests {

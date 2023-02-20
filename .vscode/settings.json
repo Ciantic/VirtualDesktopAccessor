@@ -1,7 +1,5 @@
 {
     "editor.formatOnSave": true,
-    // "rust-analyzer.cargo.features": ["crossbeam-channel"],
-    // "rust-analyzer.procMacro.enable": true,
     "triggerTaskOnSave.restart": true,
     "triggerTaskOnSave.tasks": {
         // "rust: cargo build": ["**/*.rs"]
