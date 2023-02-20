@@ -27,6 +27,7 @@ use crate::{DesktopEvent, Result};
 const WM_USER_QUIT: u32 = WM_USER + 0x10;
 
 /// Event listener thread, create with `create_desktop_event_thread(sender)`, value must be held in the state of the program, the thread is joined when the value is dropped.
+#[derive(Debug)]
 pub struct DesktopEventThread {
     windows_thread_id: Option<u32>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -120,8 +121,11 @@ impl DesktopEventThread {
         }
     }
 
-    fn drop_thread(&mut self) -> std::thread::Result<()> {
+    /// Join the thread, if it is still running, normally you don't need to call
+    /// this as drop calls this automatically
+    pub fn join(&mut self) -> std::thread::Result<()> {
         if let Some(thread_id) = self.windows_thread_id.take() {
+            log_output("Stopping listener thread");
             unsafe {
                 PostThreadMessageW(
                     thread_id,
@@ -141,8 +145,7 @@ impl DesktopEventThread {
 
 impl Drop for DesktopEventThread {
     fn drop(&mut self) {
-        log_output("Stopping listener thread");
-        self.drop_thread().unwrap();
+        self.join().unwrap();
     }
 }
 

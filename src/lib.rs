@@ -89,8 +89,8 @@ mod tests {
 
             // Listen for desktop changes
             let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-            let _notifications_thread = create_desktop_event_thread(tx);
-            let receiver = std::thread::spawn(|| {
+            let mut _notifications_thread = create_desktop_event_thread(tx);
+            let receiver = std::thread::spawn(move || {
                 let mut count = 0;
                 for item in rx {
                     if let DesktopEvent::DesktopChanged { new, old } = item {
@@ -101,7 +101,8 @@ mod tests {
                         );
                     }
                     if count == 3 {
-                        break;
+                        // Joining the notification thread drops the sender, and iteration ends
+                        _notifications_thread.join().unwrap();
                     }
                 }
                 count
@@ -383,6 +384,56 @@ mod tests {
     }
 
     #[test]
+    fn test_kill_explorer_exe_manually() {
+        // This test can be run only individually
+        let args = std::env::args().collect::<Vec<_>>();
+        if !args.contains(&"tests::test_kill_explorer_exe_manually".to_owned()) {
+            return;
+        }
+        sync_test(|| {
+            // Kill explorer.exe
+            let mut cmd = std::process::Command::new("taskkill");
+            cmd.arg("/F").arg("/IM").arg("explorer.exe");
+            cmd.output().unwrap();
+            std::thread::sleep(Duration::from_secs(2));
+
+            // Create listener
+            let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
+            let _notifications_thread = create_desktop_event_thread(tx);
+            let _receiver = std::thread::spawn(|| {
+                let mut count = 0;
+                for item in rx {
+                    println!("{:?}", item);
+                    if let DesktopEvent::DesktopChanged { new, old } = item {
+                        count += 1;
+                    }
+                }
+                count
+            });
+
+            // Try switching desktops, can't work
+            let error = switch_desktop(0);
+            assert_eq!(error, Err(Error::ClassNotRegistered));
+
+            // Start explorer exe
+            let mut cmd = std::process::Command::new("explorer.exe");
+            cmd.spawn().unwrap();
+            std::thread::sleep(Duration::from_secs(4));
+
+            // Try switching desktops, should work now
+            switch_desktop(0).unwrap();
+            std::thread::sleep(Duration::from_secs(1));
+            switch_desktop(1).unwrap();
+            std::thread::sleep(Duration::from_secs(1));
+            switch_desktop(2).unwrap();
+            std::thread::sleep(Duration::from_secs(1));
+            drop(_notifications_thread);
+            let count = _receiver.join().unwrap();
+            assert_eq!(count, 3);
+        })
+    }
+
+    #[test]
     fn test_switch_desktops_rapidly_manual() {
         // This test can be run only individually
         let args = std::env::args().collect::<Vec<_>>();
@@ -391,9 +442,9 @@ mod tests {
         }
         sync_test(|| {
             let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-            let _notifications_thread = create_desktop_event_thread(tx);
 
-            let receiver = std::thread::spawn(|| {
+            let mut _notifications_thread = create_desktop_event_thread(tx);
+            let receiver = std::thread::spawn(move || {
                 let mut count = 0;
                 for item in rx {
                     // println!("{:?}", item);
@@ -403,10 +454,12 @@ mod tests {
                     if (count % 100) == 0 {
                         println!("Count: {}", count);
                     }
-                    if count >= 1999 {
-                        break;
+                    if count == 1999 {
+                        // This should stop the loop
+                        _notifications_thread.join().unwrap();
                     }
                 }
+
                 count
             });
 
@@ -421,8 +474,10 @@ mod tests {
             // Finally return to same desktop we were
             std::thread::sleep(Duration::from_millis(130));
             switch_desktop(current_desktop).unwrap();
+            // drop(_notifications_thread);
 
-            receiver.join().unwrap();
+            let count = receiver.join().unwrap();
+            assert_eq!(1999, count);
             println!("End of program, starting to drop stuff...");
         })
     }
