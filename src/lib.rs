@@ -18,6 +18,7 @@ mod listener;
 pub use comobjects::Error;
 pub use desktop::*;
 pub use events::*;
+pub use listener::DesktopEventThread;
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Import OutputDebugStringA

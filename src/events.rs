@@ -1,5 +1,5 @@
-use crate::listener::DesktopEventThread;
 use crate::Desktop;
+use crate::DesktopEventThread;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
@@ -49,23 +49,6 @@ pub enum DesktopEvent {
     WindowChanged(HWND),
 }
 
-static LISTENER: Lazy<Arc<Mutex<Option<DesktopEventThread>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(None)));
-
-static MAIN_SENDER: Lazy<Arc<Mutex<Option<DesktopEventSender>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(None)));
-
-pub fn add_event_sender(sender: &DesktopEventSender) {
-    let mut main_sender = MAIN_SENDER.lock().unwrap();
-    if main_sender.is_none() {
-        *main_sender = Some(sender.clone());
-
-        let mut listener = LISTENER.lock().unwrap();
-        *listener = Some(DesktopEventThread::new(sender.clone()));
-    }
-}
-
-pub fn remove_event_sender() {
-    let mut listener = LISTENER.lock().unwrap();
-    listener.take();
+pub fn create_event_thread(sender: DesktopEventSender) -> DesktopEventThread {
+    DesktopEventThread::new(sender)
 }
