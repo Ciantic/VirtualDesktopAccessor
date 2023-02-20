@@ -9,15 +9,15 @@ use std::{cell::RefCell, rc::Rc};
 use windows::Win32::Foundation::HWND;
 
 #[derive(Debug, Clone)]
-pub enum DesktopEventSender {
-    Std(std::sync::mpsc::Sender<DesktopEvent>),
+pub enum DesktopEventSender<T> {
+    Std(std::sync::mpsc::Sender<T>),
 
     // #[cfg(feature = "crossbeam-channel")]
-    Crossbeam(crossbeam_channel::Sender<DesktopEvent>),
+    Crossbeam(crossbeam_channel::Sender<T>),
 }
 
-impl DesktopEventSender {
-    pub fn try_send(&self, event: DesktopEvent) {
+impl<T> DesktopEventSender<T> {
+    pub fn try_send(&self, event: T) {
         match self {
             DesktopEventSender::Std(sender) => {
                 let _ = sender.send(event);
@@ -49,6 +49,9 @@ pub enum DesktopEvent {
     WindowChanged(HWND),
 }
 
-pub fn create_event_thread(sender: DesktopEventSender) -> DesktopEventThread {
+pub fn create_event_thread<T>(sender: DesktopEventSender<T>) -> DesktopEventThread
+where
+    T: From<DesktopEvent> + Clone + Send + 'static,
+{
     DesktopEventThread::new(sender)
 }
