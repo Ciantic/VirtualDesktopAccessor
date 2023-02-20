@@ -40,6 +40,7 @@ pub(crate) fn log_output(s: &str) {
 pub(crate) fn log_output(_s: &str) {}
 
 // Log format macro
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_format {
     ($($arg:tt)*) => {
@@ -201,7 +202,7 @@ mod tests {
             move_window_to_desktop(current_desktop, &notepad_hwnd).unwrap();
             let notepad_desktop = get_desktop_by_window(notepad_hwnd).unwrap();
             assert!(
-                notepad_desktop.try_eq(&current_desktop).unwrap(),
+                notepad_desktop == current_desktop,
                 "Notepad should have moved to desktop 0"
             );
         })

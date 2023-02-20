@@ -25,7 +25,7 @@ use crate::{DesktopEvent, Result};
 
 const WM_USER_QUIT: u32 = WM_USER + 0x10;
 
-/// Event listener thread, create with `create_event_thread(sender)` where sender must be convertible to `DesktopEvent`
+/// Event listener thread, create with `create_event_thread(sender)`, value must be held in the state of the program, the thread is joined when the value is dropped.
 pub struct DesktopEventThread {
     windows_thread_id: Option<u32>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -47,6 +47,11 @@ impl DesktopEventThread {
             tx.send(unsafe { GetCurrentThreadId() }).unwrap();
             drop(tx);
 
+            // Set a timer to check if the listener is still alive
+            unsafe {
+                SetTimer(HWND::default(), 0, 3000, None);
+            }
+
             let com_objects = ComObjects::new();
             loop {
                 let mut quit = false;
@@ -64,13 +69,6 @@ impl DesktopEventThread {
                         "Listener service could not be created, retrying in three seconds {:?}",
                         er
                     );
-                    std::thread::sleep(std::time::Duration::from_secs(3));
-                    continue;
-                }
-
-                // Set a timer to check if the listener is still alive
-                unsafe {
-                    SetTimer(HWND::default(), 0, 3000, None);
                 }
 
                 // STA message loop
@@ -83,10 +81,12 @@ impl DesktopEventThread {
                         }
 
                         if msg.message == WM_TIMER {
-                            // Recreates com objects if they have been dropped
+                            // If com objects aren't connected anymore, drop them
                             if !com_objects.is_connected() {
                                 log_output("Not alive, restarting");
                                 com_objects.drop_services();
+
+                                // TODO: THIS IS DEEPLY WRONG
                                 PostQuitMessage(0);
                             } else {
                                 log_output("Is alive");
@@ -191,6 +191,7 @@ struct VirtualDesktopNotification {
     sender: Box<dyn Fn(DesktopEvent)>,
 }
 
+#[cfg(debug_assertions)]
 fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
     let mut gid = GUID::default();
     unsafe { desktop_new.get_id(&mut gid).panic_if_failed() };
@@ -219,7 +220,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop_old: ComIn<IVirtualDesktop>,
         desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
-        debug_desktop(&desktop_new, "Desktop changed");
         (self.sender)(DesktopEvent::DesktopChanged {
             old: desktop_old.try_into().unwrap(),
             new: desktop_new.try_into().unwrap(),
@@ -232,7 +232,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
-        debug_desktop(&desktop, "Desktop wallpaper changed");
         (self.sender)(DesktopEvent::DesktopWallpaperChanged(
             desktop.try_into().unwrap(),
             name.to_string(),
@@ -245,7 +244,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         monitors: ComIn<IObjectArray>,
         desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
-        debug_desktop(&desktop, "Desktop created");
         (self.sender)(DesktopEvent::DesktopCreated(desktop.try_into().unwrap()));
         HRESULT(0)
     }
@@ -257,7 +255,9 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         // Desktop destroyed is not anymore in the stack
+        #[cfg(debug_assertions)]
         debug_desktop(&desktop_destroyed, "Desktop destroy begin");
+        #[cfg(debug_assertions)]
         debug_desktop(&desktop_fallback, "Desktop destroy fallback");
         HRESULT(0)
     }
@@ -278,20 +278,15 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         // Desktop destroyed is not anymore in the stack
-        debug_desktop(&desktop_destroyed, "Desktop destroyed");
-        debug_desktop(&desktop_fallback, "Desktop destroyed fallback");
-        (self.sender)(DesktopEvent::DesktopDestroyed(
-            desktop_destroyed.try_into().unwrap(),
-        ));
+        (self.sender)(DesktopEvent::DesktopDestroyed {
+            destroyed: desktop_destroyed.try_into().unwrap(),
+            fallback: desktop_fallback.try_into().unwrap(),
+        });
         HRESULT(0)
     }
 
     unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT {
-        #[cfg(debug_assertions)]
-        log_output(&format!(
-            "Desktop is per monitor changed: {}",
-            is_per_monitor != 0
-        ));
+        log_format!("Desktop is per monitor changed: {}", is_per_monitor != 0);
 
         HRESULT(0)
     }
@@ -303,7 +298,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         old_index: i64,
         new_index: i64,
     ) -> HRESULT {
-        debug_desktop(&desktop, "Desktop moved");
         (self.sender)(DesktopEvent::DesktopMoved {
             desktop: desktop.try_into().unwrap(),
             old_index,
@@ -317,7 +311,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
-        debug_desktop(&desktop, "Desktop renamed");
         (self.sender)(DesktopEvent::DesktopNameChanged(
             desktop.try_into().unwrap(),
             name.to_string(),
@@ -328,10 +321,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
     unsafe fn view_virtual_desktop_changed(&self, view: IApplicationView) -> HRESULT {
         let mut hwnd = HWND::default();
         view.get_thumbnail_window(&mut hwnd);
-
-        #[cfg(debug_assertions)]
-        log_output(&format!("View in desktop changed, HWND {:?}", hwnd));
-
         (self.sender)(DesktopEvent::WindowChanged(hwnd));
         HRESULT(0)
     }
@@ -340,7 +329,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{get_current_desktop, switch_desktop};
+    use crate::{create_event_thread, get_current_desktop, switch_desktop};
     use std::time::Duration;
 
     #[derive(Debug, Clone)]
@@ -353,6 +342,15 @@ mod tests {
     impl From<DesktopEvent> for MainLoopEvents {
         fn from(event: DesktopEvent) -> Self {
             MainLoopEvents::DesktopEvent(event)
+        }
+    }
+
+    #[test]
+    fn test_drop() {
+        let (tx, rx) = crossbeam_channel::unbounded::<MainLoopEvents>();
+
+        for _ in 0..100 {
+            create_event_thread(tx.clone());
         }
     }
 
@@ -378,7 +376,13 @@ mod tests {
     fn test_switch_desktops_rapidly() {
         println!("Test thread is {:?}", std::thread::current().id());
         let (tx, rx) = crossbeam_channel::unbounded::<DesktopEvent>();
-        let notifications_thread = DesktopEventThread::new(DesktopEventSender::Crossbeam(tx));
+        std::thread::spawn(|| {
+            for item in rx {
+                println!("Received {:?}", item);
+            }
+        });
+
+        let _notifications_thread = DesktopEventThread::new(DesktopEventSender::Crossbeam(tx));
         let current_desktop = get_current_desktop().unwrap();
 
         for _ in 0..5 {
@@ -390,11 +394,7 @@ mod tests {
         // Finally return to same desktop we were
         std::thread::sleep(Duration::from_millis(13));
         switch_desktop(current_desktop).unwrap();
-        std::thread::sleep(Duration::from_millis(13));
-
-        for item in rx {
-            println!("Received {:?}", item);
-        }
+        std::thread::sleep(Duration::from_millis(1000));
 
         println!("End of program");
     }

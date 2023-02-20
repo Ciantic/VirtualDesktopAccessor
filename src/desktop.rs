@@ -10,9 +10,31 @@ use windows::{
 
 use super::comobjects::*;
 
-/// You can construct Desktop instance with `get_desktop` by index or GUID.
+/// You can construct Desktop instance with `get_desktop(5)` by index or GUID.
 #[derive(Copy, Clone, Debug)]
 pub struct Desktop(DesktopInternal);
+
+impl Eq for Desktop {}
+
+impl PartialEq for Desktop {
+    fn eq(&self, other: &Self) -> bool {
+        let a = self.0;
+        let b = other.0;
+        match (&a, &b) {
+            (DesktopInternal::Index(a), DesktopInternal::Index(b)) => a == b,
+            (DesktopInternal::Guid(a), DesktopInternal::Guid(b)) => a == b,
+            (DesktopInternal::IndexGuid(a, b), DesktopInternal::IndexGuid(c, d)) => {
+                a == c && b == d
+            }
+            (DesktopInternal::Index(a), DesktopInternal::IndexGuid(b, _)) => a == b,
+            (DesktopInternal::IndexGuid(a, _), DesktopInternal::Index(b)) => a == b,
+            (DesktopInternal::Guid(a), DesktopInternal::IndexGuid(_, b)) => a == b,
+            (DesktopInternal::IndexGuid(_, a), DesktopInternal::Guid(b)) => a == b,
+            _ => with_com_objects(move |f| Ok(f.get_desktop_id(&a)? == f.get_desktop_id(&b)?))
+                .unwrap_or(false),
+        }
+    }
+}
 
 unsafe impl Send for Desktop {}
 unsafe impl Sync for Desktop {}
@@ -65,10 +87,6 @@ impl<'a> TryFrom<ComIn<'a, IVirtualDesktop>> for Desktop {
     }
 }
 impl Desktop {
-    pub fn try_eq(&self, other: &Desktop) -> Result<bool> {
-        self.0.try_eq(&other.0)
-    }
-
     /// Get the GUID of the desktop
     pub fn get_id(&self) -> Result<GUID> {
         let internal = self.0.clone();

@@ -1,7 +1,55 @@
 use std::{thread, time::Duration};
+use winit::{
+    event::{self, Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
+    window::WindowBuilder,
+};
 use winvd::*;
 
+#[derive(Clone, Debug)]
+enum Events {
+    MyEvent1,
+    DesktopEvent(DesktopEvent),
+}
+
+// From DesktopEvent
+impl From<DesktopEvent> for Events {
+    fn from(e: DesktopEvent) -> Self {
+        Events::DesktopEvent(e)
+    }
+}
+
 fn main() {
+    let event_loop = EventLoopBuilder::<Events>::with_user_event().build();
+    let your_app_window = WindowBuilder::new().build(&event_loop).unwrap();
+
+    let proxy = event_loop.create_proxy();
+    let _thread = create_event_thread(proxy);
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            // Main window events
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == your_app_window.id() => *control_flow = ControlFlow::Exit,
+
+            // User events
+            Event::UserEvent(e) => match e {
+                Events::MyEvent1 => {
+                    println!("MyEvent1");
+                }
+                Events::DesktopEvent(e) => {
+                    println!("DesktopEvent: {:?}", e);
+                }
+            },
+            _ => (),
+        }
+    });
+
+    /*
     // Desktop count
     let desktops = get_desktop_count().unwrap();
     println!("Desktops {:?}", desktops);
@@ -33,4 +81,5 @@ fn main() {
 
     println!("Press enter key to close...");
     std::io::stdin().read_line(&mut String::new()).unwrap();
+    */
 }

@@ -8,17 +8,12 @@ use super::interfaces::*;
 use super::Result;
 use std::convert::TryFrom;
 use std::rc::Rc;
-use std::rc::Weak;
 use std::{cell::RefCell, ffi::c_void};
 use windows::Win32::Foundation::HWND;
-use windows::Win32::System::Com::CoIncrementMTAUsage;
 use windows::Win32::System::Com::CoInitializeEx;
 use windows::Win32::System::Com::CoUninitialize;
 use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
-use windows::Win32::System::Com::COINIT;
 use windows::Win32::System::Com::COINIT_APARTMENTTHREADED;
-use windows::Win32::System::Com::COINIT_MULTITHREADED;
-use windows::Win32::System::Com::CO_MTA_USAGE_COOKIE;
 use windows::{
     core::{Interface, Vtable, GUID, HSTRING},
     Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
@@ -100,10 +95,11 @@ impl Drop for ComSta {
 type ComFn = Box<dyn Fn(&ComObjects) + Send + 'static>;
 
 static WORKER_CHANNEL: once_cell::sync::Lazy<(
-    crossbeam_channel::Sender<ComFn>,
+    std::sync::mpsc::SyncSender<ComFn>,
     std::thread::JoinHandle<()>,
 )> = once_cell::sync::Lazy::new(|| {
-    let (sender, receiver) = crossbeam_channel::unbounded::<ComFn>();
+    // TODO: Is rendezvous channel correct here? (0 = rendezvous channel)
+    let (sender, receiver) = std::sync::mpsc::sync_channel::<ComFn>(0);
     (
         sender,
         std::thread::spawn(move || {
@@ -171,32 +167,6 @@ pub enum DesktopInternal {
     Index(u32),
     Guid(GUID),
     IndexGuid(u32, GUID),
-}
-unsafe impl Send for DesktopInternal {}
-unsafe impl Sync for DesktopInternal {}
-
-// Impl equality for DesktopInternal
-impl DesktopInternal {
-    pub fn try_eq(&self, other: &Self) -> Result<bool> {
-        match (self, other) {
-            (DesktopInternal::Index(a), DesktopInternal::Index(b)) => Ok(a == b),
-            (DesktopInternal::Guid(a), DesktopInternal::Guid(b)) => Ok(a == b),
-            (DesktopInternal::IndexGuid(a, b), DesktopInternal::IndexGuid(c, d)) => {
-                Ok(a == c && b == d)
-            }
-            (DesktopInternal::Index(a), DesktopInternal::IndexGuid(b, _)) => Ok(a == b),
-            (DesktopInternal::IndexGuid(a, _), DesktopInternal::Index(b)) => Ok(a == b),
-            (DesktopInternal::Guid(a), DesktopInternal::IndexGuid(_, b)) => Ok(a == b),
-            (DesktopInternal::IndexGuid(_, a), DesktopInternal::Guid(b)) => Ok(a == b),
-            _ => {
-                let self_ = self.clone();
-                let other_ = other.clone();
-                with_com_objects(move |f| {
-                    Ok(f.get_desktop_id(&self_)? == f.get_desktop_id(&other_)?)
-                })
-            }
-        }
-    }
 }
 
 // Impl from u32 to DesktopTest
@@ -622,9 +592,8 @@ impl ComObjects {
     }
 
     pub fn is_window_on_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<bool> {
-        self.get_desktop_by_window(window)
-            .map(|id| id.try_eq(&desktop))?
-            .or(Ok(false))
+        let desktop_win = self.get_desktop_by_window(window)?;
+        Ok(self.get_desktop_id(&desktop_win)? == self.get_desktop_id(&*desktop)?)
     }
 
     pub fn is_window_on_current_desktop(&self, window: &HWND) -> Result<bool> {
