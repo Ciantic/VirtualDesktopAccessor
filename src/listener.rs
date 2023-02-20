@@ -25,7 +25,7 @@ use crate::{DesktopEvent, Result};
 
 const WM_USER_QUIT: u32 = WM_USER + 0x10;
 
-/// Event listener thread, create with `create_event_thread(sender)`, value must be held in the state of the program, the thread is joined when the value is dropped.
+/// Event listener thread, create with `create_desktop_event_thread(sender)`, value must be held in the state of the program, the thread is joined when the value is dropped.
 pub struct DesktopEventThread {
     windows_thread_id: Option<u32>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -329,7 +329,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{create_event_thread, get_current_desktop, switch_desktop};
+    use crate::{create_desktop_event_thread, get_current_desktop, switch_desktop};
     use std::time::Duration;
 
     #[derive(Debug, Clone)]
@@ -350,7 +350,7 @@ mod tests {
         let (tx, rx) = crossbeam_channel::unbounded::<MainLoopEvents>();
 
         for _ in 0..100 {
-            create_event_thread(tx.clone());
+            create_desktop_event_thread(tx.clone());
         }
     }
 

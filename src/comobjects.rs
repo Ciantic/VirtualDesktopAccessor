@@ -616,16 +616,12 @@ impl ComObjects {
         self.move_view_to_desktop(&view, desktop)
     }
 
-    // pub fn get_desktop<T>(&self, desktop: T) -> Desktop
-    // where
-    //     T: Into<Desktop>,
-    // {
-    //     desktop.into()
-    // }
-
     pub fn get_desktop_count(&self) -> Result<u32> {
-        let desktops = self.get_idesktops_array()?;
-        let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+        let manager = self.get_manager_internal()?;
+        let mut count = 0;
+        unsafe {
+            manager.get_desktop_count(0, &mut count).as_result()?;
+        };
         Ok(count)
     }
 

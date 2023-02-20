@@ -96,7 +96,7 @@ pub enum DesktopEvent {
 }
 
 /// Create event sending thread, give this crossbeam, winit eventloop proxy or std mpsc sender
-pub fn create_event_thread<T, S>(sender: S) -> DesktopEventThread
+pub fn create_desktop_event_thread<T, S>(sender: S) -> DesktopEventThread
 where
     T: From<DesktopEvent> + Clone + Send + 'static,
     S: Into<DesktopEventSender<T>> + Clone,
