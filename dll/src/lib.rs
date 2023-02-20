@@ -1,11 +1,18 @@
+#![allow(non_snake_case)]
+
 use once_cell::sync::Lazy;
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     ffi::{CStr, CString},
     sync::{Arc, Mutex},
-    thread,
 };
-use windows::{core::GUID, Win32::Foundation::HWND};
+use windows::{
+    core::GUID,
+    Win32::{
+        Foundation::{HWND, LPARAM, WPARAM},
+        UI::WindowsAndMessaging::PostMessageW,
+    },
+};
 use winvd::*;
 
 type HWND_ = u32;
@@ -96,16 +103,48 @@ pub extern "C" fn GetDesktopName(
     }
 }
 
-static LISTENER_HWNDS: Lazy<Arc<Mutex<HashMap<HWND_, u32>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+static LISTENER_HWNDS: Lazy<Arc<Mutex<HashSet<HWND_>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashSet::new())));
+
+static SENDER_THREAD: Lazy<Arc<Mutex<Option<(DesktopEventThread, std::thread::JoinHandle<()>)>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(None)));
 
 #[no_mangle]
 pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) {
-    let mut a = LISTENER_HWNDS.lock().unwrap();
-
-    // !! TODO: START A LISTENER
-
-    a.insert(listener_hwnd.0 as u32, message_offset);
+    {
+        let mut a = LISTENER_HWNDS.lock().unwrap();
+        a.insert(listener_hwnd.0 as u32);
+    }
+    {
+        let mut a = SENDER_THREAD.lock().unwrap();
+        let (tx, rx) = crossbeam_channel::unbounded::<DesktopEvent>();
+        if a.is_none() {
+            log_format!("RegisterPostMessageHook: create new threads");
+            let listener_thread = std::thread::spawn(move || {
+                for item in rx {
+                    match item {
+                        DesktopEvent::DesktopChanged { new, old } => {
+                            let new_index = new.get_index().unwrap_or(0);
+                            let old_index = old.get_index().unwrap_or(0);
+                            let a = LISTENER_HWNDS.lock().unwrap();
+                            for hwnd in a.iter() {
+                                unsafe {
+                                    PostMessageW(
+                                        HWND(*hwnd as isize),
+                                        message_offset,
+                                        WPARAM(old_index as usize),
+                                        LPARAM(new_index as isize),
+                                    );
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+            });
+            *a = Some((create_desktop_event_thread(tx), listener_thread));
+        }
+    }
 }
 
 #[no_mangle]
@@ -113,7 +152,12 @@ pub extern "C" fn UnregisterPostMessageHook(listener_hwnd: HWND) {
     let mut a = LISTENER_HWNDS.lock().unwrap();
     a.remove(&(listener_hwnd.0 as u32));
     if a.len() == 0 {
-        // !! TODO: DROP A LISTENER
+        let mut a = SENDER_THREAD.lock().unwrap();
+        if let Some((mut sender_thread, listener_thread)) = a.take() {
+            // By joining sender thread first it ensures the listener thread finishes when joined
+            sender_thread.stop().unwrap();
+            listener_thread.join().unwrap();
+        }
     }
 }
 #[no_mangle]
@@ -167,10 +211,32 @@ pub extern "C" fn RestartVirtualDesktopAccessor() {
     // ?
 }
 
-#[link(name = "User32")]
+#[cfg(debug_assertions)]
 extern "system" {
-    pub fn PostMessageW(inOptHwnd: HWND, inMsg: u32, inWParam: u32, inLParam: i32) -> bool;
-    pub fn SendMessageA(inOptHwnd: HWND, inMsg: u32, inWParam: u32, inLParam: i32) -> bool;
+    fn OutputDebugStringW(lpOutputString: windows::core::PCWSTR);
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn log_output(s: &str) {
+    unsafe {
+        println!("{}", s);
+        let notepad = format!("{}\0", s).encode_utf16().collect::<Vec<_>>();
+        let pw = windows::core::PCWSTR::from_raw(notepad.as_ptr());
+        OutputDebugStringW(pw);
+    }
+}
+
+#[cfg(not(debug_assertions))]
+#[inline]
+pub(crate) fn log_output(_s: &str) {}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! log_format {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        $crate::log_output(&format!($($arg)*));
+    };
 }
 
 #[cfg(test)]

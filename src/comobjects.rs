@@ -14,6 +14,9 @@ use windows::Win32::System::Com::CoInitializeEx;
 use windows::Win32::System::Com::CoUninitialize;
 use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
 use windows::Win32::System::Com::COINIT_APARTMENTTHREADED;
+use windows::Win32::System::Threading::GetCurrentThread;
+use windows::Win32::System::Threading::SetThreadPriority;
+use windows::Win32::System::Threading::THREAD_PRIORITY_TIME_CRITICAL;
 use windows::{
     core::{Interface, Vtable, GUID, HSTRING},
     Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
@@ -103,6 +106,9 @@ static WORKER_CHANNEL: once_cell::sync::Lazy<(
     (
         sender,
         std::thread::spawn(move || {
+            // Set thread priority to time critical, explorer.exe really hates if your listener thread is slow
+            unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
+
             let com = ComObjects::new();
             for f in receiver {
                 f(&com);
@@ -773,8 +779,6 @@ pub fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     #[test]
     fn test_com_objects_non_thread_local() {
         let com_objects = super::ComObjects::new();

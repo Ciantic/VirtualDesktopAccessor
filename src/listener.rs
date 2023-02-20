@@ -1,27 +1,26 @@
-use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::pin::Pin;
-use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
-use std::{cell::RefCell, rc::Rc};
 
-use once_cell::sync::Lazy;
-use windows::core::{IUnknown, IUnknownImpl, GUID, HSTRING};
-use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-use windows::Win32::System::Threading::GetCurrentThreadId;
+use windows::core::{GUID, HSTRING};
+use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, WPARAM};
+use windows::Win32::System::Threading::{
+    GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
+};
 use windows::Win32::UI::Shell::Common::IObjectArray;
 use windows::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, GetMessageW, PostQuitMessage, PostThreadMessageW, SetTimer, TranslateMessage,
-    MSG, TIMERPROC, WM_TIMER, WM_USER,
+    MSG, WM_TIMER, WM_USER,
 };
 
+use crate::comobjects::ComObjects;
 use crate::hresult::HRESULT;
 use crate::interfaces::{
     ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
-use crate::{comobjects::*, log_format, log_output};
-use crate::{Desktop, DesktopEventSender};
+use crate::DesktopEventSender;
+use crate::{log_format, log_output};
 use crate::{DesktopEvent, Result};
 
 const WM_USER_QUIT: u32 = WM_USER + 0x10;
@@ -45,9 +44,14 @@ impl DesktopEventThread {
         let notification_thread = std::thread::spawn(move || {
             log_format!("Listener thread started {:?}", std::thread::current().id());
 
+            let win_thread_id = unsafe { GetCurrentThreadId() };
+
             // Send the Windows specific thread id to the main thread
-            tx.send(unsafe { GetCurrentThreadId() }).unwrap();
+            tx.send(win_thread_id).unwrap();
             drop(tx);
+
+            // Set thread priority to time critical, explorer.exe really hates if your listener thread is slow
+            unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
 
             // Set a timer to check if the listener is still alive
             unsafe {
@@ -56,6 +60,7 @@ impl DesktopEventThread {
 
             let com_objects = ComObjects::new();
             loop {
+                log_output("Try to create listener service...");
                 let mut quit = false;
                 let sender_new = sender.clone();
                 let listener = VirtualDesktopNotificationWrapper::new(
@@ -78,22 +83,25 @@ impl DesktopEventThread {
                 // STA message loop
                 let mut msg = MSG::default();
                 unsafe {
-                    while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
+                    loop {
+                        let continuation = GetMessageW(&mut msg, HWND::default(), 0, 0);
+                        if (continuation.0 == 0) || (continuation.0 == -1) {
+                            break;
+                        }
+
                         if msg.message == WM_USER_QUIT {
                             quit = true;
                             PostQuitMessage(0);
                         } else if msg.message == WM_TIMER {
-                            // If com objects aren't connected anymore, drop them
+                            // If com objects aren't connected anymore, drop them and recreate
                             if !com_objects.is_connected() {
-                                log_output("Not alive, restarting");
+                                log_output("Listener is not connected, restarting...");
                                 com_objects.drop_services();
                                 TranslateMessage(&msg);
                                 DispatchMessageW(&msg);
 
                                 // Break out of the while message loop, and restart the listener
                                 break;
-                            } else {
-                                log_output("Is alive");
                             }
                         }
                         TranslateMessage(&msg);
@@ -121,9 +129,9 @@ impl DesktopEventThread {
         }
     }
 
-    /// Join the thread, if it is still running, normally you don't need to call
-    /// this as drop calls this automatically
-    pub fn join(&mut self) -> std::thread::Result<()> {
+    /// Stops the listener, and join the thread if it is still running, normally
+    /// you don't need to call this as drop calls this automatically
+    pub fn stop(&mut self) -> std::thread::Result<()> {
         if let Some(thread_id) = self.windows_thread_id.take() {
             log_output("Stopping listener thread");
             unsafe {
@@ -145,7 +153,7 @@ impl DesktopEventThread {
 
 impl Drop for DesktopEventThread {
     fn drop(&mut self) {
-        self.join().unwrap();
+        self.stop().unwrap();
     }
 }
 

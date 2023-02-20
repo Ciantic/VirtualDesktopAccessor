@@ -21,17 +21,18 @@ pub use events::*;
 pub use listener::DesktopEventThread;
 pub type Result<T> = std::result::Result<T, Error>;
 
-// Import OutputDebugStringA
 #[cfg(debug_assertions)]
 extern "system" {
-    fn OutputDebugStringA(lpOutputString: *const i8);
+    fn OutputDebugStringW(lpOutputString: windows::core::PCWSTR);
 }
 
 #[cfg(debug_assertions)]
 pub(crate) fn log_output(s: &str) {
     unsafe {
         println!("{}", s);
-        OutputDebugStringA(s.as_ptr() as *const i8);
+        let notepad = format!("{}\0", s).encode_utf16().collect::<Vec<_>>();
+        let pw = windows::core::PCWSTR::from_raw(notepad.as_ptr());
+        OutputDebugStringW(pw);
     }
 }
 
@@ -101,8 +102,8 @@ mod tests {
                         );
                     }
                     if count == 3 {
-                        // Joining the notification thread drops the sender, and iteration ends
-                        _notifications_thread.join().unwrap();
+                        // Stopping the notification thread drops the sender, and iteration ends
+                        _notifications_thread.stop().unwrap();
                     }
                 }
                 count
@@ -346,8 +347,8 @@ mod tests {
             for _ in 0..555 {
                 threads.push(std::thread::spawn(|| {
                     get_desktops().unwrap().iter().for_each(|d| {
-                        let n = d.get_name().unwrap();
-                        let i = d.get_index().unwrap();
+                        let _n = d.get_name().unwrap();
+                        let _i = d.get_index().unwrap();
                         // println!("Thread {n} {i} {:?}", std::thread::current().id());
                     })
                 }));
@@ -404,7 +405,7 @@ mod tests {
                 let mut count = 0;
                 for item in rx {
                     println!("{:?}", item);
-                    if let DesktopEvent::DesktopChanged { new, old } = item {
+                    if let DesktopEvent::DesktopChanged { new: _, old: _ } = item {
                         count += 1;
                     }
                 }
@@ -448,7 +449,7 @@ mod tests {
                 let mut count = 0;
                 for item in rx {
                     // println!("{:?}", item);
-                    if let DesktopEvent::DesktopChanged { new, old } = item {
+                    if let DesktopEvent::DesktopChanged { new: _, old: _ } = item {
                         count += 1;
                     }
                     if (count % 100) == 0 {
@@ -456,7 +457,7 @@ mod tests {
                     }
                     if count == 1999 {
                         // This should stop the loop
-                        _notifications_thread.join().unwrap();
+                        _notifications_thread.stop().unwrap();
                     }
                 }
 

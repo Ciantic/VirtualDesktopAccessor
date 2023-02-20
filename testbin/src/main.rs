@@ -1,26 +1,27 @@
-use std::{thread, time::Duration};
 use winit::{
-    event::{self, Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
 use winvd::*;
 
 #[derive(Clone, Debug)]
-enum Events {
+enum MyCustomEvents {
+    #[allow(dead_code)]
     MyEvent1,
+
     DesktopEvent(DesktopEvent),
 }
 
 // From DesktopEvent
-impl From<DesktopEvent> for Events {
+impl From<DesktopEvent> for MyCustomEvents {
     fn from(e: DesktopEvent) -> Self {
-        Events::DesktopEvent(e)
+        MyCustomEvents::DesktopEvent(e)
     }
 }
 
 fn main() {
-    let event_loop = EventLoopBuilder::<Events>::with_user_event().build();
+    let event_loop = EventLoopBuilder::<MyCustomEvents>::with_user_event().build();
     let your_app_window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let proxy = event_loop.create_proxy();
@@ -38,10 +39,10 @@ fn main() {
 
             // User events
             Event::UserEvent(e) => match e {
-                Events::MyEvent1 => {
+                MyCustomEvents::MyEvent1 => {
                     println!("MyEvent1");
                 }
-                Events::DesktopEvent(e) => {
+                MyCustomEvents::DesktopEvent(e) => {
                     println!("DesktopEvent: {:?}", e);
                 }
             },

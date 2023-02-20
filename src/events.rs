@@ -2,7 +2,7 @@ use crate::Desktop;
 use crate::DesktopEventThread;
 use windows::Win32::Foundation::HWND;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum DesktopEventSender<T>
 where
     T: 'static,

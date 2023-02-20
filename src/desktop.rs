@@ -1,12 +1,9 @@
 use super::{
-    interfaces::{ComIn, IVirtualDesktop, IVirtualDesktopManagerInternal},
+    interfaces::{ComIn, IVirtualDesktop},
     *,
 };
-use std::{convert::TryFrom, fmt::Debug, rc::Rc};
-use windows::{
-    core::{GUID, HSTRING},
-    Win32::Foundation::HWND,
-};
+use std::{convert::TryFrom, fmt::Debug};
+use windows::{core::GUID, Win32::Foundation::HWND};
 
 use super::comobjects::*;
 
