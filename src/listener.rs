@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::pin::Pin;
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
@@ -69,6 +70,8 @@ impl DesktopEventThread {
                         "Listener service could not be created, retrying in three seconds {:?}",
                         er
                     );
+                    std::thread::sleep(Duration::from_secs(3));
+                    continue;
                 }
 
                 // STA message loop
@@ -78,16 +81,16 @@ impl DesktopEventThread {
                         if msg.message == WM_USER_QUIT {
                             quit = true;
                             PostQuitMessage(0);
-                        }
-
-                        if msg.message == WM_TIMER {
+                        } else if msg.message == WM_TIMER {
                             // If com objects aren't connected anymore, drop them
                             if !com_objects.is_connected() {
                                 log_output("Not alive, restarting");
                                 com_objects.drop_services();
+                                TranslateMessage(&msg);
+                                DispatchMessageW(&msg);
 
-                                // TODO: THIS IS DEEPLY WRONG
-                                PostQuitMessage(0);
+                                // Break out of the while message loop, and restart the listener
+                                break;
                             } else {
                                 log_output("Is alive");
                             }
@@ -95,7 +98,9 @@ impl DesktopEventThread {
                         TranslateMessage(&msg);
                         DispatchMessageW(&msg);
                     }
+
                     if quit {
+                        // Break out of the loop, and drop the listener
                         break;
                     }
                 }
@@ -323,79 +328,5 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         view.get_thumbnail_window(&mut hwnd);
         (self.sender)(DesktopEvent::WindowChanged(hwnd));
         HRESULT(0)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{create_desktop_event_thread, get_current_desktop, switch_desktop};
-    use std::time::Duration;
-
-    #[derive(Debug, Clone)]
-    enum MainLoopEvents {
-        SomeOtherEvent(String),
-        DesktopEvent(DesktopEvent),
-    }
-
-    // Imp from DesktopEvent
-    impl From<DesktopEvent> for MainLoopEvents {
-        fn from(event: DesktopEvent) -> Self {
-            MainLoopEvents::DesktopEvent(event)
-        }
-    }
-
-    #[test]
-    fn test_drop() {
-        let (tx, rx) = crossbeam_channel::unbounded::<MainLoopEvents>();
-
-        for _ in 0..100 {
-            create_desktop_event_thread(tx.clone());
-        }
-    }
-
-    #[test]
-    fn test_listener_manual() {
-        println!("Test thread is {:?}", std::thread::current().id());
-        let (tx, rx) = crossbeam_channel::unbounded::<MainLoopEvents>();
-        let notifications_thread = DesktopEventThread::new(DesktopEventSender::Crossbeam(tx));
-
-        std::thread::spawn(|| {
-            for item in rx {
-                println!("Received {:?}", item);
-            }
-        });
-
-        // Wait for keypress
-        println!("⛔ Press enter to stop");
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
-    }
-
-    #[test]
-    fn test_switch_desktops_rapidly() {
-        println!("Test thread is {:?}", std::thread::current().id());
-        let (tx, rx) = crossbeam_channel::unbounded::<DesktopEvent>();
-        std::thread::spawn(|| {
-            for item in rx {
-                println!("Received {:?}", item);
-            }
-        });
-
-        let _notifications_thread = DesktopEventThread::new(DesktopEventSender::Crossbeam(tx));
-        let current_desktop = get_current_desktop().unwrap();
-
-        for _ in 0..5 {
-            switch_desktop(0).unwrap();
-            // std::thread::sleep(Duration::from_millis(4));
-            switch_desktop(1).unwrap();
-        }
-
-        // Finally return to same desktop we were
-        std::thread::sleep(Duration::from_millis(13));
-        switch_desktop(current_desktop).unwrap();
-        std::thread::sleep(Duration::from_millis(1000));
-
-        println!("End of program");
     }
 }

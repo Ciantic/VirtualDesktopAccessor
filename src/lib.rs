@@ -49,72 +49,29 @@ macro_rules! log_format {
     };
 }
 
+#[cfg(feature = "integration-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
     use once_cell::sync::Lazy;
-    use std::sync::{Mutex, Once};
+    use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
 
-    static INIT: Once = Once::new();
+    static SEMAPHORE: Lazy<Arc<Mutex<u32>>> = Lazy::new(|| Arc::new(Mutex::new(0)));
 
     // Run the tests synchronously
-    fn sync_test<T>(test: T)
+    pub fn sync_test<T>(test: T)
     where
         T: FnOnce() -> (),
     {
-        static SEMAPHORE: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-        // !! TODO: Start a listener
-
-        let _t = SEMAPHORE.lock().unwrap();
-        test()
-    }
-
-    #[test]
-    fn test_threads() {
-        sync_test(|| {
-            std::thread::spawn(|| {
-                // let get_count = || {
-                //     get_desktop_count().unwrap();
-                // };
-                let mut threads = vec![];
-                for _ in 0..555 {
-                    threads.push(std::thread::spawn(|| {
-                        get_desktops().unwrap().iter().for_each(|d| {
-                            let n = d.get_name().unwrap();
-                            let i = d.get_index().unwrap();
-                            println!("Thread {n} {i} {:?}", std::thread::current().id());
-                        })
-                    }));
-                }
-                thread::sleep(Duration::from_millis(2500));
-                for t in threads {
-                    t.join().unwrap();
-                }
-            })
-            .join()
-            .unwrap();
-        })
-    }
-
-    #[test] // TODO: Commented out, use only on occasion when needed!
-    fn test_threading_two() {
-        sync_test(|| {
-            let current_desktop = get_current_desktop().unwrap();
-
-            for _ in 0..999 {
-                switch_desktop(0).unwrap();
-                // std::thread::sleep(Duration::from_millis(4));
-                switch_desktop(1).unwrap();
-            }
-            std::thread::sleep(Duration::from_millis(15));
-            switch_desktop(current_desktop).unwrap();
-        })
+        let mut tests_ran = SEMAPHORE.lock().unwrap();
+        test();
+        *tests_ran += 1;
+        drop(tests_ran);
     }
 
     #[test]
@@ -129,6 +86,29 @@ mod tests {
     fn test_desktop_moves() {
         sync_test(|| {
             let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
+
+            // Listen for desktop changes
+            let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
+            let _notifications_thread = create_desktop_event_thread(tx);
+            let receiver = std::thread::spawn(|| {
+                let mut count = 0;
+                for item in rx {
+                    if let DesktopEvent::DesktopChanged { new, old } = item {
+                        count += 1;
+                        println!(
+                            "Desktop changed from {:?} to {:?} count {}",
+                            old, new, count
+                        );
+                    }
+                    if count == 3 {
+                        break;
+                    }
+                }
+                count
+            });
+
+            // Wait for listener to have started
+            std::thread::sleep(Duration::from_millis(400));
 
             // Go to desktop 0, ensure it worked
             switch_desktop(0).unwrap();
@@ -146,7 +126,9 @@ mod tests {
                 get_current_desktop().unwrap().get_index().unwrap(),
                 current_desktop
             );
-            std::thread::sleep(Duration::from_millis(400));
+
+            // Ensure desktop changed three times
+            assert_eq!(3, receiver.join().unwrap());
         })
     }
 
@@ -299,46 +281,149 @@ mod tests {
     /// Rename first desktop to Foo, and then back to what it was
     #[test]
     fn test_rename_desktop() {
-        let desktops = get_desktops().unwrap();
-        let first_desktop = desktops.get(0).take().unwrap();
-        let first_desktop_name_before = first_desktop.get_name().unwrap();
+        sync_test(|| {
+            let desktops = get_desktops().unwrap();
+            let first_desktop = desktops.get(0).take().unwrap();
+            let first_desktop_name_before = first_desktop.get_name().unwrap();
 
-        // Pre-condition
-        assert_ne!(
-            first_desktop_name_before, "Example Desktop",
-            "Your first desktop must be something else than \"Example Desktop\" to run this test."
-        );
+            // Pre-condition
+            assert_ne!(
+                first_desktop_name_before, "Example Desktop",
+                "Your first desktop must be something else than \"Example Desktop\" to run this test."
+            );
 
-        // Rename
-        first_desktop.set_name("Example Desktop").unwrap();
+            // Rename
+            first_desktop.set_name("Example Desktop").unwrap();
 
-        // Ensure it worked
-        assert_eq!(
-            first_desktop.get_name().unwrap(),
-            "Example Desktop",
-            "Rename failed"
-        );
+            // Ensure it worked
+            assert_eq!(
+                first_desktop.get_name().unwrap(),
+                "Example Desktop",
+                "Rename failed"
+            );
 
-        // Return to normal
-        first_desktop.set_name(&first_desktop_name_before).unwrap();
+            // Return to normal
+            first_desktop.set_name(&first_desktop_name_before).unwrap();
+        })
     }
 
     /// Test some errors
     #[test]
     fn test_errors() {
-        let err = get_desktop(99999).set_name("").unwrap_err();
-        assert_eq!(err, Error::DesktopNotFound);
+        sync_test(|| {
+            // Get notepad
+            let notepad_hwnd = unsafe {
+                let notepad = "notepad\0".encode_utf16().collect::<Vec<_>>();
+                let pw = PCWSTR::from_raw(notepad.as_ptr());
+                FindWindowW(pw, PCWSTR::null())
+            };
 
-        let err = switch_desktop(99999).unwrap_err();
-        assert_eq!(err, Error::DesktopNotFound);
+            let err = get_desktop(99999).set_name("").unwrap_err();
+            assert_eq!(err, Error::DesktopNotFound);
 
-        let err = get_desktop_by_window(HWND(9999999)).unwrap_err();
-        assert_eq!(err, Error::WindowNotFound);
+            let err = switch_desktop(99999).unwrap_err();
+            assert_eq!(err, Error::DesktopNotFound);
 
-        let err = move_window_to_desktop(99999, &HWND::default()).unwrap_err();
-        assert_eq!(err, Error::WindowNotFound);
+            let err = get_desktop_by_window(HWND(9999999)).unwrap_err();
+            assert_eq!(err, Error::WindowNotFound);
 
-        let err = move_window_to_desktop(0, &HWND(999999)).unwrap_err();
-        assert_eq!(err, Error::WindowNotFound);
+            let err = move_window_to_desktop(99999, &notepad_hwnd).unwrap_err();
+            assert_eq!(err, Error::DesktopNotFound);
+
+            let err = move_window_to_desktop(0, &HWND(999999)).unwrap_err();
+            assert_eq!(err, Error::WindowNotFound);
+        });
+    }
+
+    #[test]
+    fn test_threads() {
+        sync_test(|| {
+            // let get_count = || {
+            //     get_desktop_count().unwrap();
+            // };
+            let mut threads = vec![];
+            for _ in 0..555 {
+                threads.push(std::thread::spawn(|| {
+                    get_desktops().unwrap().iter().for_each(|d| {
+                        let n = d.get_name().unwrap();
+                        let i = d.get_index().unwrap();
+                        // println!("Thread {n} {i} {:?}", std::thread::current().id());
+                    })
+                }));
+            }
+            thread::sleep(Duration::from_millis(150));
+            for t in threads {
+                t.join().unwrap();
+            }
+        })
+    }
+
+    #[test]
+    fn test_listener_manual() {
+        // This test can be run only individually
+        let args = std::env::args().collect::<Vec<_>>();
+        if !args.contains(&"tests::test_listener_manual".to_owned()) {
+            return;
+        }
+        sync_test(|| {
+            let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
+            let _notifications_thread = create_desktop_event_thread(tx);
+
+            std::thread::spawn(|| {
+                for item in rx {
+                    println!("{:?}", item);
+                }
+            });
+
+            // Wait for keypress
+            println!("⛔ Press enter to stop");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).unwrap();
+        })
+    }
+
+    #[test]
+    fn test_switch_desktops_rapidly_manual() {
+        // This test can be run only individually
+        let args = std::env::args().collect::<Vec<_>>();
+        if !args.contains(&"tests::test_switch_desktops_rapidly_manual".to_owned()) {
+            return;
+        }
+        sync_test(|| {
+            let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
+            let _notifications_thread = create_desktop_event_thread(tx);
+
+            let receiver = std::thread::spawn(|| {
+                let mut count = 0;
+                for item in rx {
+                    // println!("{:?}", item);
+                    if let DesktopEvent::DesktopChanged { new, old } = item {
+                        count += 1;
+                    }
+                    if (count % 100) == 0 {
+                        println!("Count: {}", count);
+                    }
+                    if count >= 1999 {
+                        break;
+                    }
+                }
+                count
+            });
+
+            let current_desktop = get_current_desktop().unwrap();
+
+            for _ in 0..999 {
+                switch_desktop(0).unwrap();
+                // std::thread::sleep(Duration::from_millis(4));
+                switch_desktop(1).unwrap();
+            }
+
+            // Finally return to same desktop we were
+            std::thread::sleep(Duration::from_millis(130));
+            switch_desktop(current_desktop).unwrap();
+
+            receiver.join().unwrap();
+            println!("End of program, starting to drop stuff...");
+        })
     }
 }

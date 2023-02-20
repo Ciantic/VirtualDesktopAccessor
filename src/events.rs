@@ -1,11 +1,5 @@
 use crate::Desktop;
 use crate::DesktopEventThread;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
-use std::pin::Pin;
-use std::sync::{Arc, Condvar, Mutex};
-use std::{cell::RefCell, rc::Rc};
 use windows::Win32::Foundation::HWND;
 
 #[derive(Debug, Clone)]
@@ -95,7 +89,28 @@ pub enum DesktopEvent {
     WindowChanged(HWND),
 }
 
-/// Create event sending thread, give this crossbeam, winit eventloop proxy or std mpsc sender
+/// Create event sending thread, give this `crossbeam_channel::Sender<T>`, `winit::event_loop::EventLoopProxy<T>`, or `std::sync::mpsc::Sender<T>`.
+///
+/// Your message type `T` needs to be convertible to `DesktopEvent`.
+///
+/// This function returns `DesktopEventThread`, you must keep the value alive,
+/// when the value is dropped the listener is closed and thread joined.
+///
+/// # Example
+///
+/// ```rust
+/// let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
+/// let _notifications_thread = create_desktop_event_thread(tx);
+/// // Do with receiver something
+/// for item in rx {
+///    println!("{:?}", item);
+/// }
+/// // When `_notifications_thread` is dropped the thread is joined and listener closed.
+/// ```
+///
+/// Additionally you can pass crossbeam-channel sender, or winit eventloop proxy
+/// to the function.
+///
 pub fn create_desktop_event_thread<T, S>(sender: S) -> DesktopEventThread
 where
     T: From<DesktopEvent> + Clone + Send + 'static,
