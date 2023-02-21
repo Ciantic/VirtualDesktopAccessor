@@ -225,26 +225,6 @@ struct VirtualDesktopNotification {
     sender: Box<dyn Fn(DesktopEvent)>,
 }
 
-#[cfg(debug_assertions)]
-fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
-    let mut gid = GUID::default();
-    unsafe { desktop_new.get_id(&mut gid).panic_if_failed() };
-
-    let name = "";
-
-    // let mut name = HSTRING::new();
-    // unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
-
-    #[cfg(debug_assertions)]
-    log_format!(
-        "{}: {:?} {:?} {:?}",
-        prefix,
-        gid,
-        name.to_string(),
-        std::thread::current().id()
-    );
-}
-
 fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
     let res = func();
     match res {
@@ -307,11 +287,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
-        // Desktop destroyed is not anymore in the stack
-        #[cfg(debug_assertions)]
-        debug_desktop(&desktop_destroyed, "Desktop destroy begin");
-        #[cfg(debug_assertions)]
-        debug_desktop(&desktop_fallback, "Desktop destroy fallback");
         HRESULT(0)
     }
 

@@ -44,13 +44,6 @@ impl HRESULT {
             Ok(())
         }
     }
-
-    #[inline]
-    pub fn panic_if_failed(&self) {
-        if self.failed() {
-            panic!("HRESULT failed: {:?}", self);
-        }
-    }
 }
 
 impl Default for HRESULT {
