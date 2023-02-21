@@ -144,11 +144,13 @@ where
         let mut r = f(c);
         for _ in 0..5 {
             match &r {
-                Err(Error::ClassNotRegistered)
-                | Err(Error::RpcServerNotAvailable)
-                | Err(Error::ComObjectNotConnected) => {
+                Err(er)
+                    if er == &Error::ClassNotRegistered
+                        || er == &Error::RpcServerNotAvailable
+                        || er == &Error::ComObjectNotConnected =>
+                {
                     #[cfg(debug_assertions)]
-                    log_output("Explorer.exe has mostlikely crashed, retry the function");
+                    log_output(&format!("Retry the function after {:?}", er));
 
                     // Explorer.exe has mostlikely crashed, retry the function
                     c.drop_services();
