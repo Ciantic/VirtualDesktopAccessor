@@ -67,7 +67,7 @@ fn main() {
     println!("Desktops: {:?}", get_desktop_count());
 
     // Go to second desktop, index = 1
-    go_to_desktop_number(1).unwrap();
+    go_to_desktop_number(1);
 
     // Listen on interesting events
     // TODO: Document

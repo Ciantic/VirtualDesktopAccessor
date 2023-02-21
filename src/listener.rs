@@ -167,7 +167,12 @@ impl DesktopEventThread {
 
 impl Drop for DesktopEventThread {
     fn drop(&mut self) {
-        self.stop().unwrap();
+        let res = self.stop();
+
+        #[cfg(debug_assertions)]
+        if let Err(err) = res {
+            log_format!("Could not stop listener thread {:?}", err);
+        }
     }
 }
 
@@ -240,6 +245,17 @@ fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
     );
 }
 
+fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
+    let res = func();
+    match res {
+        Ok(v) => Some(v),
+        Err(er) => {
+            log_format!("Error in listener: {:?}", er);
+            None
+        }
+    }
+}
+
 // Allow unused variable warnings
 #[allow(unused_variables)]
 impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
@@ -249,9 +265,11 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop_old: ComIn<IVirtualDesktop>,
         desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
-        (self.sender)(DesktopEvent::DesktopChanged {
-            old: desktop_old.try_into().unwrap(),
-            new: desktop_new.try_into().unwrap(),
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopChanged {
+                old: desktop_old.try_into()?,
+                new: desktop_new.try_into()?,
+            }))
         });
         HRESULT(0)
     }
@@ -261,10 +279,12 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
-        (self.sender)(DesktopEvent::DesktopWallpaperChanged(
-            desktop.try_into().unwrap(),
-            name.to_string(),
-        ));
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopWallpaperChanged(
+                desktop.try_into()?,
+                name.to_string(),
+            )))
+        });
         HRESULT(0)
     }
 
@@ -273,7 +293,11 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         monitors: ComIn<IObjectArray>,
         desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
-        (self.sender)(DesktopEvent::DesktopCreated(desktop.try_into().unwrap()));
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopCreated(
+                desktop.try_into()?,
+            )))
+        });
         HRESULT(0)
     }
 
@@ -307,9 +331,11 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         // Desktop destroyed is not anymore in the stack
-        (self.sender)(DesktopEvent::DesktopDestroyed {
-            destroyed: desktop_destroyed.try_into().unwrap(),
-            fallback: desktop_fallback.try_into().unwrap(),
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopDestroyed {
+                destroyed: desktop_destroyed.try_into()?,
+                fallback: desktop_fallback.try_into()?,
+            }))
         });
         HRESULT(0)
     }
@@ -327,10 +353,12 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         old_index: i64,
         new_index: i64,
     ) -> HRESULT {
-        (self.sender)(DesktopEvent::DesktopMoved {
-            desktop: desktop.try_into().unwrap(),
-            old_index,
-            new_index,
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopMoved {
+                desktop: desktop.try_into()?,
+                old_index,
+                new_index,
+            }))
         });
         HRESULT(0)
     }
@@ -340,10 +368,12 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
-        (self.sender)(DesktopEvent::DesktopNameChanged(
-            desktop.try_into().unwrap(),
-            name.to_string(),
-        ));
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopNameChanged(
+                desktop.try_into()?,
+                name.to_string(),
+            )))
+        });
         HRESULT(0)
     }
 

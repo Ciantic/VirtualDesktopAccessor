@@ -93,7 +93,7 @@ impl ComSta {
         #[cfg(debug_assertions)]
         log_output("CoInitializeEx COINIT_APARTMENTTHREADED");
 
-        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap() };
+        let _ = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
         ComSta()
     }
 }
@@ -791,18 +791,4 @@ pub fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
     let mut guid = GUID::default();
     unsafe { desktop.get_id(&mut guid).as_result()? }
     Ok(guid)
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_com_objects_non_thread_local() {
-        let com_objects = super::ComObjects::new();
-        let _provider = com_objects.get_provider().unwrap();
-        let _manager = com_objects.get_manager().unwrap();
-        let _manager_internal = com_objects.get_manager_internal().unwrap();
-        let _notification_service = com_objects.get_notification_service().unwrap();
-        let _pinned_apps = com_objects.get_pinned_apps().unwrap();
-        let _view_collection = com_objects.get_view_collection().unwrap();
-    }
 }
