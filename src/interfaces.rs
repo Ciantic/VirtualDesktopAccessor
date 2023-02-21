@@ -4,6 +4,7 @@ use windows::{
     core::{IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING},
     Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
+use winit::platform::windows::HMONITOR;
 
 // Idea here is that the cloned ComIn instance lifetime is within the original ComIn instance lifetime
 #[repr(transparent)]
@@ -78,7 +79,6 @@ type PCWSTR = *const WCHAR;
 type PWSTR = *mut WCHAR;
 type ULONGLONG = u64;
 type LONG = i32;
-type HMONITOR = UINT;
 
 type IAsyncCallback = UINT;
 type IImmersiveMonitor = UINT;

@@ -102,7 +102,7 @@ RemoveDesktop(remove_desktop_number, fallback_desktop_number) {
 
 ; SetDesktopName(0, "It works! 🐱")
 
-DllCall(RegisterPostMessageHookProc, "Ptr", A_ScriptHwnd, "Int", 0x1400 + 30)
+DllCall(RegisterPostMessageHookProc, "Ptr", A_ScriptHwnd, "Int", 0x1400 + 30, "Int")
 OnMessage(0x1400 + 30, OnChangeDesktop)
 OnChangeDesktop(wParam, lParam, msg, hwnd) {
     Critical(1)
