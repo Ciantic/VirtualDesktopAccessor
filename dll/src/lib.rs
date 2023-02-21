@@ -15,8 +15,6 @@ use windows::{
 };
 use winvd::*;
 
-type HWND_ = u32;
-
 #[no_mangle]
 pub extern "C" fn GetCurrentDesktopNumber() -> i32 {
     get_current_desktop().map_or(-1, |x| x.get_index().map_or(-1, |x| x as i32))
@@ -110,7 +108,7 @@ static SENDER_THREAD: Lazy<Arc<Mutex<Option<(DesktopEventThread, std::thread::Jo
     Lazy::new(|| Arc::new(Mutex::new(None)));
 
 #[no_mangle]
-pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) {
+pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) -> i32 {
     {
         let mut a = LISTENER_HWNDS.lock().unwrap();
         a.insert(listener_hwnd.0);
@@ -142,8 +140,20 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                     }
                 }
             });
-            *a = Some((create_desktop_event_thread(tx), listener_thread));
+            let create_sender_result = create_desktop_event_thread(tx);
+            match create_sender_result {
+                Ok(sender_thread) => {
+                    *a = Some((sender_thread, listener_thread));
+                    return 1;
+                }
+                Err(er) => {
+                    #[cfg(debug_assertions)]
+                    log::log_output(&format!("RegisterPostMessageHook: {:?}", er));
+                    return -1;
+                }
+            }
         }
+        return 1;
     }
 }
 

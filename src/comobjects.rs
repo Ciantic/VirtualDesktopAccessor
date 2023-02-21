@@ -43,7 +43,10 @@ pub enum Error {
     ClassNotRegistered,
 
     /// Unable to connect to service
-    ServiceNotConnected,
+    RpcServerNotAvailable,
+
+    // Com object not connected
+    ComObjectNotConnected,
 
     /// Some unhandled COM error
     ComError(HRESULT),
@@ -53,24 +56,35 @@ pub enum Error {
     /// usage.
     ComAllocatedNullPtr,
 
-    // Sender error
+    /// Sender error
     SenderError,
+
+    /// Receiver Error
+    ReceiverError,
+
+    /// Listener thread not created
+    ListenerThreadIdNotCreated,
 }
 
-/// Windows Rust API for some reason stores HRESULT as i32, this is a helper to
-/// interpret it as u32.
-///
-/// u32 is more convienient because values like 0x80040154 are searchable,
-/// unlike i32 values which are not common.
-fn map_win_err(er: ::windows::core::Error) -> Error {
-    if er.code().0 == unsafe { std::mem::transmute(0x80040154 as u32) } {
-        return Error::ClassNotRegistered;
+impl From<::windows::core::Error> for Error {
+    fn from(r: ::windows::core::Error) -> Self {
+        let own_result = HRESULT(unsafe { std::mem::transmute(r.code().0) });
+        own_result.as_error()
     }
-    if er.code().0 == unsafe { std::mem::transmute(0x800706BA as u32) } {
-        return Error::ServiceNotConnected;
-    }
+}
 
-    Error::ComError(HRESULT(unsafe { std::mem::transmute(er.code().0) }))
+// From SendError for Error
+impl From<std::sync::mpsc::SendError<ComFn>> for Error {
+    fn from(_: std::sync::mpsc::SendError<ComFn>) -> Self {
+        Error::SenderError
+    }
+}
+
+// From std::sync::mpsc::RecvError for Error
+impl From<std::sync::mpsc::RecvError> for Error {
+    fn from(_: std::sync::mpsc::RecvError) -> Self {
+        Error::ReceiverError
+    }
 }
 
 struct ComSta();
@@ -125,48 +139,42 @@ where
     // Oneshot channel
     let (sender, receiver) = std::sync::mpsc::channel();
 
-    WORKER_CHANNEL
-        .0
-        .send(Box::new(move |c| {
-            // Retry the function up to 5 times if it gives an error
-            let mut r = f(c);
-            for _ in 0..5 {
-                match &r {
-                    Err(Error::ClassNotRegistered) | Err(Error::ServiceNotConnected) => {
-                        #[cfg(debug_assertions)]
-                        log_output("Explorer.exe has mostlikely crashed, retry the function");
+    WORKER_CHANNEL.0.send(Box::new(move |c| {
+        // Retry the function up to 5 times if it gives an error
+        let mut r = f(c);
+        for _ in 0..5 {
+            match &r {
+                Err(Error::ClassNotRegistered)
+                | Err(Error::RpcServerNotAvailable)
+                | Err(Error::ComObjectNotConnected) => {
+                    #[cfg(debug_assertions)]
+                    log_output("Explorer.exe has mostlikely crashed, retry the function");
 
-                        // Explorer.exe has mostlikely crashed, retry the function
-                        c.drop_services();
-                        r = f(c);
-                        continue;
+                    // Explorer.exe has mostlikely crashed, retry the function
+                    c.drop_services();
+                    r = f(c);
+                    continue;
+                }
+                other => {
+                    // Show the error
+                    #[cfg(debug_assertions)]
+                    if let Err(er) = &other {
+                        log_output(&format!("with_com_objects failed with {:?}", er));
                     }
-                    other => {
-                        // Show the error
-                        #[cfg(debug_assertions)]
-                        if let Err(er) = &other {
-                            log_output(&format!("with_com_objects failed with {:?}", er));
-                        }
 
-                        // Return the Result
-                        break;
-                    }
+                    // Return the Result
+                    break;
                 }
             }
-            sender.send(r).unwrap();
-        }))
-        .unwrap();
+        }
+        let send_result = sender.send(r);
+        if let Err(e) = send_result {
+            #[cfg(debug_assertions)]
+            log_output(&format!("with_com_objects failed to send result {:?}", e));
+        }
+    }))?;
 
-    receiver.recv().unwrap()
-
-    // Naive implementation that causes illegal memory access on rapid threading test
-    //
-    // std::thread::spawn(|| {
-    //     let com = ComObjects::new();
-    //     f(&com)
-    // })
-    // .join()
-    // .unwrap()
+    receiver.recv()?
 }
 
 pub trait ComObjectsAsResult {
@@ -250,8 +258,7 @@ impl ComObjects {
         let mut provider = self.provider.borrow_mut();
         if provider.is_none() {
             let new_provider = Rc::new(unsafe {
-                CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_LOCAL_SERVER)
-                    .map_err(map_win_err)?
+                CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_LOCAL_SERVER)?
             });
             *provider = Some(new_provider);
         }
@@ -395,7 +402,10 @@ impl ComObjects {
     pub(crate) fn is_connected(&self) -> bool {
         // TODO: What is a best way to check if service is connected?
 
-        // Calling any method yields an error  if service is not connected.
+        // Calling any method yields an error if service is not connected.
+        //
+        // I call get_count method, if it's well implemented it should be just
+        // like returning a value, not allocating anything.
         match self.get_manager_internal() {
             Ok(manager_internal) => {
                 let mut out_count = 0;
@@ -407,12 +417,14 @@ impl ComObjects {
                 match res {
                     Ok(_) => true,
                     Err(Error::ClassNotRegistered) => false,
-                    Err(Error::ServiceNotConnected) => false,
+                    Err(Error::RpcServerNotAvailable) => false,
+                    Err(Error::ComObjectNotConnected) => false,
                     Err(_) => true,
                 }
             }
             Err(Error::ClassNotRegistered) => false,
-            Err(Error::ServiceNotConnected) => false,
+            Err(Error::RpcServerNotAvailable) => false,
+            Err(Error::ComObjectNotConnected) => false,
             Err(_) => true,
         }
     }
@@ -424,15 +436,14 @@ impl ComObjects {
                 .get_desktops(0, &mut desktops)
                 .as_result()?
         }
-        Ok(desktops.unwrap())
+        desktops.ok_or(Error::ComAllocatedNullPtr)
     }
 
     fn get_desktop_index_by_guid(&self, id: &GUID) -> Result<u32> {
         let desktops = self.get_idesktops_array()?;
-        let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+        let count = unsafe { desktops.GetCount()? };
         for i in 0..count {
-            let desktop_id: GUID =
-                get_idesktop_guid(&unsafe { desktops.GetAt(i).map_err(map_win_err)? })?;
+            let desktop_id: GUID = get_idesktop_guid(&unsafe { desktops.GetAt(i)? })?;
             if desktop_id == *id {
                 return Ok(i);
             }
@@ -442,22 +453,22 @@ impl ComObjects {
 
     fn get_desktop_guid_by_index(&self, id: u32) -> Result<GUID> {
         let desktops = self.get_idesktops_array()?;
-        let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+        let count = unsafe { desktops.GetCount()? };
         if id >= count {
             return Err(Error::DesktopNotFound);
         }
-        get_idesktop_guid(&unsafe { desktops.GetAt(id).map_err(map_win_err)? })
+        get_idesktop_guid(&unsafe { desktops.GetAt(id)? })
     }
 
     fn get_idesktop(&self, desktop: &DesktopInternal) -> Result<IVirtualDesktop> {
         match desktop {
             DesktopInternal::Index(id) => {
                 let desktops = self.get_idesktops_array()?;
-                let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+                let count = unsafe { desktops.GetCount()? };
                 if *id >= count {
                     return Err(Error::DesktopNotFound);
                 }
-                Ok(unsafe { desktops.GetAt(*id).map_err(map_win_err)? })
+                Ok(unsafe { desktops.GetAt(*id)? })
             }
             DesktopInternal::Guid(id) => {
                 let manager = self.get_manager_internal()?;
@@ -534,10 +545,10 @@ impl ComObjects {
 
     pub fn get_desktops(&self) -> Result<Vec<DesktopInternal>> {
         let desktops = self.get_idesktops_array()?;
-        let count = unsafe { desktops.GetCount().map_err(map_win_err)? };
+        let count = unsafe { desktops.GetCount()? };
         let mut result = Vec::with_capacity(count as usize);
         for i in 0..count {
-            let desktop = unsafe { desktops.GetAt(i).map_err(map_win_err)? };
+            let desktop = unsafe { desktops.GetAt(i)? };
             let id = get_idesktop_guid(&desktop)?;
             result.push(DesktopInternal::IndexGuid(i, id));
         }
@@ -581,7 +592,7 @@ impl ComObjects {
                 .create_desktop(0, &mut desktop)
                 .as_result()?
         }
-        let desktop = desktop.unwrap();
+        let desktop = desktop.ok_or(Error::ComAllocatedNullPtr)?;
         let id = get_idesktop_guid(&desktop)?;
         let index = self.get_desktop_index_by_guid(&id)?;
         Ok(DesktopInternal::IndexGuid(index, id))
@@ -661,7 +672,7 @@ impl ComObjects {
                 .get_current_desktop(0, &mut desktop)
                 .as_result()?
         }
-        let desktop = desktop.unwrap();
+        let desktop = desktop.ok_or(Error::ComAllocatedNullPtr)?;
         let id = get_idesktop_guid(&desktop)?;
         Ok(DesktopInternal::Guid(id))
     }

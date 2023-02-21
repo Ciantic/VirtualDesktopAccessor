@@ -24,15 +24,22 @@ impl HRESULT {
         HRESULT(0)
     }
 
+    pub(crate) fn as_error(&self) -> Error {
+        if self.0 == 0x80040154 {
+            return Error::ClassNotRegistered;
+        }
+        if self.0 == 0x800706BA {
+            return Error::RpcServerNotAvailable;
+        }
+        if self.0 == 0x800401FD {
+            return Error::ComObjectNotConnected;
+        }
+        Error::ComError(self.clone())
+    }
+
     pub fn as_result(&self) -> Result<(), Error> {
         if self.failed() {
-            if self.0 == 0x80040154 {
-                return Err(Error::ClassNotRegistered);
-            }
-            if self.0 == 0x800706BA {
-                return Err(Error::ServiceNotConnected);
-            }
-            Err(Error::ComError(self.clone()))
+            Err(self.as_error())
         } else {
             Ok(())
         }

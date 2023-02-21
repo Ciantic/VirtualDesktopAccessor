@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use windows::core::{GUID, HSTRING};
-use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Threading::{
     GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
 };
@@ -20,8 +20,8 @@ use crate::interfaces::{
     IVirtualDesktopNotification_Impl,
 };
 use crate::log::log_output;
-use crate::DesktopEventSender;
 use crate::{DesktopEvent, Result};
+use crate::{DesktopEventSender, Error};
 
 // Log format macro
 macro_rules! log_format {
@@ -41,7 +41,7 @@ pub struct DesktopEventThread {
 }
 
 impl DesktopEventThread {
-    pub(crate) fn new<T>(sender: DesktopEventSender<T>) -> Self
+    pub(crate) fn new<T>(sender: DesktopEventSender<T>) -> Result<Self>
     where
         T: From<DesktopEvent> + Clone + Send + 'static,
     {
@@ -55,8 +55,12 @@ impl DesktopEventThread {
             let win_thread_id = unsafe { GetCurrentThreadId() };
 
             // Send the Windows specific thread id to the main thread
-            tx.send(win_thread_id).unwrap();
+            let res = tx.send(win_thread_id);
             drop(tx);
+            if let Err(er) = res {
+                log_format!("Could not send thread id to main thread {:?}", er);
+                return;
+            }
 
             // Set thread priority to time critical, explorer.exe really hates if your listener thread is slow
             unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
@@ -127,14 +131,16 @@ impl DesktopEventThread {
         });
 
         // Wait until the thread has started, and sent its Windows specific thread id
-        let win_thread_id = rx.recv().unwrap();
+        let win_thread_id = rx
+            .recv_timeout(Duration::from_secs(1))
+            .map_err(|_| Error::ListenerThreadIdNotCreated)?;
         drop(rx);
 
         // Store the new thread
-        DesktopEventThread {
+        Ok(DesktopEventThread {
             windows_thread_id: Some(win_thread_id),
             thread: Some(notification_thread),
-        }
+        })
     }
 
     /// Stops the listener, and join the thread if it is still running, normally

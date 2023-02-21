@@ -62,7 +62,7 @@ mod tests {
 
             // Listen for desktop changes
             let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-            let mut _notifications_thread = create_desktop_event_thread(tx);
+            let mut _notifications_thread = create_desktop_event_thread(tx).unwrap();
             let receiver = std::thread::spawn(move || {
                 let mut count = 0;
                 for item in rx {
@@ -416,7 +416,7 @@ mod tests {
         sync_test(|| {
             let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
 
-            let mut _notifications_thread = create_desktop_event_thread(tx);
+            let mut _notifications_thread = create_desktop_event_thread(tx).unwrap();
             let receiver = std::thread::spawn(move || {
                 let mut count = 0;
                 for item in rx {

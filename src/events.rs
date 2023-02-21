@@ -1,5 +1,6 @@
 use crate::Desktop;
 use crate::DesktopEventThread;
+use crate::Error;
 use windows::Win32::Foundation::HWND;
 
 #[derive(Clone)]
@@ -111,7 +112,7 @@ pub enum DesktopEvent {
 /// Additionally you can pass crossbeam-channel sender, or winit eventloop proxy
 /// to the function.
 ///
-pub fn create_desktop_event_thread<T, S>(sender: S) -> DesktopEventThread
+pub fn create_desktop_event_thread<T, S>(sender: S) -> Result<DesktopEventThread, Error>
 where
     T: From<DesktopEvent> + Clone + Send + 'static,
     S: Into<DesktopEventSender<T>> + Clone,
