@@ -115,6 +115,8 @@ OnChangeDesktop(wParam, lParam, msg, hwnd) {
     OldDesktop := wParam + 1
     NewDesktop := lParam + 1
     Name := GetDesktopName(NewDesktop - 1)
+
+    ; Use Dbgview.exe to checkout the output debug logs
     OutputDebug("Desktop changed to " Name " from " OldDesktop " to " NewDesktop)
     ; TraySetIcon(".\Icons\icon" NewDesktop ".ico")
 }

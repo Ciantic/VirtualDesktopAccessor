@@ -113,11 +113,12 @@ DllCall(RegisterPostMessageHookProc, Int, ahkWindowHwnd, Int, 0x1400 + 30)
 OnMessage(0x1400 + 30, "OnChangeDesktop")
 OnChangeDesktop(wParam, lParam, msg, hwnd) {
     Critical, 100
-    desktopNumber := lParam + 1
-    name := GetDesktopName(lParam)
+    OldDesktop := wParam + 1
+    NewDesktop := lParam + 1
+    Name := GetDesktopName(NewDesktop - 1)
 
     ; Use Dbgview.exe to checkout the output debug logs
-    OutputDebug %"DESKTOP CHANGED TO " desktopNumber " " name
+    OutputDebug % "Desktop changed to " Name " from " OldDesktop " to " NewDesktop
 }
 
 #+1:: MoveOrGotoDesktopNumber(0)
