@@ -19,9 +19,17 @@ use crate::interfaces::{
     ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
+use crate::log_output;
 use crate::DesktopEventSender;
-use crate::{log_format, log_output};
 use crate::{DesktopEvent, Result};
+
+// Log format macro
+macro_rules! log_format {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        $crate::log_output(&format!($($arg)*));
+    };
+}
 
 const WM_USER_QUIT: u32 = WM_USER + 0x10;
 

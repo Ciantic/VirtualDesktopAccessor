@@ -40,16 +40,6 @@ pub(crate) fn log_output(s: &str) {
 #[inline]
 pub(crate) fn log_output(_s: &str) {}
 
-// Log format macro
-#[doc(hidden)]
-#[macro_export]
-macro_rules! log_format {
-    ($($arg:tt)*) => {
-        #[cfg(debug_assertions)]
-        $crate::log_output(&format!($($arg)*));
-    };
-}
-
 #[cfg(feature = "integration-tests")]
 #[cfg(test)]
 mod tests {

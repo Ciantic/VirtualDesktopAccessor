@@ -230,8 +230,6 @@ pub(crate) fn log_output(s: &str) {
 #[inline]
 pub(crate) fn log_output(_s: &str) {}
 
-#[doc(hidden)]
-#[macro_export]
 macro_rules! log_format {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
