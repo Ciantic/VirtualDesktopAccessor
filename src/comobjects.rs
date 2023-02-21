@@ -1,4 +1,3 @@
-use crate::hresult::HRESULT;
 use crate::log::log_output;
 
 /// Purpose of this module is to provide helpers to access functions in interfaces module, not for direct consumption
@@ -9,6 +8,7 @@ use super::Result;
 use std::convert::TryFrom;
 use std::rc::Rc;
 use std::{cell::RefCell, ffi::c_void};
+use windows::core::HRESULT;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::CoInitializeEx;
 use windows::Win32::System::Com::CoUninitialize;
@@ -45,8 +45,11 @@ pub enum Error {
     /// Unable to connect to service
     RpcServerNotAvailable,
 
-    // Com object not connected
+    /// Com object not connected
     ComObjectNotConnected,
+
+    /// Generic element not found
+    ComElementNotFound,
 
     /// Some unhandled COM error
     ComError(HRESULT),
@@ -66,10 +69,40 @@ pub enum Error {
     ListenerThreadIdNotCreated,
 }
 
+trait HRESULTHelpers {
+    fn as_error(&self) -> Error;
+    fn as_result(&self) -> Result<()>;
+}
+
+impl HRESULTHelpers for ::windows::core::HRESULT {
+    fn as_error(&self) -> Error {
+        if self.0 == -2147221164 {
+            // 0x80040154
+            return Error::ClassNotRegistered;
+        }
+        if self.0 == -2147023174 {
+            // 0x800706BA
+            return Error::RpcServerNotAvailable;
+        }
+        if self.0 == -2147220995 {
+            // 0x800401FD
+            return Error::ComObjectNotConnected;
+        }
+        if self.0 == -2147319765 {
+            // 0x8002802B
+            return Error::ComElementNotFound;
+        }
+        Error::ComError(self.clone())
+    }
+
+    fn as_result(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
 impl From<::windows::core::Error> for Error {
     fn from(r: ::windows::core::Error) -> Self {
-        let own_result = HRESULT(unsafe { std::mem::transmute(r.code().0) });
-        own_result.as_error()
+        r.code().as_error()
     }
 }
 
@@ -498,7 +531,7 @@ impl ComObjects {
                 .move_view_to_desktop(ComIn::new(&view), ComIn::new(&desktop))
                 .as_result()
                 .map_err(|e| {
-                    if e == Error::ComError(HRESULT(0x8002802B)) {
+                    if e == Error::ComElementNotFound {
                         Error::DesktopNotFound
                     } else {
                         e
@@ -515,7 +548,7 @@ impl ComObjects {
                 .get_view_for_hwnd(hwnd.clone(), &mut view)
                 .as_result()
                 .map_err(|er| {
-                    if er == Error::ComError(HRESULT(0x8002802B)) {
+                    if er == Error::ComElementNotFound {
                         Error::WindowNotFound
                     } else {
                         er
@@ -624,7 +657,7 @@ impl ComObjects {
                 .as_result()
                 .map_err(|er| match er {
                     // Window does not exist
-                    Error::ComError(HRESULT(0x8002802B)) => Error::WindowNotFound,
+                    Error::ComElementNotFound => Error::WindowNotFound,
                     _ => er,
                 })?;
             Ok(value)
@@ -653,12 +686,12 @@ impl ComObjects {
                 .as_result()
                 .map_err(|er| match er {
                     // Window does not exist
-                    Error::ComError(HRESULT(0x8002802B)) => Error::WindowNotFound,
+                    Error::ComElementNotFound => Error::WindowNotFound,
                     _ => er,
                 })?
         };
         if desktop == GUID::default() {
-            return Err(Error::DesktopNotFound);
+            return Err(Error::WindowNotFound);
         }
         Ok(DesktopInternal::Guid(desktop))
     }

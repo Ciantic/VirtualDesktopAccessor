@@ -1,11 +1,9 @@
 #[allow(non_upper_case_globals)]
 use std::{ffi::c_void, ops::Deref};
 use windows::{
-    core::{IUnknown, IUnknown_Vtbl, GUID, HSTRING},
+    core::{IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING},
     Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
-
-use crate::hresult::HRESULT;
 
 // Idea here is that the cloned ComIn instance lifetime is within the original ComIn instance lifetime
 #[repr(transparent)]

@@ -1,14 +1,8 @@
 ; AutoHotkey v2 script
-
 SetWorkingDir(A_ScriptDir)
 
-; Get hwnd of AutoHotkey window, for listener
-DetectHiddenWindows(1)
-ahkWindowHwnd := WinExist("ahk_pid " . DllCall("GetCurrentProcessId", "Uint"))
-ahkWindowHwnd += 0x1000 << 32
-
 ; Path to the DLL, relative to the script
-VDA_PATH := "C:\Source\Rust\winvd\target\release\VirtualDesktopAccessor.dll"
+VDA_PATH := A_ScriptDir . "\target\debug\VirtualDesktopAccessor.dll"
 hVirtualDesktopAccessor := DllCall("LoadLibrary", "Str", VDA_PATH, "Ptr")
 
 GetDesktopCountProc := DllCall("GetProcAddress", "Ptr", hVirtualDesktopAccessor, "AStr", "GetDesktopCount", "Ptr")
@@ -29,20 +23,20 @@ UnregisterPostMessageHookProc := DllCall("GetProcAddress", "Ptr", hVirtualDeskto
 
 GetDesktopCount() {
     global GetDesktopCountProc
-    count := DllCall(GetDesktopCountProc, "UInt")
+    count := DllCall(GetDesktopCountProc, "Int")
     return count
 }
 
 MoveCurrentWindowToDesktop(number) {
     global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc
     activeHwnd := WinGetID("A")
-    DllCall(MoveWindowToDesktopNumberProc, "Ptr", activeHwnd, "UInt", number)
-    DllCall(GoToDesktopNumberProc, "UInt", number)
+    DllCall(MoveWindowToDesktopNumberProc, "Ptr", activeHwnd, "Int", number, "Int")
+    DllCall(GoToDesktopNumberProc, "Int", number, "Int")
 }
 
 GoToPrevDesktop() {
     global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
-    current := DllCall(GetCurrentDesktopNumberProc, "UInt")
+    current := DllCall(GetCurrentDesktopNumberProc, "Int")
     last_desktop := GetDesktopCount() - 1
     ; If current desktop is 0, go to last desktop
     if (current = 0) {
@@ -55,7 +49,7 @@ GoToPrevDesktop() {
 
 GoToNextDesktop() {
     global GetCurrentDesktopNumberProc, GoToDesktopNumberProc
-    current := DllCall(GetCurrentDesktopNumberProc, "UInt")
+    current := DllCall(GetCurrentDesktopNumberProc, "Int")
     last_desktop := GetDesktopCount() - 1
     ; If current desktop is last, go to first desktop
     if (current = last_desktop) {
@@ -68,7 +62,7 @@ GoToNextDesktop() {
 
 GoToDesktopNumber(num) {
     global GoToDesktopNumberProc
-    DllCall(GoToDesktopNumberProc, "Int", num)
+    DllCall(GoToDesktopNumberProc, "Int", num, "Int")
     return
 }
 MoveOrGotoDesktopNumber(num) {
@@ -83,7 +77,7 @@ MoveOrGotoDesktopNumber(num) {
 GetDesktopName(num) {
     global GetDesktopNameProc
     utf8_buffer := Buffer(1024, 0)
-    ran := DllCall(GetDesktopNameProc, "UInt", num, "Ptr", utf8_buffer, "UInt", utf8_buffer.Size)
+    ran := DllCall(GetDesktopNameProc, "Int", num, "Ptr", utf8_buffer, "Ptr", utf8_buffer.Size, "Int")
     name := StrGet(utf8_buffer, 1024, "UTF-8")
     return name
 }
@@ -92,23 +86,23 @@ SetDesktopName(num, name) {
     OutputDebug(name)
     name_utf8 := Buffer(1024, 0)
     StrPut(name, name_utf8, "UTF-8")
-    ran := DllCall(SetDesktopNameProc, "UInt", num, "Ptr", name_utf8)
+    ran := DllCall(SetDesktopNameProc, "Int", num, "Ptr", name_utf8, "Int")
     return ran
 }
 CreateDesktop() {
     global CreateDesktopProc
-    ran := DllCall(CreateDesktopProc)
+    ran := DllCall(CreateDesktopProc, "Int")
     return ran
 }
 RemoveDesktop(remove_desktop_number, fallback_desktop_number) {
     global RemoveDesktopProc
-    ran := DllCall(RemoveDesktopProc, "UInt", remove_desktop_number, "UInt", fallback_desktop_number)
+    ran := DllCall(RemoveDesktopProc, "Int", remove_desktop_number, "Int", fallback_desktop_number, "Int")
     return ran
 }
 
 ; SetDesktopName(0, "It works! 🐱")
 
-DllCall(RegisterPostMessageHookProc, "Ptr", ahkWindowHwnd, "Int", 0x1400 + 30)
+DllCall(RegisterPostMessageHookProc, "Ptr", A_ScriptHwnd, "Int", 0x1400 + 30)
 OnMessage(0x1400 + 30, OnChangeDesktop)
 OnChangeDesktop(wParam, lParam, msg, hwnd) {
     Critical(1)

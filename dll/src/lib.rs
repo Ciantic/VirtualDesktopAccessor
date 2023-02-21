@@ -68,8 +68,8 @@ pub extern "C" fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn GoToDesktopNumber(desktop_number: i32) {
-    switch_desktop(desktop_number as u32).unwrap_or_default()
+pub extern "C" fn GoToDesktopNumber(desktop_number: i32) -> i32 {
+    switch_desktop(desktop_number as u32).map_or(-1, |_| 1)
 }
 
 #[no_mangle]

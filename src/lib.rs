@@ -11,7 +11,6 @@
 mod comobjects;
 mod desktop;
 mod events;
-mod hresult;
 mod interfaces;
 mod listener;
 mod log;

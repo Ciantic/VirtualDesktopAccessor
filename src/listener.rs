@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::time::Duration;
 
-use windows::core::HSTRING;
+use windows::core::{HRESULT, HSTRING};
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Threading::{
     GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
@@ -14,7 +14,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::comobjects::ComObjects;
-use crate::hresult::HRESULT;
 use crate::interfaces::{
     ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
@@ -354,7 +353,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn view_virtual_desktop_changed(&self, view: IApplicationView) -> HRESULT {
         let mut hwnd = HWND::default();
-        view.get_thumbnail_window(&mut hwnd);
+        let _ = view.get_thumbnail_window(&mut hwnd);
         (self.sender)(DesktopEvent::WindowChanged(hwnd));
         HRESULT(0)
     }

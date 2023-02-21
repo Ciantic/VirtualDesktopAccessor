@@ -33,9 +33,6 @@ impl PartialEq for Desktop {
     }
 }
 
-unsafe impl Send for Desktop {}
-unsafe impl Sync for Desktop {}
-
 // Impl from u32 to DesktopTest
 impl From<u32> for Desktop {
     fn from(index: u32) -> Self {
