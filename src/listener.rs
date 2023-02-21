@@ -19,7 +19,7 @@ use crate::interfaces::{
     ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
-use crate::log_output;
+use crate::log::log_output;
 use crate::DesktopEventSender;
 use crate::{DesktopEvent, Result};
 
@@ -27,7 +27,7 @@ use crate::{DesktopEvent, Result};
 macro_rules! log_format {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
-        $crate::log_output(&format!($($arg)*));
+        $crate::log::log_output(&format!($($arg)*));
     };
 }
 

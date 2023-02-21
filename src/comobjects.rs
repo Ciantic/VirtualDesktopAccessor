@@ -1,5 +1,5 @@
 use crate::hresult::HRESULT;
-use crate::log_output;
+use crate::log::log_output;
 
 /// Purpose of this module is to provide helpers to access functions in interfaces module, not for direct consumption
 ///
