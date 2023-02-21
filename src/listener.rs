@@ -187,12 +187,11 @@ impl<'a> VirtualDesktopNotificationWrapper<'a> {
             com_objects,
         }));
 
-        #[cfg(debug_assertions)]
-        log_output(&format!(
+        log_format!(
             "Registered notification {} {:?}",
             notification.cookie,
             std::thread::current().id()
-        ));
+        );
 
         Ok(notification)
     }
@@ -200,12 +199,12 @@ impl<'a> VirtualDesktopNotificationWrapper<'a> {
 
 impl Drop for VirtualDesktopNotificationWrapper<'_> {
     fn drop(&mut self) {
-        #[cfg(debug_assertions)]
-        log_output(&format!(
+        log_format!(
             "Unregistering notification {} {:?}",
             self.cookie,
             std::thread::current().id()
-        ));
+        );
+
         let _ = self.com_objects.unregister_for_notifications(self.cookie);
     }
 }
@@ -226,13 +225,13 @@ fn debug_desktop(desktop_new: &IVirtualDesktop, prefix: &str) {
     // unsafe { desktop_new.get_name(&mut name).panic_if_failed() };
 
     #[cfg(debug_assertions)]
-    log_output(&format!(
+    log_format!(
         "{}: {:?} {:?} {:?}",
         prefix,
         gid,
         name.to_string(),
         std::thread::current().id()
-    ));
+    );
 }
 
 // Allow unused variable warnings

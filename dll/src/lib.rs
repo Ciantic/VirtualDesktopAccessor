@@ -103,7 +103,7 @@ pub extern "C" fn GetDesktopName(
     }
 }
 
-static LISTENER_HWNDS: Lazy<Arc<Mutex<HashSet<HWND_>>>> =
+static LISTENER_HWNDS: Lazy<Arc<Mutex<HashSet<isize>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashSet::new())));
 
 static SENDER_THREAD: Lazy<Arc<Mutex<Option<(DesktopEventThread, std::thread::JoinHandle<()>)>>>> =
@@ -113,7 +113,7 @@ static SENDER_THREAD: Lazy<Arc<Mutex<Option<(DesktopEventThread, std::thread::Jo
 pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) {
     {
         let mut a = LISTENER_HWNDS.lock().unwrap();
-        a.insert(listener_hwnd.0 as u32);
+        a.insert(listener_hwnd.0);
     }
     {
         let mut a = SENDER_THREAD.lock().unwrap();
@@ -150,7 +150,7 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
 #[no_mangle]
 pub extern "C" fn UnregisterPostMessageHook(listener_hwnd: HWND) {
     let mut a = LISTENER_HWNDS.lock().unwrap();
-    a.remove(&(listener_hwnd.0 as u32));
+    a.remove(&listener_hwnd.0);
     if a.len() == 0 {
         let mut a = SENDER_THREAD.lock().unwrap();
         if let Some((mut sender_thread, listener_thread)) = a.take() {

@@ -42,9 +42,6 @@ pub enum Error {
     /// Unable to create service, ensure that explorer.exe is running
     ClassNotRegistered,
 
-    /// Unable to create service, ensure that explorer.exe is running
-    ServiceNotCreated,
-
     /// Unable to connect to service
     ServiceNotConnected,
 
@@ -131,27 +128,35 @@ where
     WORKER_CHANNEL
         .0
         .send(Box::new(move |c| {
+            // Retry the function up to 5 times if it gives an error
+            let mut r = f(c);
             for _ in 0..5 {
-                let r = f(c);
-                if let Err(Error::ServiceNotConnected) = r {
-                    #[cfg(debug_assertions)]
-                    log_output("Explorer.exe has mostlikely crashed, retry the function");
+                match &r {
+                    Err(Error::ClassNotRegistered) | Err(Error::ServiceNotConnected) => {
+                        #[cfg(debug_assertions)]
+                        log_output("Explorer.exe has mostlikely crashed, retry the function");
 
-                    // Explorer.exe has mostlikely crashed, retry the function
-                    c.drop_services();
-                    continue;
+                        // Explorer.exe has mostlikely crashed, retry the function
+                        c.drop_services();
+                        r = f(c);
+                        continue;
+                    }
+                    other => {
+                        // Show the error
+                        #[cfg(debug_assertions)]
+                        if let Err(er) = &other {
+                            log_output(&format!("with_com_objects failed with {:?}", er));
+                        }
+
+                        // Return the Result
+                        break;
+                    }
                 }
-
-                #[cfg(debug_assertions)]
-                if let Err(er) = &r {
-                    log_output(&format!("with_com_objects failed with {:?}", er));
-                }
-
-                sender.send(r).unwrap();
-                return;
             }
+            sender.send(r).unwrap();
         }))
         .unwrap();
+
     receiver.recv().unwrap()
 
     // Naive implementation that causes illegal memory access on rapid threading test

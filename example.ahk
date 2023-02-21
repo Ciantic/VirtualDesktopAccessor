@@ -34,7 +34,7 @@ GetDesktopCount() {
 MoveCurrentWindowToDesktop(number) {
     global MoveWindowToDesktopNumberProc, GoToDesktopNumberProc
     WinGet, activeHwnd, ID, A
-    DllCall(MoveWindowToDesktopNumberProc, UInt, activeHwnd, UInt, number)
+    DllCall(MoveWindowToDesktopNumberProc, "Ptr", activeHwnd, UInt, number)
     DllCall(GoToDesktopNumberProc, UInt, number)
 }
 
@@ -109,7 +109,7 @@ RemoveDesktop(remove_desktop_number, fallback_desktop_number) {
 ; SetDesktopName(0, "It works! 🐱")
 
 ; How to listen to desktop changes
-DllCall(RegisterPostMessageHookProc, Int, ahkWindowHwnd, Int, 0x1400 + 30)
+DllCall(RegisterPostMessageHookProc, "Ptr", ahkWindowHwnd, Int, 0x1400 + 30)
 OnMessage(0x1400 + 30, "OnChangeDesktop")
 OnChangeDesktop(wParam, lParam, msg, hwnd) {
     Critical, 100
