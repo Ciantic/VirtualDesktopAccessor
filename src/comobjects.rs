@@ -179,10 +179,6 @@ where
     receiver.recv()?
 }
 
-pub trait ComObjectsAsResult {
-    fn as_result(&self) -> Result<Rc<ComObjects>>;
-}
-
 #[derive(Copy, Clone, Debug)]
 pub enum DesktopInternal {
     Index(u32),

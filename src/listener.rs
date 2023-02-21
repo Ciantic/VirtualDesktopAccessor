@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::time::Duration;
 
-use windows::core::{GUID, HSTRING};
+use windows::core::HSTRING;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Threading::{
     GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
