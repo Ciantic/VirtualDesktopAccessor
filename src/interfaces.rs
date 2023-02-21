@@ -1,29 +1,24 @@
+use std::mem::ManuallyDrop;
 #[allow(non_upper_case_globals)]
 use std::{ffi::c_void, ops::Deref};
 use windows::{
     core::{IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING},
     Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
-use winit::platform::windows::HMONITOR;
 
 // Idea here is that the cloned ComIn instance lifetime is within the original ComIn instance lifetime
 #[repr(transparent)]
 pub struct ComIn<'a, T> {
-    data: T,
+    data: ManuallyDrop<T>,
     _phantom: std::marker::PhantomData<&'a T>,
 }
 
 impl<'a, T: Clone> ComIn<'a, T> {
     pub fn new(t: &'a T) -> Self {
         Self {
-            data: t.clone(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub unsafe fn unsafe_new_no_clone(t: T) -> Self {
-        Self {
-            data: t,
+            // Increases the count, and passes in to the COM call without ever
+            // releasing it. COM function then releases it when it's done.
+            data: ManuallyDrop::new(t.clone()),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -79,6 +74,7 @@ type PCWSTR = *const WCHAR;
 type PWSTR = *mut WCHAR;
 type ULONGLONG = u64;
 type LONG = i32;
+type HMONITOR = isize;
 
 type IAsyncCallback = UINT;
 type IImmersiveMonitor = UINT;
