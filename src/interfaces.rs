@@ -303,59 +303,62 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
+        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_failed(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
+        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroyed(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
+        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT;
 
     pub unsafe fn virtual_desktop_moved(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_name_changed(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 
-    pub unsafe fn view_virtual_desktop_changed(&self, view: IApplicationView) -> HRESULT;
+    pub unsafe fn view_virtual_desktop_changed(
+        &self,
+        view: ManuallyDrop<IApplicationView>,
+    ) -> HRESULT;
 
     pub unsafe fn current_virtual_desktop_changed(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_old: ComIn<IVirtualDesktop>,
-        desktop_new: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_old: ManuallyDrop<IVirtualDesktop>,
+        desktop_new: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 }

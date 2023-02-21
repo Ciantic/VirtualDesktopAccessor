@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use crate::comobjects::ComObjects;
 use crate::interfaces::{
-    ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
+    IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
 use crate::log::log_output;
@@ -97,10 +98,15 @@ impl DesktopEventThread {
                     loop {
                         let continuation = GetMessageW(&mut msg, HWND::default(), 0, 0);
                         if (continuation.0 == 0) || (continuation.0 == -1) {
+                            log_format!(
+                                "Listener thread stopped GetMessageW result {:?}",
+                                continuation
+                            );
                             break;
                         }
 
                         if msg.message == WM_USER_QUIT {
+                            log_output("Listener thread stopped WM_USER_QUIT");
                             quit = true;
                             PostQuitMessage(0);
                         } else if msg.message == WM_TIMER {
@@ -120,6 +126,7 @@ impl DesktopEventThread {
                     }
 
                     if quit {
+                        log_output("Finish listener next");
                         // Break out of the loop, and drop the listener
                         break;
                     }
@@ -240,9 +247,9 @@ fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
 impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
     unsafe fn current_virtual_desktop_changed(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_old: ComIn<IVirtualDesktop>,
-        desktop_new: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_old: ManuallyDrop<IVirtualDesktop>,
+        desktop_new: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopChanged {
@@ -255,7 +262,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
         eat_error(|| {
@@ -269,8 +276,8 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_created(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopCreated(
@@ -282,27 +289,27 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
+        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT {
         HRESULT(0)
     }
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
+        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT {
         HRESULT(0)
     }
 
     unsafe fn virtual_desktop_destroyed(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
+        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
     ) -> HRESULT {
         // Desktop destroyed is not anymore in the stack
         eat_error(|| {
@@ -322,8 +329,8 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_moved(
         &self,
-        monitors: ComIn<IObjectArray>,
-        desktop: ComIn<IVirtualDesktop>,
+        monitors: ManuallyDrop<IObjectArray>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,
     ) -> HRESULT {
@@ -339,7 +346,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_name_changed(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: ManuallyDrop<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
         eat_error(|| {
@@ -351,7 +358,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn view_virtual_desktop_changed(&self, view: IApplicationView) -> HRESULT {
+    unsafe fn view_virtual_desktop_changed(&self, view: ManuallyDrop<IApplicationView>) -> HRESULT {
         let mut hwnd = HWND::default();
         let _ = view.get_thumbnail_window(&mut hwnd);
         (self.sender)(DesktopEvent::WindowChanged(hwnd));

@@ -6,6 +6,7 @@ use crate::log::log_output;
 use super::interfaces::*;
 use super::Result;
 use std::convert::TryFrom;
+use std::mem::ManuallyDrop;
 use std::rc::Rc;
 use std::{cell::RefCell, ffi::c_void};
 use windows::core::HRESULT;
@@ -96,7 +97,10 @@ impl HRESULTHelpers for ::windows::core::HRESULT {
     }
 
     fn as_result(&self) -> Result<()> {
-        Ok(())
+        if self.is_ok() {
+            return Ok(());
+        }
+        Err(self.as_error())
     }
 }
 
@@ -180,7 +184,8 @@ where
                 Err(er)
                     if er == &Error::ClassNotRegistered
                         || er == &Error::RpcServerNotAvailable
-                        || er == &Error::ComObjectNotConnected =>
+                        || er == &Error::ComObjectNotConnected
+                        || er == &Error::ComAllocatedNullPtr =>
                 {
                     #[cfg(debug_assertions)]
                     log_output(&format!("Retry the function after {:?}", er));
@@ -247,10 +252,19 @@ impl From<&GUID> for DesktopInternal {
     }
 }
 
-impl<'a> TryFrom<ComIn<'a, IVirtualDesktop>> for DesktopInternal {
+impl<'a> TryFrom<&'a IVirtualDesktop> for DesktopInternal {
     type Error = Error;
 
-    fn try_from(desktop: ComIn<IVirtualDesktop>) -> Result<Self> {
+    fn try_from(desktop: &'a IVirtualDesktop) -> Result<Self> {
+        let mut guid = GUID::default();
+        unsafe { desktop.get_id(&mut guid).as_result()? }
+        Ok(DesktopInternal::Guid(guid))
+    }
+}
+impl<'a> TryFrom<&'a ManuallyDrop<IVirtualDesktop>> for DesktopInternal {
+    type Error = Error;
+
+    fn try_from(desktop: &'a ManuallyDrop<IVirtualDesktop>) -> Result<Self> {
         let mut guid = GUID::default();
         unsafe { desktop.get_id(&mut guid).as_result()? }
         Ok(DesktopInternal::Guid(guid))
@@ -445,18 +459,21 @@ impl ComObjects {
                         .get_desktop_count(0, &mut out_count)
                         .as_result()
                 };
+
+                #[cfg(debug_assertions)]
+                if let Err(er) = &res {
+                    log_output(&format!("is connected error: {:?} {}", er, out_count));
+                }
+
+                if out_count == 0 {
+                    return false;
+                }
                 match res {
                     Ok(_) => true,
-                    Err(Error::ClassNotRegistered) => false,
-                    Err(Error::RpcServerNotAvailable) => false,
-                    Err(Error::ComObjectNotConnected) => false,
-                    Err(_) => true,
+                    Err(_) => false,
                 }
             }
-            Err(Error::ClassNotRegistered) => false,
-            Err(Error::RpcServerNotAvailable) => false,
-            Err(Error::ComObjectNotConnected) => false,
-            Err(_) => true,
+            Err(_) => false,
         }
     }
 
