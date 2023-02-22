@@ -2,32 +2,32 @@ use std::mem::ManuallyDrop;
 #[allow(non_upper_case_globals)]
 use std::{ffi::c_void, ops::Deref};
 use windows::{
-    core::{IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING},
+    core::{Abi, IUnknown, IUnknown_Vtbl, Vtable, GUID, HRESULT, HSTRING},
     Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
 
-// Idea here is that the cloned ComIn instance lifetime is within the original ComIn instance lifetime
+// Behaves like ManuallyDrop but is kept alive for as long as the given
+// reference
 #[repr(transparent)]
-pub struct ComIn<'a, T> {
-    data: ManuallyDrop<T>,
+pub struct ComIn<'a, T: Vtable> {
+    data: *mut c_void,
     _phantom: std::marker::PhantomData<&'a T>,
 }
 
-impl<'a, T: Clone> ComIn<'a, T> {
+impl<'a, T: Vtable> ComIn<'a, T> {
     pub fn new(t: &'a T) -> Self {
         Self {
-            // Increases the count, and passes in to the COM call without ever
-            // releasing it. COM function then releases it when it's done.
-            data: ManuallyDrop::new(t.clone()),
+            // Copies the raw Inteface pointer
+            data: t.as_raw(),
             _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, T> Deref for ComIn<'a, T> {
+impl<'a, T: Vtable> Deref for ComIn<'a, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        &self.data
+        unsafe { std::mem::transmute(&self.data) }
     }
 }
 
@@ -271,7 +271,7 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
 
     pub unsafe fn get_view_for_application(
         &self,
-        app: ComIn<IImmersiveApplication>,
+        app: IImmersiveApplication,
         out_view: *mut IApplicationView,
     ) -> HRESULT;
 
@@ -292,7 +292,7 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
 
     pub unsafe fn register_for_application_view_changes(
         &self,
-        listener: ComIn<IApplicationViewChangeListener>,
+        listener: IApplicationViewChangeListener,
         out_id: *mut DWORD,
     ) -> HRESULT;
 
