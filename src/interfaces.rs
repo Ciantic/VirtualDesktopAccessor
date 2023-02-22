@@ -299,66 +299,70 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
     pub unsafe fn unregister_for_application_view_changes(&self, id: DWORD) -> HRESULT;
 }
 
+// NOTE: Currently ComIn is basically ManuallyDrop. I've tried without
+// ManuallyDrop and the code starts to act weird if we call Release() on the
+// values given by the shell to the IVirtualDesktopNotification.
+//
+// Normally functions should call IUnknown's Release() on the given pointer
+// after they are done with it, but the shell doesn't like that for this
+// interface.
 #[windows_interface::interface("CD403E52-DEED-4C13-B437-B98380F2B1E8")]
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_failed(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroyed(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT;
 
     pub unsafe fn virtual_desktop_moved(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop: ComIn<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_name_changed(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 
-    pub unsafe fn view_virtual_desktop_changed(
-        &self,
-        view: ManuallyDrop<IApplicationView>,
-    ) -> HRESULT;
+    pub unsafe fn view_virtual_desktop_changed(&self, view: ComIn<IApplicationView>) -> HRESULT;
 
     pub unsafe fn current_virtual_desktop_changed(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop_old: ManuallyDrop<IVirtualDesktop>,
-        desktop_new: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop_old: ComIn<IVirtualDesktop>,
+        desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 }

@@ -270,6 +270,15 @@ impl<'a> TryFrom<&'a ManuallyDrop<IVirtualDesktop>> for DesktopInternal {
         Ok(DesktopInternal::Guid(guid))
     }
 }
+impl<'a> TryFrom<&'a ComIn<'a, IVirtualDesktop>> for DesktopInternal {
+    type Error = Error;
+
+    fn try_from(desktop: &'a ComIn<'a, IVirtualDesktop>) -> Result<Self> {
+        let mut guid = GUID::default();
+        unsafe { desktop.get_id(&mut guid).as_result()? }
+        Ok(DesktopInternal::Guid(guid))
+    }
+}
 
 pub struct ComObjects {
     provider: RefCell<Option<Rc<IServiceProvider>>>,
