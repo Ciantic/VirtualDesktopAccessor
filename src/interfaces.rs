@@ -1,3 +1,39 @@
+/// Interface definitions for the Virtual Desktop API
+///
+/// Most of the functions are not tested or used, beware if you try to use these
+/// for something else. Notably I know that most out parameters defined as `*mut
+/// IMyObject` are incorrect, they probably should be *mut Option<IMyObject>.
+///
+/// Generally these are the rules:
+/// 1. InOpt = `Option<ComIn<IMyObject>>` or `Option<ManuallyDrop<IMyObject>>`
+/// 2. In = `ComIn<IMyObject>` or `ManuallyDrop<IMyObject>`
+/// 3. Out = `*mut Option<IMyObject>`
+/// 4. OutOpt = `*mut Option<IMyObject>`
+///
+/// Last two are same intentionally.
+///
+/// ## The summary of COM object lifetime rules:
+///
+/// > 1. When a COM object is passed from caller to callee as an input parameter
+/// >    to a method, the caller is expected to keep a reference on the object
+/// >    for the duration of the method call. The callee shouldn't need to call
+/// >    `AddRef` or `Release` for the synchronous duration of that method call.
+/// >
+/// > 2. When a COM object is passed from callee to caller as an out parameter
+/// >    from a method the object is provided to the caller with a reference
+/// >    already taken and the caller owns the reference. Which is to say, it is
+/// >    the caller's responsibility to call `Release` when they're done with
+/// >    the object.
+/// >
+/// > 3. When making a copy of a COM object pointer you need to call `AddRef`
+/// >    and `Release`. The `AddRef` must be called before you call `Release` on
+/// >    the original COM object pointer.
+///
+/// Rules as [written by David
+/// Risney](https://github.com/MicrosoftEdge/WebView2Feedback/issues/2133):
+///
+/// If you read the rules carefully, ManuallyDrop is most common usecase in Rust
+/// API definitions as most parameters are `In` parameters.
 #[allow(non_upper_case_globals)]
 use std::{ffi::c_void, ops::Deref};
 use windows::{
@@ -99,6 +135,7 @@ pub struct SIZE {
     cx: LONG,
     cy: LONG,
 }
+
 #[windows_interface::interface("6D5140C1-7436-11CE-8034-00AA006009FA")]
 pub unsafe trait IServiceProvider: IUnknown {
     pub unsafe fn query_service(
