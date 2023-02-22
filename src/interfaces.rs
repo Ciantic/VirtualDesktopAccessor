@@ -30,7 +30,7 @@
 /// >    the original COM object pointer.
 ///
 /// Rules as [written by David
-/// Risney](https://github.com/MicrosoftEdge/WebView2Feedback/issues/2133):
+/// Risney](https://github.com/MicrosoftEdge/WebView2Feedback/issues/2133).
 ///
 /// If you read the rules carefully, ManuallyDrop is most common usecase in Rust
 /// API definitions as most parameters are `In` parameters.
