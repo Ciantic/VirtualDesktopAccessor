@@ -1,8 +1,7 @@
-use std::mem::ManuallyDrop;
 #[allow(non_upper_case_globals)]
 use std::{ffi::c_void, ops::Deref};
 use windows::{
-    core::{Abi, IUnknown, IUnknown_Vtbl, Vtable, GUID, HRESULT, HSTRING},
+    core::{IUnknown, IUnknown_Vtbl, Vtable, GUID, HRESULT, HSTRING},
     Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
 

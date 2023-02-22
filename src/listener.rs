@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::time::Duration;
 
