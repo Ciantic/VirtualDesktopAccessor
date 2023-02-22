@@ -1,16 +1,47 @@
-# IVirtualDesktopNotification
+# COM Guidance by David Risney:
 
-In COM guidance the caller increases the reference count with `AddRef()` and the
-callee should use `Release()`. This assumption doesn't seem to be true with
-`IVirtualDesktopNotification`.
+> 1. When a COM object is passed from caller to callee as an input parameter to
+>    a method, the caller is expected to keep a reference on the object for the
+>    duration of the method call. The callee shouldn't need to call `AddRef` or
+>    `Release` for the synchronous duration of that method call. For example, if
+>    you're the callee implementing one of the async completed handler or event
+>    handler `Invoke` methods, the WebView2 code will call your Invoke method
+>    and pass in a COM object and you don't need to call `AddRef` or `Release`
+>    on it.
+
+> 2. When a COM object is passed from callee to caller as an out parameter from
+>    a method the object is provided to the caller with a reference already
+>    taken and the caller owns the reference. Which is to say, it is the
+>    caller's responsibility to call `Release` when they're done with the
+>    object. For example, if you call
+>    `ICoreWebView2::get_Settings(ICoreWebView2Settings**)`, the `get_Settings`
+>    code will call `AddRef` on the `ICoreWebView2Settings` it hands back to you
+>    and its up to you only to call `Release` when you're done.
+
+> 3. When making a copy of a COM object pointer you need to call `AddRef` and
+>    `Release`. The `AddRef` must be called before you call `Release` on the
+>    original COM object pointer. If for example you have an async method call
+>    completion handler method that receives a COM object as an in parameter but
+>    you need to deal with that COM object asynchronously later, you'll need to
+>    make a copy of the COM object pointer and call `AddRef` during the
+>    completion handler and then `Release` later after you finish your async
+>    work with the object.
+
+https://github.com/MicrosoftEdge/WebView2Feedback/issues/2133
+
+## IVirtualDesktopNotification
+
+To sum it up according to COM guidance the caller increases the reference count
+with `AddRef()` and the callee should use `Release()` when getting the value
+through `Out` parameter. However, when it's an `In` parameter the caller ensures
+the value is held alive during the call and you must not call `Release()`.
 
 Notice that `IVirtualDesktopNotification` is an interface this code implements,
 we don't call the methods on it, but Windows shell calls those, this means that
 all values we get should have been added with a reference by the Windows shell
 for us.
 
-What is bizarre is that only the correctly functioning interface uses
-`ManuallyDrop<T>` like this:
+This means the interface **must** be using `ManuallyDrop<T>`:
 
 ```rust
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
@@ -32,31 +63,27 @@ pub unsafe trait IVirtualDesktopNotification: IUnknown {
 
 And we must never call `Release()` ourselves on the values.
 
-Naively I would think it should be this:
+Naively one would think it can be done like this:
 
 ```rust
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
-        monitors: IObjectArray,
-        desktop: IVirtualDesktop,
+        monitors: IObjectArray, // This is wrong, should be ManuallyDrop<IObjectArray>
+        desktop: IVirtualDesktop, // This is wrong, should be ManuallyDrop<IVirtualDesktop>
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: IObjectArray,
-        desktop_destroyed: IVirtualDesktop,
-        desktop_fallback: IVirtualDesktop,
+        monitors: IObjectArray, // This is wrong, should be ManuallyDrop<IObjectArray>
+        desktop_destroyed: IVirtualDesktop, // This is wrong, should be ManuallyDrop<IVirtualDesktop>
+        desktop_fallback: IVirtualDesktop, // This is wrong, should be ManuallyDrop<IVirtualDesktop>
     ) -> HRESULT;
     // ...
 }
 ```
 
-Because `windows-rs` COM objects call `Release()` during `drop`. If I allow
-calls to `drop` the crash occurs but after switching desktops repeatedly for
-~2000-3000 times. This is not an easy bug to make happen.
-
-The only way I get this work reliably is not to call the `Release()` in the
-implementation's methods. It's as if Windows shell is calling the
-`IVirtualDesktopNotification` methods with an assumption it's giving us a
-reference and not a value.
+Because `windows-rs` COM objects call `Release()` during `drop` it will cause a
+subtle bug. If I allow calls to `drop` the crash occurs but after switching
+desktops repeatedly for ~2000-3000 times. This is not an easy bug to make
+happen.
