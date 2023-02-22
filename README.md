@@ -15,27 +15,28 @@ MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2023
 
 ## Reference of exported DLL functions
 
+All functions return -1 in case of error.
+
 ```rust
 fn GetCurrentDesktopNumber() -> i32
 fn GetDesktopCount() -> i32
-fn GetDesktopIdByNumber(number: i32) -> DesktopID // Untested
-fn GetDesktopNumber() -> i32
-fn GetDesktopNumberById(desktop_id: DesktopID) -> i32
-fn GetWindowDesktopId(hwnd: HWND) -> DesktopID
+fn GetDesktopIdByNumber(number: i32) -> GUID // Untested
+fn GetDesktopNumberById(desktop_id: GUID) -> i32 // Untested
+fn GetWindowDesktopId(hwnd: HWND) -> GUID
 fn GetWindowDesktopNumber(hwnd: HWND) -> i32
 fn IsWindowOnCurrentVirtualDesktop(hwnd: HWND) -> i32
 fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
-fn GoToDesktopNumber(desktop_number: i32)
+fn GoToDesktopNumber(desktop_number: i32) -> i32
 fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32  // Win11 only
 fn GetDesktopName(desktop_number: i32, out_utf8_ptr: *mut u8, out_utf8_len: usize) -> i32 // Win11 only
-fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32)
-fn UnregisterPostMessageHook(listener_hwnd: HWND)
+fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) -> i32
+fn UnregisterPostMessageHook(listener_hwnd: HWND) -> i32
 fn IsPinnedWindow(hwnd: HWND) -> i32
-fn PinWindow(hwnd: HWND)
-fn UnPinWindow(hwnd: HWND)
+fn PinWindow(hwnd: HWND) -> i32
+fn UnPinWindow(hwnd: HWND) -> i32
 fn IsPinnedApp(hwnd: HWND) -> i32
-fn PinApp(hwnd: HWND)
-fn UnPinApp(hwnd: HWND)
+fn PinApp(hwnd: HWND) -> i32
+fn UnPinApp(hwnd: HWND) -> i32 
 fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
 fn CreateDesktop() -> i32 // Win11 only
 fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i32 // Win11 only

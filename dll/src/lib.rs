@@ -175,24 +175,24 @@ pub extern "C" fn IsPinnedWindow(hwnd: HWND) -> i32 {
     is_pinned_window(hwnd).map_or(-1, |x| x as i32)
 }
 #[no_mangle]
-pub extern "C" fn PinWindow(hwnd: HWND) {
-    pin_window(hwnd).unwrap_or_default()
+pub extern "C" fn PinWindow(hwnd: HWND) -> i32 {
+    pin_window(hwnd).map_or(-1, |_| 1)
 }
 #[no_mangle]
-pub extern "C" fn UnPinWindow(hwnd: HWND) {
-    unpin_window(hwnd).unwrap_or_default()
+pub extern "C" fn UnPinWindow(hwnd: HWND) -> i32 {
+    unpin_window(hwnd).map_or(-1, |_| 1)
 }
 #[no_mangle]
 pub extern "C" fn IsPinnedApp(hwnd: HWND) -> i32 {
     is_pinned_app(hwnd).map_or(-1, |x| x as i32)
 }
 #[no_mangle]
-pub extern "C" fn PinApp(hwnd: HWND) {
-    pin_app(hwnd).unwrap_or_default()
+pub extern "C" fn PinApp(hwnd: HWND) -> i32 {
+    pin_app(hwnd).map_or(-1, |_| 1)
 }
 #[no_mangle]
-pub extern "C" fn UnPinApp(hwnd: HWND) {
-    unpin_app(hwnd).unwrap_or_default()
+pub extern "C" fn UnPinApp(hwnd: HWND) -> i32 {
+    unpin_app(hwnd).map_or(-1, |_| 1)
 }
 #[no_mangle]
 pub extern "C" fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32 {
@@ -288,26 +288,3 @@ mod tests {
         assert_eq!(count, after_count);
     }
 }
-/*
-* int GetCurrentDesktopNumber()
-* int GetDesktopCount()
-* GUID GetDesktopIdByNumber(int number) // Returns zeroed GUID with invalid number found
-* int GetDesktopNumber(IVirtualDesktop *pDesktop)
-* int GetDesktopNumberById(GUID desktopId)
-* GUID GetWindowDesktopId(HWND window)
-* int GetWindowDesktopNumber(HWND window)
-* int IsWindowOnCurrentVirtualDesktop(HWND window)
-* BOOL MoveWindowToDesktopNumber(HWND window, int number)
-* void GoToDesktopNumber(int number)
-* void RegisterPostMessageHook(HWND listener, int messageOffset)
-* void UnregisterPostMessageHook(HWND hwnd)
-* int IsPinnedWindow(HWND hwnd) // Returns 1 if pinned, 0 if not pinned, -1 if not valid
-* void PinWindow(HWND hwnd)
-* void UnPinWindow(HWND hwnd)
-* int IsPinnedApp(HWND hwnd) // Returns 1 if pinned, 0 if not pinned, -1 if not valid
-* void PinApp(HWND hwnd)
-* void UnPinApp(HWND hwnd)
-* int IsWindowOnDesktopNumber(HWND window, int number) /
-* void RestartVirtualDesktopAccessor() // Call this during taskbar created message
-
-*/
