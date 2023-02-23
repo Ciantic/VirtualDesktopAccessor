@@ -25,6 +25,12 @@ fn test_desktop_get() {
     sync_test(|| {
         let desktop = get_desktop(0).get_id().unwrap();
         get_desktop(&desktop).get_index().unwrap();
+
+        // Test stopping the worker
+        stop_desktop_com_worker();
+
+        // This should restart it
+        get_current_desktop().unwrap().get_index().unwrap();
     })
 }
 

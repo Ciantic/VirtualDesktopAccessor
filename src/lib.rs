@@ -25,3 +25,4 @@ pub use desktop::*;
 pub use events::*;
 pub use listener::DesktopEventThread;
 pub type Result<T> = std::result::Result<T, Error>;
+pub use workerthread::stop_desktop_com_worker;
