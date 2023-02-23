@@ -1,10 +1,7 @@
-use crate::log::log_output;
-
-/// Purpose of this module is to provide helpers to access functions in interfaces module, not for direct consumption
-///
-/// All functions here either take in a reference to an interface or initializes a com interace.
+/// This module contains COM object for accessing the Windows Virtual Desktop API
 use super::interfaces::*;
 use super::Result;
+use crate::log::log_output;
 use std::convert::TryFrom;
 use std::mem::ManuallyDrop;
 use std::rc::Rc;
@@ -15,9 +12,6 @@ use windows::Win32::System::Com::CoInitializeEx;
 use windows::Win32::System::Com::CoUninitialize;
 use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
 use windows::Win32::System::Com::COINIT_APARTMENTTHREADED;
-use windows::Win32::System::Threading::GetCurrentThread;
-use windows::Win32::System::Threading::SetThreadPriority;
-use windows::Win32::System::Threading::THREAD_PRIORITY_TIME_CRITICAL;
 use windows::{
     core::{Interface, Vtable, GUID, HSTRING},
     Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
@@ -110,20 +104,6 @@ impl From<::windows::core::Error> for Error {
     }
 }
 
-// From SendError for Error
-impl From<std::sync::mpsc::SendError<ComFn>> for Error {
-    fn from(_: std::sync::mpsc::SendError<ComFn>) -> Self {
-        Error::SenderError
-    }
-}
-
-// From std::sync::mpsc::RecvError for Error
-impl From<std::sync::mpsc::RecvError> for Error {
-    fn from(_: std::sync::mpsc::RecvError) -> Self {
-        Error::ReceiverError
-    }
-}
-
 struct ComSta();
 impl ComSta {
     fn new() -> Self {
@@ -141,80 +121,6 @@ impl Drop for ComSta {
 
         unsafe { CoUninitialize() };
     }
-}
-
-type ComFn = Box<dyn Fn(&ComObjects) + Send + 'static>;
-
-static WORKER_CHANNEL: once_cell::sync::Lazy<(
-    std::sync::mpsc::SyncSender<ComFn>,
-    std::thread::JoinHandle<()>,
-)> = once_cell::sync::Lazy::new(|| {
-    // TODO: Is rendezvous channel correct here? (0 = rendezvous channel)
-    let (sender, receiver) = std::sync::mpsc::sync_channel::<ComFn>(0);
-    (
-        sender,
-        std::thread::spawn(move || {
-            // Set thread priority to time critical, explorer.exe really hates if your listener thread is slow
-            unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
-
-            let com = ComObjects::new();
-            for f in receiver {
-                f(&com);
-            }
-        }),
-    )
-});
-
-/// This is a helper function to initialize and run COM related functions in a known thread
-///
-/// Virtual Desktop COM Objects don't like to being called from different threads rapidly, something goes wrong. This function ensures that all COM calls are done in a single thread.
-pub fn with_com_objects<F, T>(f: F) -> Result<T>
-where
-    F: Fn(&ComObjects) -> Result<T> + Send + 'static,
-    T: Send + 'static,
-{
-    // Oneshot channel
-    let (sender, receiver) = std::sync::mpsc::channel();
-
-    WORKER_CHANNEL.0.send(Box::new(move |c| {
-        // Retry the function up to 5 times if it gives an error
-        let mut r = f(c);
-        for _ in 0..5 {
-            match &r {
-                Err(er)
-                    if er == &Error::ClassNotRegistered
-                        || er == &Error::RpcServerNotAvailable
-                        || er == &Error::ComObjectNotConnected
-                        || er == &Error::ComAllocatedNullPtr =>
-                {
-                    #[cfg(debug_assertions)]
-                    log_output(&format!("Retry the function after {:?}", er));
-
-                    // Explorer.exe has mostlikely crashed, retry the function
-                    c.drop_services();
-                    r = f(c);
-                    continue;
-                }
-                other => {
-                    // Show the error
-                    #[cfg(debug_assertions)]
-                    if let Err(er) = &other {
-                        log_output(&format!("with_com_objects failed with {:?}", er));
-                    }
-
-                    // Return the Result
-                    break;
-                }
-            }
-        }
-        let send_result = sender.send(r);
-        if let Err(e) = send_result {
-            #[cfg(debug_assertions)]
-            log_output(&format!("with_com_objects failed to send result {:?}", e));
-        }
-    }))?;
-
-    receiver.recv()?
 }
 
 #[derive(Copy, Clone, Debug)]

@@ -14,6 +14,7 @@ mod events;
 mod interfaces;
 mod listener;
 mod log;
+mod workerthread;
 
 #[cfg(feature = "integration-tests")]
 #[cfg(test)]

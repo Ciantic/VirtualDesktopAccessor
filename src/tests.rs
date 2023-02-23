@@ -265,6 +265,8 @@ fn test_errors() {
             FindWindowW(pw, PCWSTR::null())
         };
 
+        assert_ne!(notepad_hwnd.0, 0, "Notepad must be running for this test");
+
         let err = get_desktop(99999).set_name("").unwrap_err();
         assert_eq!(err, Error::DesktopNotFound);
 
@@ -397,9 +399,9 @@ fn test_switch_desktops_rapidly_manual() {
                 if let DesktopEvent::DesktopChanged { new: _, old: _ } = item {
                     count += 1;
                 }
-                if (count % 100) == 0 {
-                    println!("Count: {}", count);
-                }
+                // if (count % 100) == 0 {
+                //     println!("Count: {}", count);
+                // }
                 if count == 1999 {
                     // This should stop the loop
                     _notifications_thread.stop().unwrap();

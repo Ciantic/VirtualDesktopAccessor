@@ -1,10 +1,9 @@
-use crate::interfaces::ComIn;
-
+use super::comobjects::*;
 use super::{interfaces::IVirtualDesktop, *};
+use crate::interfaces::ComIn;
+use crate::workerthread::with_com_objects;
 use std::{convert::TryFrom, fmt::Debug, mem::ManuallyDrop};
 use windows::{core::GUID, Win32::Foundation::HWND};
-
-use super::comobjects::*;
 
 /// You can construct Desktop instance with `get_desktop(5)` by index or GUID.
 #[derive(Copy, Clone, Debug)]
