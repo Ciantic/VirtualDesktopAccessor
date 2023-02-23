@@ -5,6 +5,7 @@ use super::Result;
 use crate::comobjects::ComObjects;
 use crate::log::log_output;
 use crate::Error;
+use once_cell::sync::Lazy;
 use std::sync::RwLock;
 use windows::Win32::System::Threading::GetCurrentThread;
 use windows::Win32::System::Threading::SetThreadPriority;
@@ -27,7 +28,7 @@ impl WorkerThread {
                 log_output("Starting worker thread");
 
                 // Set thread priority to time critical, explorer.exe really
-                // hates if your com object accessing is slow
+                // hates if your com object accessing is slow.
                 unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
 
                 let com = ComObjects::new();
@@ -49,7 +50,7 @@ impl WorkerThread {
 
     fn stop(&mut self) -> std::thread::Result<()> {
         {
-            // Drop the sender, this drops the loop in worker thread
+            // Drop the sender, this ends the loop in worker thread
             self.sender.take();
         }
 
@@ -68,14 +69,18 @@ impl Drop for WorkerThread {
     }
 }
 
-static WORKER_CHANNEL: once_cell::sync::Lazy<RwLock<Option<WorkerThread>>> =
-    once_cell::sync::Lazy::new(|| {
-        unsafe { atexit(drop_worker_channel_on_process_exit) };
-        RwLock::new(Some(WorkerThread::new()))
-    });
+static WORKER_CHANNEL: Lazy<RwLock<Option<WorkerThread>>> = Lazy::new(|| {
+    unsafe { atexit(drop_worker_channel_on_process_exit) };
+    RwLock::new(Some(WorkerThread::new()))
+});
 
 extern "C" fn drop_worker_channel_on_process_exit() {
-    let _ = WORKER_CHANNEL.write().unwrap().as_mut().unwrap().stop();
+    let _ = WORKER_CHANNEL
+        .write()
+        .unwrap()
+        .as_mut()
+        .map(|s| s.stop())
+        .take();
 }
 
 extern "C" {
