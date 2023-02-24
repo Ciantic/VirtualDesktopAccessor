@@ -6,8 +6,6 @@ use crate::comobjects::ComObjects;
 use crate::log::log_output;
 use crate::Error;
 use once_cell::sync::Lazy;
-use std::cell::RefCell;
-use std::sync::Mutex;
 use std::sync::RwLock;
 use windows::Win32::System::Threading::GetCurrentThread;
 use windows::Win32::System::Threading::SetThreadPriority;
