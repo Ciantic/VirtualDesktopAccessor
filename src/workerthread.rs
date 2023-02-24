@@ -6,7 +6,9 @@ use crate::comobjects::ComObjects;
 use crate::log::log_output;
 use crate::Error;
 use once_cell::sync::Lazy;
+use std::cell::RefCell;
 use std::sync::Mutex;
+use std::sync::RwLock;
 use windows::Win32::System::Threading::GetCurrentThread;
 use windows::Win32::System::Threading::SetThreadPriority;
 use windows::Win32::System::Threading::THREAD_PRIORITY_TIME_CRITICAL;
@@ -14,26 +16,31 @@ use windows::Win32::System::Threading::THREAD_PRIORITY_TIME_CRITICAL;
 type ComFn = Box<dyn Fn(&ComObjects) + Send + 'static>;
 
 pub struct WorkerThread {
-    thread: Option<std::thread::JoinHandle<()>>,
-    sender: Option<std::sync::mpsc::SyncSender<ComFn>>,
+    thread: RwLock<Option<std::thread::JoinHandle<()>>>,
+    sender: RwLock<Option<std::sync::mpsc::SyncSender<ComFn>>>,
 }
 
 impl WorkerThread {
     pub fn new() -> Self {
         WorkerThread {
-            thread: None,
-            sender: None,
+            thread: RwLock::new(None),
+            sender: RwLock::new(None),
         }
     }
 
-    pub fn send(&mut self, f: ComFn) -> Result<()> {
-        if let Some(sender) = &self.sender {
+    pub fn send(&self, f: ComFn) -> Result<()> {
+        if let Some(sender) = self.sender.read().unwrap().as_ref() {
             // Send to existing thread
-            sender.send(Box::new(f)).map_err(|_| Error::SenderError)?;
-        } else {
-            // Create a new thread and send
-            let (sender, receiver) = std::sync::mpsc::sync_channel::<ComFn>(10);
-            self.thread = Some(std::thread::spawn(move || {
+            return sender.send(Box::new(f)).map_err(|_| Error::SenderError);
+        }
+
+        // Create a new thread and send
+        let (sender, receiver) = std::sync::mpsc::sync_channel::<ComFn>(10);
+
+        self.thread
+            .write()
+            .unwrap()
+            .replace(std::thread::spawn(move || {
                 log_output("Starting worker thread");
 
                 // Set thread priority to time critical, explorer.exe really
@@ -45,19 +52,18 @@ impl WorkerThread {
                     f(&com);
                 }
             }));
-            sender.send(Box::new(f)).map_err(|_| Error::SenderError)?;
-            self.sender = Some(sender);
-        }
+        sender.send(Box::new(f)).map_err(|_| Error::SenderError)?;
+        self.sender.write().unwrap().replace(sender);
         Ok(())
     }
 
-    fn stop(&mut self) -> std::thread::Result<()> {
+    fn stop(&self) -> std::thread::Result<()> {
         {
             // Drop the sender, this ends the loop in worker thread
-            self.sender.take();
+            self.sender.write().unwrap().take();
         }
 
-        if let Some(thread) = self.thread.take() {
+        if let Some(thread) = self.thread.write().unwrap().take() {
             thread.join()?;
             log_output("Worker thread closed");
         }
@@ -72,13 +78,13 @@ impl Drop for WorkerThread {
     }
 }
 
-static WORKER_CHANNEL: Lazy<Mutex<WorkerThread>> = Lazy::new(|| {
+static WORKER_CHANNEL: Lazy<WorkerThread> = Lazy::new(|| {
     unsafe { atexit(atexit_stop_worker_channel) };
-    Mutex::new(WorkerThread::new())
+    WorkerThread::new()
 });
 
 extern "C" fn atexit_stop_worker_channel() {
-    let _ = WORKER_CHANNEL.lock().unwrap().stop();
+    let _ = WORKER_CHANNEL.stop();
 }
 
 extern "C" {
@@ -89,7 +95,7 @@ extern "C" {
 /// stops the worker thread. I don't know why would you, but it's here.
 #[doc(hidden)]
 pub fn stop_desktop_com_worker() {
-    let _ = WORKER_CHANNEL.lock().unwrap().stop();
+    let _ = WORKER_CHANNEL.stop();
 }
 
 /// This is a helper function to initialize and run COM related functions in a
@@ -103,8 +109,14 @@ where
     F: Fn(&ComObjects) -> Result<T> + Send + 'static,
     T: Send + 'static,
 {
+    // Naive implementation, but not very performant
+    // return std::thread::scope(|env| {
+    //     let com = ComObjects::new();
+    //     f(&com)
+    // });
+
     let (sender, receiver) = std::sync::mpsc::channel();
-    WORKER_CHANNEL.lock().unwrap().send(Box::new(move |c| {
+    WORKER_CHANNEL.send(Box::new(move |c| {
         // Retry the function up to 5 times if it gives an error
         let mut r = f(c);
         for _ in 0..5 {
