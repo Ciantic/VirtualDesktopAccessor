@@ -233,9 +233,6 @@ macro_rules! retry_function {(
 ) => (
     $( #[$attr] )*
     #[allow(unused_parens)]
-
-    $( #[$attr] )*
-    #[allow(unused_parens)]
     $pub
     fn $fname (
         &$self_, $( $arg_name : $ArgTy ),*
