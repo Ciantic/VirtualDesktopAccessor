@@ -1,10 +1,10 @@
 [package]
 name = "winvd"
-version = "0.0.20"
+version = "0.0.30"
 authors = ["Jari Otto Oskari Pennanen"]
 license = "MIT"
 edition = "2018"
-description = "Provides functions for accessing Windows 10 virtual desktop API"
+description = "Provides functions for accessing Windows 11 virtual desktop API"
 readme = "README.md"
 homepage = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 repository = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
@@ -33,7 +33,6 @@ name = "winvd"
 path = "src/lib.rs"
 
 [features]
-debug = []
 integration-tests = []
 
 [package.metadata.docs.rs]

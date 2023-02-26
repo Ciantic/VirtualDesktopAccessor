@@ -9,5 +9,5 @@ publish = false
 
 [dependencies]
 winit = "0.28.0"
-winvd = { path = "../", features = ["debug", "winit"] }
+winvd = { path = "../", features = ["winit"] }
 once_cell = "1.5.0"
