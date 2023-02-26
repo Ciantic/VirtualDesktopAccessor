@@ -8,10 +8,8 @@ use std::rc::Rc;
 use std::{cell::RefCell, ffi::c_void};
 use windows::core::HRESULT;
 use windows::Win32::Foundation::HWND;
-use windows::Win32::System::Com::CoInitializeEx;
-use windows::Win32::System::Com::CoUninitialize;
+use windows::Win32::System::Com::CoIncrementMTAUsage;
 use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
-use windows::Win32::System::Com::COINIT_APARTMENTTHREADED;
 use windows::{
     core::{Interface, Vtable, GUID, HSTRING},
     Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
@@ -40,6 +38,9 @@ pub enum Error {
     /// Unable to connect to service
     RpcServerNotAvailable,
 
+    /// Com is not initialized, call CoInitializeEx or CoIncrementMTAUsage
+    ComNotInitialized,
+
     /// Com object not connected
     ComObjectNotConnected,
 
@@ -62,6 +63,9 @@ pub enum Error {
 
     /// Listener thread not created
     ListenerThreadIdNotCreated,
+
+    /// Borrow error
+    InternalBorrowError,
 }
 
 trait HRESULTHelpers {
@@ -87,6 +91,10 @@ impl HRESULTHelpers for ::windows::core::HRESULT {
             // 0x8002802B
             return Error::ComElementNotFound;
         }
+        if self.0 == -2147221008 {
+            // 0x800401F0
+            return Error::ComNotInitialized;
+        }
         Error::ComError(self.clone())
     }
 
@@ -101,25 +109,6 @@ impl HRESULTHelpers for ::windows::core::HRESULT {
 impl From<::windows::core::Error> for Error {
     fn from(r: ::windows::core::Error) -> Self {
         r.code().as_error()
-    }
-}
-
-struct ComSta();
-impl ComSta {
-    fn new() -> Self {
-        #[cfg(debug_assertions)]
-        log_output("CoInitializeEx COINIT_APARTMENTTHREADED");
-
-        let _ = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
-        ComSta()
-    }
-}
-impl Drop for ComSta {
-    fn drop(&mut self) {
-        #[cfg(debug_assertions)]
-        log_output("CoUninitialize");
-
-        unsafe { CoUninitialize() };
     }
 }
 
@@ -190,16 +179,76 @@ pub struct ComObjects {
     provider: RefCell<Option<Rc<IServiceProvider>>>,
     manager: RefCell<Option<Rc<IVirtualDesktopManager>>>,
     manager_internal: RefCell<Option<Rc<IVirtualDesktopManagerInternal>>>,
-
-    #[allow(dead_code)]
     notification_service: RefCell<Option<Rc<IVirtualDesktopNotificationService>>>,
     pinned_apps: RefCell<Option<Rc<IVirtualDesktopPinnedApps>>>,
     view_collection: RefCell<Option<Rc<IApplicationViewCollection>>>,
-
-    // Order is important, this must be dropped last
-    #[allow(dead_code)]
-    com_sta: ComSta,
 }
+
+/// Safely reruns the function if it returns one of the recoverable errors
+///
+/// This should be applied to only public functions in ComObjects struct, having
+/// it in private functions is not necessary. Decorating private functions will
+/// also cause borrowing issues.
+macro_rules! retry_function {(
+    $( #[$attr:meta] )*
+    $pub:vis
+    fn $fname:ident (
+        &$self_:ident $(,)? $( $arg_name:ident : $ArgTy:ty ),* $(,)?
+    ) -> $RetTy:ty
+    $body:block
+) => (
+    $( #[$attr] )*
+    #[allow(unused_parens)]
+
+    $( #[$attr] )*
+    #[allow(unused_parens)]
+    $pub
+    fn $fname (
+        &$self_, $( $arg_name : $ArgTy ),*
+    ) -> $RetTy
+    {
+
+        let fun = || -> $RetTy {
+            $body
+        };
+        let mut value = fun();
+        for _ in 0..3 {
+            match &value {
+                Err(er) if er == &Error::ClassNotRegistered
+                    || er == &Error::RpcServerNotAvailable
+                    || er == &Error::ComObjectNotConnected
+                    || er == &Error::ComAllocatedNullPtr
+                    || er == &Error::ComNotInitialized
+                => {
+                    #[cfg(debug_assertions)]
+                    log_output(&format!("Retry the function after {:?}", er));
+
+                    if er == &Error::ComNotInitialized {
+                        let _ = unsafe { CoIncrementMTAUsage() };
+                    }
+
+                    drop(value);
+
+                    // If private function is decorated, then this drop_services call
+                    // will cause borrow issues.
+                    $self_.drop_services();
+
+                    value = fun();
+                },
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        #[cfg(debug_assertions)]
+        if let Err(er) = &value {
+            log_output(&format!("Com_objects function failed with {:?}", er));
+        }
+
+        value
+    }
+)}
 
 impl ComObjects {
     pub fn new() -> Self {
@@ -210,12 +259,14 @@ impl ComObjects {
             notification_service: RefCell::new(None),
             pinned_apps: RefCell::new(None),
             view_collection: RefCell::new(None),
-            com_sta: ComSta::new(),
         }
     }
 
     fn get_provider(&self) -> Result<Rc<IServiceProvider>> {
-        let mut provider = self.provider.borrow_mut();
+        let mut provider = self
+            .provider
+            .try_borrow_mut()
+            .map_err(|_| Error::InternalBorrowError)?;
         if provider.is_none() {
             let new_provider = Rc::new(unsafe {
                 CoCreateInstance(&CLSID_ImmersiveShell, None, CLSCTX_LOCAL_SERVER)?
@@ -230,7 +281,10 @@ impl ComObjects {
     }
 
     fn get_manager(&self) -> Result<Rc<IVirtualDesktopManager>> {
-        let mut manager = self.manager.borrow_mut();
+        let mut manager = self
+            .manager
+            .try_borrow_mut()
+            .map_err(|_| Error::InternalBorrowError)?;
         if manager.is_none() {
             let provider = self.get_provider()?;
             let mut obj = std::ptr::null_mut::<c_void>();
@@ -253,10 +307,13 @@ impl ComObjects {
     }
 
     fn get_manager_internal(&self) -> Result<Rc<IVirtualDesktopManagerInternal>> {
-        let mut manager_internal = self.manager_internal.borrow_mut();
+        let mut manager_internal = self
+            .manager_internal
+            .try_borrow_mut()
+            .map_err(|_| Error::InternalBorrowError)?;
         if manager_internal.is_none() {
-            let provider = self.get_provider()?;
             let mut obj = std::ptr::null_mut::<c_void>();
+            let provider = self.get_provider()?;
             unsafe {
                 provider
                     .query_service(
@@ -278,7 +335,10 @@ impl ComObjects {
     }
 
     fn get_notification_service(&self) -> Result<Rc<IVirtualDesktopNotificationService>> {
-        let mut notification_service = self.notification_service.borrow_mut();
+        let mut notification_service = self
+            .notification_service
+            .try_borrow_mut()
+            .map_err(|_| Error::InternalBorrowError)?;
         if notification_service.is_none() {
             let provider = self.get_provider()?;
             let mut obj = std::ptr::null_mut::<c_void>();
@@ -303,7 +363,10 @@ impl ComObjects {
     }
 
     fn get_pinned_apps(&self) -> Result<Rc<IVirtualDesktopPinnedApps>> {
-        let mut pinned_apps = self.pinned_apps.borrow_mut();
+        let mut pinned_apps = self
+            .pinned_apps
+            .try_borrow_mut()
+            .map_err(|_| Error::InternalBorrowError)?;
         if pinned_apps.is_none() {
             let provider = self.get_provider()?;
             let mut obj = std::ptr::null_mut::<c_void>();
@@ -326,7 +389,10 @@ impl ComObjects {
     }
 
     fn get_view_collection(&self) -> Result<Rc<IApplicationViewCollection>> {
-        let mut view_collection = self.view_collection.borrow_mut();
+        let mut view_collection = self
+            .view_collection
+            .try_borrow_mut()
+            .map_err(|_| Error::InternalBorrowError)?;
         if view_collection.is_none() {
             let provider = self.get_provider()?;
             let mut obj = std::ptr::null_mut::<c_void>();
@@ -350,13 +416,24 @@ impl ComObjects {
             .ok_or(Error::ComAllocatedNullPtr)
     }
 
-    pub fn drop_services(&self) {
-        self.provider.borrow_mut().take();
-        self.manager.borrow_mut().take();
-        self.manager_internal.borrow_mut().take();
-        self.notification_service.borrow_mut().take();
-        self.pinned_apps.borrow_mut().take();
-        self.view_collection.borrow_mut().take();
+    fn drop_services(&self) {
+        // Current implementation would be safe drop like this, but in case I
+        // ever refactor I don't use this:
+
+        // drop(self.provider.take());
+        // drop(self.manager.take());
+        // drop(self.manager_internal.take());
+
+        // Instead I use try_borrow_mut() and map() to drop services.
+        let _ = self.provider.try_borrow_mut().map(|mut v| v.take());
+        let _ = self.manager.try_borrow_mut().map(|mut v| v.take());
+        let _ = self.manager_internal.try_borrow_mut().map(|mut v| v.take());
+        let _ = self
+            .notification_service
+            .try_borrow_mut()
+            .map(|mut v| v.take());
+        let _ = self.pinned_apps.try_borrow_mut().map(|mut v| v.take());
+        let _ = self.view_collection.try_borrow_mut().map(|mut v| v.take());
     }
 
     pub(crate) fn is_connected(&self) -> bool {
@@ -380,13 +457,10 @@ impl ComObjects {
                     log_output(&format!("is connected error: {:?} {}", er, out_count));
                 }
 
-                if out_count == 0 {
+                if out_count == 0 || res.is_err() {
                     return false;
                 }
-                match res {
-                    Ok(_) => true,
-                    Err(_) => false,
-                }
+                return true;
             }
             Err(_) => false,
         }
@@ -490,6 +564,7 @@ impl ComObjects {
         view.ok_or(Error::WindowNotFound)
     }
 
+    #[apply(retry_function)]
     pub fn get_desktop_index(&self, id: &DesktopInternal) -> Result<u32> {
         match id {
             DesktopInternal::Index(id) => Ok(*id),
@@ -498,6 +573,7 @@ impl ComObjects {
         }
     }
 
+    #[apply(retry_function)]
     pub fn get_desktop_id(&self, desktop: &DesktopInternal) -> Result<GUID> {
         match desktop {
             DesktopInternal::Index(id) => self.get_desktop_guid_by_index(*id),
@@ -506,6 +582,7 @@ impl ComObjects {
         }
     }
 
+    #[apply(retry_function)]
     pub fn get_desktops(&self) -> Result<Vec<DesktopInternal>> {
         let desktops = self.get_idesktops_array()?;
         let count = unsafe { desktops.GetCount()? };
@@ -518,26 +595,30 @@ impl ComObjects {
         Ok(result)
     }
 
+    #[apply(retry_function)]
     pub fn register_for_notifications(
         &self,
-        notification: &IVirtualDesktopNotification,
+        // notification: &IVirtualDesktopNotification,
+        notification: *mut c_void, // IVirtualDesktopNotification raw pointer
     ) -> Result<u32> {
         let notification_service = self.get_notification_service()?;
 
         unsafe {
             let mut cookie = 0;
             notification_service
-                .register(notification.as_raw(), &mut cookie)
+                .register(notification, &mut cookie)
                 .as_result()
                 .map(|_| cookie)
         }
     }
 
+    #[apply(retry_function)]
     pub fn unregister_for_notifications(&self, cookie: u32) -> Result<()> {
         let notification_service = self.get_notification_service()?;
         unsafe { notification_service.unregister(cookie).as_result() }
     }
 
+    #[apply(retry_function)]
     pub fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
         let desktop = self.get_idesktop(&desktop)?;
         unsafe {
@@ -548,6 +629,7 @@ impl ComObjects {
         Ok(())
     }
 
+    #[apply(retry_function)]
     pub fn create_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
         unsafe {
@@ -561,6 +643,7 @@ impl ComObjects {
         Ok(DesktopInternal::IndexGuid(index, id))
     }
 
+    #[apply(retry_function)]
     pub fn remove_desktop(
         &self,
         desktop: &DesktopInternal,
@@ -576,11 +659,13 @@ impl ComObjects {
         Ok(())
     }
 
+    #[apply(retry_function)]
     pub fn is_window_on_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<bool> {
         let desktop_win = self.get_desktop_by_window(window)?;
         Ok(self.get_desktop_id(&desktop_win)? == self.get_desktop_id(&*desktop)?)
     }
 
+    #[apply(retry_function)]
     pub fn is_window_on_current_desktop(&self, window: &HWND) -> Result<bool> {
         unsafe {
             let mut value = false;
@@ -596,11 +681,13 @@ impl ComObjects {
         }
     }
 
+    #[apply(retry_function)]
     pub fn move_window_to_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         self.move_view_to_desktop(&view, desktop)
     }
 
+    #[apply(retry_function)]
     pub fn get_desktop_count(&self) -> Result<u32> {
         let manager = self.get_manager_internal()?;
         let mut count = 0;
@@ -610,6 +697,7 @@ impl ComObjects {
         Ok(count)
     }
 
+    #[apply(retry_function)]
     pub fn get_desktop_by_window(&self, window: &HWND) -> Result<DesktopInternal> {
         let mut desktop = GUID::default();
         unsafe {
@@ -628,6 +716,7 @@ impl ComObjects {
         Ok(DesktopInternal::Guid(desktop))
     }
 
+    #[apply(retry_function)]
     pub fn get_current_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
         unsafe {
@@ -640,6 +729,7 @@ impl ComObjects {
         Ok(DesktopInternal::Guid(id))
     }
 
+    #[apply(retry_function)]
     pub fn is_pinned_window(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
@@ -651,6 +741,7 @@ impl ComObjects {
         }
     }
 
+    #[apply(retry_function)]
     pub fn pin_window(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
@@ -661,6 +752,7 @@ impl ComObjects {
         Ok(())
     }
 
+    #[apply(retry_function)]
     pub fn unpin_window(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
@@ -671,6 +763,7 @@ impl ComObjects {
         Ok(())
     }
 
+    #[apply(retry_function)]
     fn get_iapplication_id_for_view(&self, view: &IApplicationView) -> Result<APPIDPWSTR> {
         let mut app_id: APPIDPWSTR = std::ptr::null_mut();
         unsafe {
@@ -680,6 +773,7 @@ impl ComObjects {
         Ok(app_id)
     }
 
+    #[apply(retry_function)]
     pub fn is_pinned_app(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
@@ -692,6 +786,7 @@ impl ComObjects {
         }
     }
 
+    #[apply(retry_function)]
     pub fn pin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
@@ -701,6 +796,7 @@ impl ComObjects {
         Ok(())
     }
 
+    #[apply(retry_function)]
     pub fn unpin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
@@ -710,6 +806,7 @@ impl ComObjects {
         Ok(())
     }
 
+    #[apply(retry_function)]
     pub fn get_desktop_name(&self, desktop: &DesktopInternal) -> Result<String> {
         let desktop = self.get_idesktop(&desktop)?;
         let mut name = HSTRING::default();
@@ -719,6 +816,7 @@ impl ComObjects {
         Ok(name.to_string())
     }
 
+    #[apply(retry_function)]
     pub fn set_desktop_name(&self, desktop: &DesktopInternal, name: &str) -> Result<()> {
         let desktop = self.get_idesktop(&desktop)?;
         let manager_internal = self.get_manager_internal()?;
@@ -730,6 +828,7 @@ impl ComObjects {
         }
     }
 
+    #[apply(retry_function)]
     pub fn get_desktop_wallpaper(&self, desktop: &DesktopInternal) -> Result<String> {
         let desktop = self.get_idesktop(&desktop)?;
         let mut path = HSTRING::default();
@@ -739,6 +838,7 @@ impl ComObjects {
         Ok(path.to_string())
     }
 
+    #[apply(retry_function)]
     pub fn set_desktop_wallpaper(&self, desktop: &DesktopInternal, path: &str) -> Result<()> {
         let manager_internal = self.get_manager_internal()?;
         let desktop = self.get_idesktop(&desktop)?;
@@ -750,8 +850,32 @@ impl ComObjects {
     }
 }
 
-pub fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
+fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
     let mut guid = GUID::default();
     unsafe { desktop.get_id(&mut guid).as_result()? }
     Ok(guid)
+}
+
+thread_local! {
+    static COM_OBJECTS: ComObjects = ComObjects::new();
+}
+
+/// This is a helper function to initialize and run COM related functions in a
+/// a single thread.
+///
+/// Virtual Desktop COM Objects don't like to being called from different
+/// threads rapidly, something goes wrong. This function ensures that all COM
+/// calls are done in a single thread.
+pub fn with_com_objects<F, T>(f: F) -> Result<T>
+where
+    F: Fn(&ComObjects) -> Result<T> + 'static,
+    T: 'static,
+{
+    // return std::thread::scope(|env| {
+    //     let com2 = ComObjects::new();
+    //     run_function_and_retry(&f, &com2)
+    // });
+
+    // return COM_OBJECTS.with(|c| run_function_and_retry(&f, &c));
+    return COM_OBJECTS.with(|c| f(&c));
 }

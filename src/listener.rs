@@ -2,16 +2,12 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::time::Duration;
 
-use windows::core::{HRESULT, HSTRING};
-use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows::core::{Vtable, HRESULT, HSTRING};
+use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Threading::{
-    GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
+    GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
 };
 use windows::Win32::UI::Shell::Common::IObjectArray;
-use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetMessageW, PostQuitMessage, PostThreadMessageW, SetTimer, TranslateMessage,
-    MSG, WM_TIMER, WM_USER,
-};
 
 use crate::comobjects::ComObjects;
 use crate::interfaces::{
@@ -19,8 +15,8 @@ use crate::interfaces::{
     IVirtualDesktopNotification_Impl,
 };
 use crate::log::log_output;
+use crate::DesktopEventSender;
 use crate::{DesktopEvent, Result};
-use crate::{DesktopEventSender, Error};
 
 // Log format macro
 macro_rules! log_format {
@@ -30,12 +26,16 @@ macro_rules! log_format {
     };
 }
 
-const WM_USER_QUIT: u32 = WM_USER + 0x10;
+enum DekstopEventThreadMsg {
+    Quit,
+}
 
-/// Event listener thread, create with `create_desktop_event_thread(sender)`, value must be held in the state of the program, the thread is joined when the value is dropped.
+/// Event listener thread, create with `create_desktop_event_thread(sender)`,
+/// value must be held in the state of the program, the thread is joined when
+/// the value is dropped.
 #[derive(Debug)]
 pub struct DesktopEventThread {
-    windows_thread_id: Option<u32>,
+    thread_control_sender: Option<std::sync::mpsc::Sender<DekstopEventThreadMsg>>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -44,90 +44,48 @@ impl DesktopEventThread {
     where
         T: From<DesktopEvent> + Clone + Send + 'static,
     {
-        // Channel for thread id
-        let (tx, rx) = std::sync::mpsc::channel();
+        // Channel for quitting
+        let (tx, rx) = std::sync::mpsc::channel::<DekstopEventThreadMsg>();
 
         // Main notification thread, with STA message loop
         let notification_thread = std::thread::spawn(move || {
+            let com_objects = ComObjects::new();
             log_format!("Listener thread started {:?}", std::thread::current().id());
-
-            let win_thread_id = unsafe { GetCurrentThreadId() };
-
-            // Send the Windows specific thread id to the main thread
-            let res = tx.send(win_thread_id);
-            drop(tx);
-            if let Err(er) = res {
-                log_format!("Could not send thread id to main thread {:?}", er);
-                return;
-            }
 
             // Set thread priority to time critical, explorer.exe really hates if your listener thread is slow
             unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
 
-            // Set a timer to check if the listener is still alive
-            unsafe {
-                SetTimer(HWND::default(), 0, 3000, None);
-            }
+            // Create listener
+            let sender_new = sender.clone();
+            let mut listener = VirtualDesktopNotificationWrapper::new(
+                &com_objects,
+                Box::new(move |event| {
+                    sender_new.try_send(event.into());
+                }),
+            );
 
-            let com_objects = ComObjects::new();
             loop {
-                log_output("Try to create listener service...");
-                let mut quit = false;
-                let sender_new = sender.clone();
-                let listener = VirtualDesktopNotificationWrapper::new(
-                    &com_objects,
-                    Box::new(move |event| {
-                        sender_new.try_send(event.into());
-                    }),
-                );
-
-                // Retry if the listener could not be created after every three seconds
-                if let Err(er) = listener {
-                    log_format!(
-                        "Listener service could not be created, retrying in three seconds {:?}",
-                        er
-                    );
-                    std::thread::sleep(Duration::from_secs(3));
-                    continue;
-                }
-
-                // STA message loop
-                let mut msg = MSG::default();
-                unsafe {
-                    loop {
-                        let continuation = GetMessageW(&mut msg, HWND::default(), 0, 0);
-                        if (continuation.0 == 0) || (continuation.0 == -1) {
-                            log_format!(
-                                "Listener thread stopped GetMessageW result {:?}",
-                                continuation
-                            );
-                            break;
-                        }
-
-                        if msg.message == WM_USER_QUIT {
-                            log_output("Listener thread stopped WM_USER_QUIT");
-                            quit = true;
-                            PostQuitMessage(0);
-                        } else if msg.message == WM_TIMER {
-                            // If com objects aren't connected anymore, drop them and recreate
-                            if !com_objects.is_connected() {
-                                log_output("Listener is not connected, restarting...");
-                                com_objects.drop_services();
-                                TranslateMessage(&msg);
-                                DispatchMessageW(&msg);
-
-                                // Break out of the while message loop, and restart the listener
-                                break;
-                            }
-                        }
-                        TranslateMessage(&msg);
-                        DispatchMessageW(&msg);
-                    }
-
-                    if quit {
-                        log_output("Finish listener next");
-                        // Break out of the loop, and drop the listener
+                let item = rx.recv_timeout(Duration::from_secs(3));
+                match item {
+                    Ok(DekstopEventThreadMsg::Quit) => {
+                        log_output("Listener thread received quit message");
                         break;
+                    }
+                    Err(_) => {
+                        if !com_objects.is_connected() || listener.is_err() {
+                            log_output(
+                                "Listener is not connected, or failed to register, trying again",
+                            );
+
+                            // Recreate listener
+                            let sender_new = sender.clone();
+                            listener = VirtualDesktopNotificationWrapper::new(
+                                &com_objects,
+                                Box::new(move |event| {
+                                    sender_new.try_send(event.into());
+                                }),
+                            );
+                        }
                     }
                 }
             }
@@ -135,15 +93,9 @@ impl DesktopEventThread {
             log_format!("Listener thread finished {:?}", std::thread::current().id());
         });
 
-        // Wait until the thread has started, and sent its Windows specific thread id
-        let win_thread_id = rx
-            .recv_timeout(Duration::from_secs(1))
-            .map_err(|_| Error::ListenerThreadIdNotCreated)?;
-        drop(rx);
-
         // Store the new thread
         Ok(DesktopEventThread {
-            windows_thread_id: Some(win_thread_id),
+            thread_control_sender: Some(tx),
             thread: Some(notification_thread),
         })
     }
@@ -151,16 +103,8 @@ impl DesktopEventThread {
     /// Stops the listener, and join the thread if it is still running, normally
     /// you don't need to call this as drop calls this automatically
     pub fn stop(&mut self) -> std::thread::Result<()> {
-        if let Some(thread_id) = self.windows_thread_id.take() {
-            log_output("Stopping listener thread");
-            unsafe {
-                PostThreadMessageW(
-                    thread_id,
-                    WM_USER_QUIT,
-                    WPARAM::default(),
-                    LPARAM::default(),
-                );
-            }
+        if let Some(thread_control_sender) = self.thread_control_sender.take() {
+            let _ = thread_control_sender.send(DekstopEventThreadMsg::Quit);
         }
 
         if let Some(thread) = self.thread.take() {
@@ -185,9 +129,8 @@ impl Drop for DesktopEventThread {
 struct VirtualDesktopNotificationWrapper<'a> {
     #[allow(dead_code)]
     ptr: Pin<Box<IVirtualDesktopNotification>>,
-
-    com_objects: &'a ComObjects,
     cookie: u32,
+    com_objects: &'a ComObjects,
 }
 
 impl<'a> VirtualDesktopNotificationWrapper<'a> {
@@ -195,14 +138,15 @@ impl<'a> VirtualDesktopNotificationWrapper<'a> {
         com_objects: &'a ComObjects,
         sender: Box<dyn Fn(DesktopEvent)>,
     ) -> Result<Pin<Box<VirtualDesktopNotificationWrapper>>> {
-        let ptr = Pin::new(Box::new(VirtualDesktopNotification { sender }.into()));
-
+        let ptr: Pin<Box<IVirtualDesktopNotification>> =
+            Pin::new(Box::new(VirtualDesktopNotification { sender }.into()));
+        let raw_ptr = ptr.as_raw();
+        let cookie = com_objects.register_for_notifications(raw_ptr)?;
         let notification = Pin::new(Box::new(VirtualDesktopNotificationWrapper {
-            cookie: com_objects.register_for_notifications(&ptr)?,
-            ptr,
             com_objects,
+            cookie,
+            ptr,
         }));
-
         log_format!(
             "Registered notification {} {:?}",
             notification.cookie,
@@ -213,7 +157,7 @@ impl<'a> VirtualDesktopNotificationWrapper<'a> {
     }
 }
 
-impl Drop for VirtualDesktopNotificationWrapper<'_> {
+impl<'a> Drop for VirtualDesktopNotificationWrapper<'a> {
     fn drop(&mut self) {
         log_format!(
             "Unregistering notification {} {:?}",
@@ -221,7 +165,8 @@ impl Drop for VirtualDesktopNotificationWrapper<'_> {
             std::thread::current().id()
         );
 
-        let _ = self.com_objects.unregister_for_notifications(self.cookie);
+        let cookie = self.cookie;
+        let _ = self.com_objects.unregister_for_notifications(cookie);
     }
 }
 

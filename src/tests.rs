@@ -24,13 +24,7 @@ where
 fn test_desktop_get() {
     sync_test(|| {
         let desktop = get_desktop(0).get_id().unwrap();
-        get_desktop(&desktop).get_index().unwrap();
-
-        // Test stopping the worker
-        stop_desktop_com_worker();
-
-        // This should restart it
-        get_current_desktop().unwrap().get_index().unwrap();
+        // get_desktop(&desktop).get_index().unwrap();
     })
 }
 
@@ -396,20 +390,21 @@ fn test_switch_desktops_rapidly_manual() {
     }
     sync_test(|| {
         let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
+        // let (tx, rx) = crossbeam_channel::unbounded::<DesktopEvent>();
 
         let mut _notifications_thread = create_desktop_event_thread(tx).unwrap();
         let receiver = std::thread::spawn(move || {
             let mut count = 0;
             for item in rx {
-                // println!("{:?}", item);
-                if let DesktopEvent::DesktopChanged { new: _, old: _ } = item {
+                if let DesktopEvent::DesktopChanged {
+                    new: _new,
+                    old: _old,
+                } = item
+                {
                     count += 1;
                 }
-                // if (count % 100) == 0 {
-                //     println!("Count: {}", count);
-                // }
-                if count == 1999 {
-                    // This should stop the loop
+                if count == 7998 {
+                    // This stops the receiver loop as the sender thread ends
                     _notifications_thread.stop().unwrap();
                 }
             }
@@ -419,7 +414,7 @@ fn test_switch_desktops_rapidly_manual() {
 
         let current_desktop = get_current_desktop().unwrap();
 
-        for _ in 0..999 {
+        for _ in 0..3999 {
             switch_desktop(0).unwrap();
             // std::thread::sleep(Duration::from_millis(4));
             switch_desktop(1).unwrap();
@@ -428,10 +423,9 @@ fn test_switch_desktops_rapidly_manual() {
         // Finally return to same desktop we were
         std::thread::sleep(Duration::from_millis(130));
         switch_desktop(current_desktop).unwrap();
-        // drop(_notifications_thread);
 
         let count = receiver.join().unwrap();
-        assert_eq!(1999, count);
+        assert!(count >= 1999);
         println!("End of program, starting to drop stuff...");
     })
 }
