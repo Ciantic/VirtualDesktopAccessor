@@ -22,7 +22,7 @@ windows = { version = "0.44", features = [
 windows-interface = { version = "0.44" }
 windows-implement = { version = "0.44" }
 crossbeam-channel = { version = "0.5", optional = true }
-winit = { version = "*", optional = true }
+winit = { version = "0.28", optional = true }
 macro_rules_attribute = "0.1"
 
 [dev-dependencies]
