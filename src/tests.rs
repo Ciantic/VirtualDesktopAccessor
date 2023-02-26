@@ -24,7 +24,7 @@ where
 fn test_desktop_get() {
     sync_test(|| {
         let desktop = get_desktop(0).get_id().unwrap();
-        // get_desktop(&desktop).get_index().unwrap();
+        get_desktop(&desktop).get_index().unwrap();
     })
 }
 

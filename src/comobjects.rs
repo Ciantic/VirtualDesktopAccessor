@@ -55,15 +55,6 @@ pub enum Error {
     /// usage.
     ComAllocatedNullPtr,
 
-    /// Sender error
-    SenderError,
-
-    /// Receiver Error
-    ReceiverError,
-
-    /// Listener thread not created
-    ListenerThreadIdNotCreated,
-
     /// Borrow error
     InternalBorrowError,
 }
