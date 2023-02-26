@@ -37,6 +37,7 @@ integration-tests = []
 
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"
+all-features = true
 
 [workspace]
 members = ["testbin", "dll"]

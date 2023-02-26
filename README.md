@@ -50,38 +50,28 @@ fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i3
 https://crates.io/crates/winvd
 https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/
 
-The implementation abstracts the annoying COM API to a simple functions.
-Accessing these functions should be thread-safe.
+The implementation abstracts the annoying COM API into simple functions.
 
 ### Example
 
-You may want to use `helpers` sub module in this crate, it is most stable API at
-the moment. It contains almost all the wanted features but with numbered
-helpers.
-
 ```rust
-use winvd::helpers::{get_desktop_count, go_to_desktop_number};
-use winvd::{get_event_receiver, VirtualDesktopEvent};
+use winvd::{switch_desktop, get_desktop_count};
 
 fn main() {
     // Desktop count
-    println!("Desktops: {:?}", get_desktop_count());
+    println!("Desktops: {:?}", get_desktop_count().unwrap());
 
     // Go to second desktop, index = 1
-    go_to_desktop_number(1);
-
-    // Listen on interesting events
-    // TODO: Document
-
+    switch_desktop(1).unwrap();
 }
 ```
 
-See more examples from the [testbin sources 🢅](https://github.com/Ciantic/VirtualDesktopAccessor/blob/rust/testbin/src/main.rs).
+WIP see more examples from the [testbin sources 🢅](https://github.com/Ciantic/VirtualDesktopAccessor/blob/rust/testbin/src/main.rs).
 
 ### Notes
 
 ```
 cargo clean
+cargo doc --all-features
 cargo build --release --workspace
-cargo build --features debug --workspace
 ```
