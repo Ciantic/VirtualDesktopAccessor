@@ -35,7 +35,7 @@ fn test_desktop_moves() {
 
         // Listen for desktop changes
         let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-        let mut _notifications_thread = create_desktop_event_thread(tx).unwrap();
+        let mut _notifications_thread = listen_desktop_events(tx).unwrap();
         let receiver = std::thread::spawn(move || {
             let mut count = 0;
             for item in rx {
@@ -316,7 +316,7 @@ fn test_listener_manual() {
     }
     sync_test(|| {
         let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-        let _notifications_thread = create_desktop_event_thread(tx);
+        let _notifications_thread = listen_desktop_events(tx);
 
         std::thread::spawn(|| {
             for item in rx {
@@ -347,7 +347,7 @@ fn test_kill_explorer_exe_manually() {
 
         // Create listener
         let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-        let _notifications_thread = create_desktop_event_thread(tx);
+        let _notifications_thread = listen_desktop_events(tx);
         let _receiver = std::thread::spawn(|| {
             let mut count = 0;
             for item in rx {
@@ -392,7 +392,7 @@ fn test_switch_desktops_rapidly_manual() {
         let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
         // let (tx, rx) = crossbeam_channel::unbounded::<DesktopEvent>();
 
-        let mut _notifications_thread = create_desktop_event_thread(tx).unwrap();
+        let mut _notifications_thread = listen_desktop_events(tx).unwrap();
         let receiver = std::thread::spawn(move || {
             let mut count = 0;
             for item in rx {

@@ -140,7 +140,7 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                     }
                 }
             });
-            let create_sender_result = create_desktop_event_thread(tx);
+            let create_sender_result = listen_desktop_events(tx);
             match create_sender_result {
                 Ok(sender_thread) => {
                     *a = Some((sender_thread, listener_thread));

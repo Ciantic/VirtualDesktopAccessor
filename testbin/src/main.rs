@@ -25,7 +25,7 @@ fn main() {
     let your_app_window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let proxy = event_loop.create_proxy();
-    let _thread = create_desktop_event_thread(proxy);
+    let _thread = listen_desktop_events(proxy);
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

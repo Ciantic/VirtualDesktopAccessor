@@ -30,7 +30,7 @@ enum DekstopEventThreadMsg {
     Quit,
 }
 
-/// Event listener thread, create with `create_desktop_event_thread(sender)`,
+/// Event listener thread, create with `listen_desktop_events(sender)`,
 /// value must be held in the state of the program, the thread is joined when
 /// the value is dropped.
 #[derive(Debug)]

@@ -90,18 +90,19 @@ pub enum DesktopEvent {
     WindowChanged(HWND),
 }
 
-/// Create event sending thread, give this `crossbeam_channel::Sender<T>`, `winit::event_loop::EventLoopProxy<T>`, or `std::sync::mpsc::Sender<T>`.
+/// Create event sending thread, give this `crossbeam_channel::Sender<T>`,
+/// `winit::event_loop::EventLoopProxy<T>`, or `std::sync::mpsc::Sender<T>`.
 ///
-/// Your message type `T` needs to be convertible to `DesktopEvent`.
+/// `DesktopEvent` must be convertible to your message type `T`.
 ///
-/// This function returns `DesktopEventThread`, you must keep the value alive,
-/// when the value is dropped the listener is closed and thread joined.
+/// This function returns `DesktopEventThread`, which must be kept alive. When
+/// the value is dropped the listener is closed and thread joined.
 ///
 /// # Example
 ///
 /// ```rust
 /// let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-/// let _notifications_thread = create_desktop_event_thread(tx);
+/// let _notifications_thread = listen_desktop_events(tx);
 /// // Do with receiver something
 /// for item in rx {
 ///    println!("{:?}", item);
@@ -112,7 +113,7 @@ pub enum DesktopEvent {
 /// Additionally you can pass crossbeam-channel sender, or winit eventloop proxy
 /// to the function.
 ///
-pub fn create_desktop_event_thread<T, S>(sender: S) -> Result<DesktopEventThread, Error>
+pub fn listen_desktop_events<T, S>(sender: S) -> Result<DesktopEventThread, Error>
 where
     T: From<DesktopEvent> + Clone + Send + 'static,
     S: Into<DesktopEventSender<T>> + Clone,

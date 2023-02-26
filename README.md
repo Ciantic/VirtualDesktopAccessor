@@ -1,8 +1,8 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 11 (22H2 Os Build 22621.1105) Virtual Desktop features from e.g. AutoHotkey. 
+DLL for accessing Windows 11 (22H2 Os Build 22621.1105) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2023
 
-MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2023
+This repository also contains [Rust library `winvd`](./README-cargo.md) for accessing the Virtual Desktop via Rust bindings.
 
 ## AutoHotkey example here:
 
@@ -40,38 +40,4 @@ fn UnPinApp(hwnd: HWND) -> i32
 fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
 fn CreateDesktop() -> i32 // Win11 only
 fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i32 // Win11 only
-```
-
----- 
-
-
-## winvd - Windows virtual desktop bindings library for Rust
-
-https://crates.io/crates/winvd
-https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/
-
-The implementation abstracts the annoying COM API into simple functions.
-
-### Example
-
-```rust
-use winvd::{switch_desktop, get_desktop_count};
-
-fn main() {
-    // Desktop count
-    println!("Desktops: {:?}", get_desktop_count().unwrap());
-
-    // Go to second desktop, index = 1
-    switch_desktop(1).unwrap();
-}
-```
-
-WIP see more examples from the [testbin sources 🢅](https://github.com/Ciantic/VirtualDesktopAccessor/blob/rust/testbin/src/main.rs).
-
-### Notes
-
-```
-cargo clean
-cargo doc --all-features
-cargo build --release --workspace
 ```

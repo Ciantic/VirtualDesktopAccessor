@@ -5,7 +5,7 @@ authors = ["Jari Otto Oskari Pennanen"]
 license = "MIT"
 edition = "2018"
 description = "Provides functions for accessing Windows 11 virtual desktop API"
-readme = "README.md"
+readme = "README-crate.md"
 homepage = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 repository = "https://github.com/ciantic/VirtualDesktopAccessor/tree/rust/"
 
