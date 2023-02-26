@@ -175,6 +175,49 @@ pub struct ComObjects {
     view_collection: RefCell<Option<Rc<IApplicationViewCollection>>>,
 }
 
+fn retry_function<F, R>(com_objects: &ComObjects, f: F) -> Result<R>
+where
+    F: Fn() -> Result<R>,
+{
+    let mut value = f();
+    for _ in 0..3 {
+        match &value {
+            Err(er)
+                if er == &Error::ClassNotRegistered
+                    || er == &Error::RpcServerNotAvailable
+                    || er == &Error::ComObjectNotConnected
+                    || er == &Error::ComAllocatedNullPtr
+                    || er == &Error::ComNotInitialized =>
+            {
+                #[cfg(debug_assertions)]
+                log_output(&format!("Retry the function after {:?}", er));
+
+                if er == &Error::ComNotInitialized {
+                    let _ = unsafe { CoIncrementMTAUsage() };
+                }
+
+                drop(value);
+
+                // If private function is decorated, then this drop_services call
+                // will cause borrow issues.
+                com_objects.drop_services();
+
+                value = f();
+            }
+            _ => {
+                break;
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    if let Err(er) = &value {
+        log_output(&format!("Com_objects function failed with {:?}", er));
+    }
+
+    value
+}
+
 /// Safely reruns the function if it returns one of the recoverable errors
 ///
 /// This should be applied to only public functions in ComObjects struct, having
@@ -198,46 +241,9 @@ macro_rules! retry_function {(
         &$self_, $( $arg_name : $ArgTy ),*
     ) -> $RetTy
     {
-
-        let fun = || -> $RetTy {
+        retry_function(&$self_, || -> $RetTy {
             $body
-        };
-        let mut value = fun();
-        for _ in 0..3 {
-            match &value {
-                Err(er) if er == &Error::ClassNotRegistered
-                    || er == &Error::RpcServerNotAvailable
-                    || er == &Error::ComObjectNotConnected
-                    || er == &Error::ComAllocatedNullPtr
-                    || er == &Error::ComNotInitialized
-                => {
-                    #[cfg(debug_assertions)]
-                    log_output(&format!("Retry the function after {:?}", er));
-
-                    if er == &Error::ComNotInitialized {
-                        let _ = unsafe { CoIncrementMTAUsage() };
-                    }
-
-                    drop(value);
-
-                    // If private function is decorated, then this drop_services call
-                    // will cause borrow issues.
-                    $self_.drop_services();
-
-                    value = fun();
-                },
-                _ => {
-                    break;
-                }
-            }
-        }
-
-        #[cfg(debug_assertions)]
-        if let Err(er) = &value {
-            log_output(&format!("Com_objects function failed with {:?}", er));
-        }
-
-        value
+        })
     }
 )}
 
