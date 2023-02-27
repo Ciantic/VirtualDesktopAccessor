@@ -2,7 +2,7 @@
 
 ## Windows 11, Sixth binary (not released)
 
-Now that I have re-learned the COM lifetime rules the hard way, I could get this working with Multithreaded apartments.
+Now that I have re-learned the COM lifetime rules the hard way, I could get this working with multithreaded apartments.
 
 The change is not causing any visible changes to DLL API, just removing old code about single-threaded apartments.
 
