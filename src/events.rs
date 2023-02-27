@@ -69,7 +69,7 @@ impl<T> DesktopEventSender<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DesktopEvent {
     DesktopCreated(Desktop),
     DesktopDestroyed {
