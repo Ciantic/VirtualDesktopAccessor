@@ -77,7 +77,27 @@ impl DesktopEventThread {
                                 "Listener is not connected, or failed to register, trying again",
                             );
 
-                            // Recreate listener
+                            // Recreate listener, this will unregister the old
+                            // one before new one is registered.
+                            //
+                            // Note: I've observed that
+                            // IVirtualDesktopNotification::register reuses
+                            // cookies, if explorer.exe is crashed. This means
+                            // that unregistering must be done before new one is
+                            // created.
+                            //
+                            // Here is what I encountered:
+                            //
+                            // 1. Registered notification with cookie 24
+                            // 2. Explorer exe crashed
+                            // 3. Explorer restarted
+                            // 4. Registered notification with cookie 24
+                            //
+                            // If you were to now unregister the old one, it
+                            // would unregister the new one. This means we have
+                            // to unregister the old value before registering a
+                            // new one.
+                            drop(listener);
                             let sender_new = sender.clone();
                             listener = VirtualDesktopNotificationWrapper::new(
                                 &com_objects,
