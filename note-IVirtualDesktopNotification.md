@@ -87,3 +87,20 @@ Because `windows-rs` COM objects call `Release()` during `drop` it will cause a
 subtle bug. If I allow calls to `drop` the crash occurs but after switching
 desktops repeatedly for ~2000-3000 times. This is not an easy bug to make
 happen.
+
+
+## Note about explorer.exe crashing and reusing cookies
+
+I've observed that IVirtualDesktopNotification::register reuses cookies if
+explorer.exe crashes. This means that unregistering must be done before a new
+one is created.
+
+Here is what I encountered:
+
+1. Registered notification with cookie 24
+2. Explorer.exe crashed
+3. Explorer.exe restarted
+4. Registered notification with cookie 24
+
+If you were to now unregister the old one, it would unregister the new one. This
+means we have to unregister the old value before registering a new one.
