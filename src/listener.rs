@@ -148,7 +148,8 @@ impl<'a> VirtualDesktopNotificationWrapper<'a> {
             ptr,
         }));
         log_format!(
-            "Registered notification {} {:?}",
+            "Registered notification {:?} {} {:?}",
+            raw_ptr,
             notification.cookie,
             std::thread::current().id()
         );

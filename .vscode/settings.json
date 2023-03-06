@@ -1,7 +1,7 @@
 {
     "editor.formatOnSave": true,
     "triggerTaskOnSave.restart": true,
-    "rust-analyzer.cargo.features": ["crossbeam-channel", "winit", "integration-tests"],
+    "rust-analyzer.cargo.features": "all",
     "triggerTaskOnSave.tasks": {
         // "rust: cargo build": ["**/*.rs"]
     },
