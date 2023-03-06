@@ -79,7 +79,7 @@ impl DesktopEventThread {
 
                             // Drop will unregister the old listener before the
                             // new one is created, this is required, read more
-                            // from adjacent note-IVirtualDesktopNotification.md
+                            // from note-IVirtualDesktopNotification.md
                             drop(listener);
                             let sender_new = sender.clone();
                             listener = VirtualDesktopNotificationWrapper::new(
