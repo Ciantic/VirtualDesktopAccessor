@@ -442,7 +442,7 @@ impl ComObjects {
                 let mut out_count = 0;
                 let res = unsafe {
                     manager_internal
-                        .get_desktop_count(0, &mut out_count)
+                        .get_desktop_count(&mut out_count)
                         .as_result()
                 };
 
@@ -464,7 +464,7 @@ impl ComObjects {
         let mut desktops = None;
         unsafe {
             self.get_manager_internal()?
-                .get_desktops(0, &mut desktops)
+                .get_desktops(&mut desktops)
                 .as_result()?
         }
         desktops.ok_or(Error::ComAllocatedNullPtr)
@@ -617,7 +617,7 @@ impl ComObjects {
         let desktop = self.get_idesktop(&desktop)?;
         unsafe {
             self.get_manager_internal()?
-                .switch_desktop(0, ComIn::new(&desktop))
+                .switch_desktop(ComIn::new(&desktop))
                 .as_result()?
         }
         Ok(())
@@ -628,7 +628,7 @@ impl ComObjects {
         let mut desktop = None;
         unsafe {
             self.get_manager_internal()?
-                .create_desktop(0, &mut desktop)
+                .create_desktop(&mut desktop)
                 .as_result()?
         }
         let desktop = desktop.ok_or(Error::ComAllocatedNullPtr)?;
@@ -686,7 +686,7 @@ impl ComObjects {
         let manager = self.get_manager_internal()?;
         let mut count = 0;
         unsafe {
-            manager.get_desktop_count(0, &mut count).as_result()?;
+            manager.get_desktop_count(&mut count).as_result()?;
         };
         Ok(count)
     }
@@ -715,7 +715,7 @@ impl ComObjects {
         let mut desktop = None;
         unsafe {
             self.get_manager_internal()?
-                .get_current_desktop(0, &mut desktop)
+                .get_current_desktop(&mut desktop)
                 .as_result()?
         }
         let desktop = desktop.ok_or(Error::ComAllocatedNullPtr)?;

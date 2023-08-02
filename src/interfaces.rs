@@ -109,7 +109,7 @@ type PCWSTR = *const WCHAR;
 type PWSTR = *mut WCHAR;
 type ULONGLONG = u64;
 type LONG = i32;
-type HMONITOR = isize;
+// type HMONITOR = isize;
 
 type IAsyncCallback = UINT;
 type IImmersiveMonitor = UINT;
@@ -274,7 +274,7 @@ pub unsafe trait IApplicationView: IUnknown {
     pub unsafe fn unknown12(&self, arg: *mut SIZE) -> HRESULT;
 }
 
-#[windows_interface::interface("536D3495-B208-4CC9-AE26-DE8111275BF8")]
+#[windows_interface::interface("3F07F4BE-B107-441A-AF0F-39D82529072C")]
 pub unsafe trait IVirtualDesktop: IUnknown {
     pub unsafe fn is_view_visible(
         &self,
@@ -282,7 +282,7 @@ pub unsafe trait IVirtualDesktop: IUnknown {
         out_bool: *mut u32,
     ) -> HRESULT;
     pub unsafe fn get_id(&self, out_guid: *mut GUID) -> HRESULT;
-    pub unsafe fn get_monitor(&self, out_monitor: *mut HMONITOR) -> HRESULT;
+    // pub unsafe fn get_monitor(&self, out_monitor: *mut HMONITOR) -> HRESULT;
     pub unsafe fn get_name(&self, out_string: *mut HSTRING) -> HRESULT;
     pub unsafe fn get_wallpaper(&self, out_string: *mut HSTRING) -> HRESULT;
 }
@@ -342,40 +342,35 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
 // Normally functions should call IUnknown's Release() on the given pointer
 // after they are done with it, but the shell doesn't like that for this
 // interface.
-#[windows_interface::interface("CD403E52-DEED-4C13-B437-B98380F2B1E8")]
+#[windows_interface::interface("B287FA1C-7771-471A-A2DF-9B6B21F0D675")]
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_failed(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroyed(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
-    pub unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT;
+    /* pub unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT; */
 
     pub unsafe fn virtual_desktop_moved(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop: ComIn<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,
@@ -391,7 +386,6 @@ pub unsafe trait IVirtualDesktopNotification: IUnknown {
 
     pub unsafe fn current_virtual_desktop_changed(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_old: ComIn<IVirtualDesktop>,
         desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
@@ -414,9 +408,9 @@ pub unsafe trait IVirtualDesktopNotificationService: IUnknown {
     pub unsafe fn unregister(&self, cookie: u32) -> HRESULT;
 }
 
-#[windows_interface::interface("b2f925b9-5a0f-4d2e-9f4d-2b1507593c10")]
+#[windows_interface::interface("A3175F2D-239C-4BD2-8AA0-EEBA8B0B138E")]
 pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
-    pub unsafe fn get_desktop_count(&self, monitor: HMONITOR, out_count: *mut UINT) -> HRESULT;
+    pub unsafe fn get_desktop_count(&self, out_count: *mut UINT) -> HRESULT;
 
     pub unsafe fn move_view_to_desktop(
         &self,
@@ -432,18 +426,16 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
 
     pub unsafe fn get_current_desktop(
         &self,
-        monitor: HMONITOR,
         out_desktop: *mut Option<IVirtualDesktop>,
     ) -> HRESULT;
 
-    pub unsafe fn get_all_current_desktops(
+    /* pub unsafe fn get_all_current_desktops(
         &self,
         out_desktops: *mut Option<IObjectArray>,
-    ) -> HRESULT;
+    ) -> HRESULT; */
 
     pub unsafe fn get_desktops(
         &self,
-        monitor: HMONITOR,
         out_desktops: *mut Option<IObjectArray>,
     ) -> HRESULT;
 
@@ -461,20 +453,17 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
 
     pub unsafe fn switch_desktop(
         &self,
-        monitor: HMONITOR,
         desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn create_desktop(
         &self,
-        monitor: HMONITOR,
         out_desktop: *mut Option<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn move_desktop(
         &self,
         in_desktop: ComIn<IVirtualDesktop>,
-        monitor: HMONITOR,
         index: UINT,
     ) -> HRESULT;
 
@@ -500,6 +489,7 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
     pub unsafe fn set_name(&self, desktop: ComIn<IVirtualDesktop>, name: HSTRING) -> HRESULT;
     pub unsafe fn set_wallpaper(&self, desktop: ComIn<IVirtualDesktop>, name: HSTRING) -> HRESULT;
     pub unsafe fn update_wallpaper_for_all(&self, name: HSTRING) -> HRESULT;
+    pub unsafe fn copy_desktop_state(&self, p_view0: ComIn<IApplicationView>, p_view1: ComIn<IApplicationView>,) -> HRESULT;
 }
 
 #[windows_interface::interface("4ce81583-1e4c-4632-a621-07a53543148f")]
