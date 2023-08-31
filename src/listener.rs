@@ -195,7 +195,6 @@ fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
 impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
     unsafe fn current_virtual_desktop_changed(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_old: ComIn<IVirtualDesktop>,
         desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
@@ -222,11 +221,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_created(
-        &self,
-        monitors: ComIn<IObjectArray>,
-        desktop: ComIn<IVirtualDesktop>,
-    ) -> HRESULT {
+    unsafe fn virtual_desktop_created(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopCreated(
                 desktop.try_into()?,
@@ -237,7 +232,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
@@ -246,7 +240,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
@@ -255,7 +248,6 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_destroyed(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop_destroyed: ComIn<IVirtualDesktop>,
         desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
@@ -269,15 +261,8 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_is_per_monitor_changed(&self, is_per_monitor: i32) -> HRESULT {
-        log_format!("Desktop is per monitor changed: {}", is_per_monitor != 0);
-
-        HRESULT(0)
-    }
-
     unsafe fn virtual_desktop_moved(
         &self,
-        monitors: ComIn<IObjectArray>,
         desktop: ComIn<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,

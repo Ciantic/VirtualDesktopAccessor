@@ -1,5 +1,10 @@
 # VirtualDesktopAccessor.dll change log
 
+## Windows 11, Seventh binary - New interface definitions (2023-08-31)
+
+Interface definitions changed in the latest Windows 11 build 22621, this is not
+backward compatible with old Windows 11 binaries! 
+
 ## Windows 11, Sixth binary (not released)
 
 Now that I have re-learned the COM lifetime rules the hard way, I could get this working with multithreaded apartments.
