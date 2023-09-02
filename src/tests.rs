@@ -429,3 +429,11 @@ fn test_switch_desktops_rapidly_manual() {
         println!("End of program, starting to drop stuff...");
     })
 }
+
+#[test]
+fn test_desktop_count() {
+    sync_test(|| {
+        let count = get_desktop_count().unwrap();
+        assert!(count > 1);
+    })
+}
