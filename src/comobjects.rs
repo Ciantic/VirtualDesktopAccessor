@@ -624,6 +624,17 @@ impl ComObjects {
     }
 
     #[apply(retry_function)]
+    pub fn switch_desktop_with_animation(&self, desktop: &DesktopInternal) -> Result<()> {
+        let desktop = self.get_idesktop(&desktop)?;
+        unsafe {
+            self.get_manager_internal()?
+                .switch_desktop_with_animation(ComIn::new(&desktop))
+                .as_result()?
+        }
+        Ok(())
+    }
+
+    #[apply(retry_function)]
     pub fn create_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
         unsafe {

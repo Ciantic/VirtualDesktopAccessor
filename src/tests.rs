@@ -29,6 +29,17 @@ fn test_desktop_get() {
 }
 
 #[test]
+fn test_desktop_moves_with_animation() {
+    sync_test(|| {
+        let desktop1 = get_desktop(1);
+        let desktop0 = get_desktop(0);
+        switch_desktop_with_animation(desktop1).unwrap();
+        std::thread::sleep(Duration::from_millis(2000));
+        switch_desktop_with_animation(desktop0).unwrap();
+    })
+}
+
+#[test]
 fn test_desktop_moves() {
     sync_test(|| {
         let current_desktop = get_current_desktop().unwrap().get_index().unwrap();

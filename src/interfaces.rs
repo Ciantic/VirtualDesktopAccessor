@@ -461,6 +461,18 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
     pub unsafe fn set_name(&self, desktop: ComIn<IVirtualDesktop>, name: HSTRING) -> HRESULT;
     pub unsafe fn set_wallpaper(&self, desktop: ComIn<IVirtualDesktop>, name: HSTRING) -> HRESULT;
     pub unsafe fn update_wallpaper_for_all(&self, name: HSTRING) -> HRESULT;
+    pub unsafe fn copy_desktop_state(
+        &self,
+        app_view: ComIn<IApplicationView>,
+        app_view2: ComIn<IApplicationView>,
+    ) -> HRESULT;
+    pub unsafe fn create_remote_desktop(
+        &self,
+        name: HSTRING,
+        desktop: *mut Option<IVirtualDesktop>,
+    ) -> HRESULT;
+    pub unsafe fn switch_remote_desktop(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
+    pub unsafe fn switch_desktop_with_animation(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
 }
 
 #[windows_interface::interface("4ce81583-1e4c-4632-a621-07a53543148f")]

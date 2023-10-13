@@ -154,6 +154,15 @@ where
     with_com_objects(move |o| o.switch_desktop(&desktop.into().into()))
 }
 
+/// Switch desktop by index or GUID
+pub fn switch_desktop_with_animation<T>(desktop: T) -> Result<()>
+where
+    T: Into<Desktop>,
+    T: Send + 'static + Copy,
+{
+    with_com_objects(move |o| o.switch_desktop_with_animation(&desktop.into().into()))
+}
+
 /// Remove desktop by index or GUID
 pub fn remove_desktop<T>(desktop: T, fallback_desktop: T) -> Result<()>
 where
