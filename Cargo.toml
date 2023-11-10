@@ -1,6 +1,6 @@
 [package]
 name = "winvd"
-version = "0.0.40"
+version = "0.0.41"
 authors = ["Jari Otto Oskari Pennanen"]
 license = "MIT"
 edition = "2021"
