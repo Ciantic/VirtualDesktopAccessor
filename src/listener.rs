@@ -297,4 +297,12 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         (self.sender)(DesktopEvent::WindowChanged(hwnd));
         HRESULT(0)
     }
+
+    unsafe fn virtual_desktop_switched(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+        HRESULT(0)
+    }
+
+    unsafe fn remote_virtual_desktop_connected(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+        HRESULT(0)
+    }
 }

@@ -388,6 +388,13 @@ pub unsafe trait IVirtualDesktopNotification: IUnknown {
         desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
+
+    pub unsafe fn virtual_desktop_switched(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
+
+    pub unsafe fn remote_virtual_desktop_connected(
+        &self,
+        desktop: ComIn<IVirtualDesktop>,
+    ) -> HRESULT;
 }
 
 #[windows_interface::interface("0CD45E71-D927-4F15-8B0A-8FEF525337BF")]
