@@ -1,6 +1,5 @@
 use super::comobjects::*;
 use super::{interfaces::IVirtualDesktop, *};
-use crate::interfaces::ComIn;
 use std::{convert::TryFrom, fmt::Debug, mem::ManuallyDrop};
 use windows::{core::GUID, Win32::Foundation::HWND};
 
@@ -81,13 +80,6 @@ impl TryFrom<ManuallyDrop<IVirtualDesktop>> for Desktop {
     type Error = Error;
 
     fn try_from(desktop: ManuallyDrop<IVirtualDesktop>) -> Result<Self> {
-        Ok(Desktop(DesktopInternal::try_from(&desktop)?))
-    }
-}
-impl<'a> TryFrom<ComIn<'a, IVirtualDesktop>> for Desktop {
-    type Error = Error;
-
-    fn try_from(desktop: ComIn<'a, IVirtualDesktop>) -> Result<Self> {
         Ok(Desktop(DesktopInternal::try_from(&desktop)?))
     }
 }

@@ -127,7 +127,7 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                             let a = LISTENER_HWNDS.lock().unwrap();
                             for hwnd in a.iter() {
                                 unsafe {
-                                    PostMessageW(
+                                    let _ = PostMessageW(
                                         HWND(*hwnd as isize),
                                         message_offset,
                                         WPARAM(old_index as usize),
