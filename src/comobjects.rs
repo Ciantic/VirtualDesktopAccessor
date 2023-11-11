@@ -1,7 +1,6 @@
 /// This module contains COM object for accessing the Windows Virtual Desktop API
 use super::interfaces::*;
 use super::Result;
-use crate::log::log_output;
 use std::convert::TryFrom;
 use std::rc::Rc;
 use std::{cell::RefCell, ffi::c_void};
@@ -14,6 +13,9 @@ use windows::{
     core::{Interface, GUID, HSTRING},
     Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
 };
+
+#[cfg(debug_assertions)]
+use crate::log::log_output;
 
 type WCHAR = u16;
 type APPIDPWSTR = *const WCHAR;

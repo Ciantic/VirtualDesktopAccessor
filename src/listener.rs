@@ -118,10 +118,10 @@ impl DesktopEventThread {
 
 impl Drop for DesktopEventThread {
     fn drop(&mut self) {
-        let res = self.stop();
+        let _res = self.stop();
 
         #[cfg(debug_assertions)]
-        if let Err(err) = res {
+        if let Err(err) = _res {
             log_format!("Could not stop listener thread {:?}", err);
         }
     }
@@ -182,8 +182,8 @@ fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
     let res = func();
     match res {
         Ok(v) => Some(v),
-        Err(er) => {
-            log_format!("Error in listener: {:?}", er);
+        Err(_er) => {
+            log_format!("Error in listener: {:?}", _er);
             None
         }
     }

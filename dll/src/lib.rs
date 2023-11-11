@@ -146,9 +146,9 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
                     *a = Some((sender_thread, listener_thread));
                     return 1;
                 }
-                Err(er) => {
+                Err(_er) => {
                     #[cfg(debug_assertions)]
-                    log::log_output(&format!("RegisterPostMessageHook failed: {:?}", er));
+                    log::log_output(&format!("RegisterPostMessageHook failed: {:?}", _er));
                     return -1;
                 }
             }

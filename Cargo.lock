@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "winvd"
-version = "0.0.44"
+version = "0.0.45"
 dependencies = [
  "crossbeam-channel",
  "macro_rules_attribute",
