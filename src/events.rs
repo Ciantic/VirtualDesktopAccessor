@@ -88,6 +88,8 @@ pub enum DesktopEvent {
         new_index: i64,
     },
     WindowChanged(HWND),
+    DesktopSwitched(Desktop),
+    RemoteDesktopConnected(Desktop),
 }
 
 /// Create event sending thread, give this `crossbeam_channel::Sender<T>`,

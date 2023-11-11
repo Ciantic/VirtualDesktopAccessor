@@ -298,10 +298,20 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
     }
 
     unsafe fn virtual_desktop_switched(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::DesktopSwitched(
+                desktop.try_into()?,
+            )))
+        });
         HRESULT(0)
     }
 
     unsafe fn remote_virtual_desktop_connected(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+        eat_error(|| {
+            Ok((self.sender)(DesktopEvent::RemoteDesktopConnected(
+                desktop.try_into()?,
+            )))
+        });
         HRESULT(0)
     }
 }
