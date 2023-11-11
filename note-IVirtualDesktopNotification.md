@@ -41,21 +41,21 @@ we don't call the methods on it, but Windows shell calls those, this means that
 all values we get should have been added with a reference by the Windows shell
 for us.
 
-This means the interface **must** be using `ManuallyDrop<T>`:
+This means the interface **must** be using `ComIn<T>`:
 
 ```rust
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: ManuallyDrop<IObjectArray>,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        monitors: ComIn<IObjectArray>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
     // ...
 }
@@ -69,15 +69,15 @@ Naively one would think it can be done like this:
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
-        monitors: IObjectArray, // This is wrong, should be ManuallyDrop<IObjectArray>
-        desktop: IVirtualDesktop, // This is wrong, should be ManuallyDrop<IVirtualDesktop>
+        monitors: IObjectArray, // This is wrong, should be ComIn<IObjectArray>
+        desktop: IVirtualDesktop, // This is wrong, should be ComIn<IVirtualDesktop>
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        monitors: IObjectArray, // This is wrong, should be ManuallyDrop<IObjectArray>
-        desktop_destroyed: IVirtualDesktop, // This is wrong, should be ManuallyDrop<IVirtualDesktop>
-        desktop_fallback: IVirtualDesktop, // This is wrong, should be ManuallyDrop<IVirtualDesktop>
+        monitors: IObjectArray, // This is wrong, should be ComIn<IObjectArray>
+        desktop_destroyed: IVirtualDesktop, // This is wrong, should be ComIn<IVirtualDesktop>
+        desktop_fallback: IVirtualDesktop, // This is wrong, should be ComIn<IVirtualDesktop>
     ) -> HRESULT;
     // ...
 }

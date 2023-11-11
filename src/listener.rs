@@ -1,11 +1,10 @@
 use std::convert::TryInto;
-use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::time::Duration;
 
 use crate::comobjects::ComObjects;
 use crate::interfaces::{
-    IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
+    ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
 use crate::log::log_output;
@@ -195,8 +194,8 @@ fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
 impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
     unsafe fn current_virtual_desktop_changed(
         &self,
-        desktop_old: ManuallyDrop<IVirtualDesktop>,
-        desktop_new: ManuallyDrop<IVirtualDesktop>,
+        desktop_old: ComIn<IVirtualDesktop>,
+        desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopChanged {
@@ -209,7 +208,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
         eat_error(|| {
@@ -221,7 +220,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_created(&self, desktop: ManuallyDrop<IVirtualDesktop>) -> HRESULT {
+    unsafe fn virtual_desktop_created(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopCreated(
                 desktop.try_into()?,
@@ -232,24 +231,24 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_destroy_begin(
         &self,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         HRESULT(0)
     }
 
     unsafe fn virtual_desktop_destroy_failed(
         &self,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         HRESULT(0)
     }
 
     unsafe fn virtual_desktop_destroyed(
         &self,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT {
         // Desktop destroyed is not anymore in the stack
         eat_error(|| {
@@ -263,7 +262,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_moved(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,
     ) -> HRESULT {
@@ -279,7 +278,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
 
     unsafe fn virtual_desktop_name_changed(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT {
         eat_error(|| {
@@ -291,21 +290,18 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn view_virtual_desktop_changed(&self, view: ManuallyDrop<IApplicationView>) -> HRESULT {
+    unsafe fn view_virtual_desktop_changed(&self, view: ComIn<IApplicationView>) -> HRESULT {
         let mut hwnd = HWND::default();
         let _ = view.get_thumbnail_window(&mut hwnd);
         (self.sender)(DesktopEvent::WindowChanged(hwnd));
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_switched(&self, desktop: ManuallyDrop<IVirtualDesktop>) -> HRESULT {
+    unsafe fn virtual_desktop_switched(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
         HRESULT(0)
     }
 
-    unsafe fn remote_virtual_desktop_connected(
-        &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
-    ) -> HRESULT {
+    unsafe fn remote_virtual_desktop_connected(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
         HRESULT(0)
     }
 }

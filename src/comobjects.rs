@@ -3,7 +3,6 @@ use super::interfaces::*;
 use super::Result;
 use crate::log::log_output;
 use std::convert::TryFrom;
-use std::mem::ManuallyDrop;
 use std::rc::Rc;
 use std::{cell::RefCell, ffi::c_void};
 use windows::core::ComInterface;
@@ -148,10 +147,10 @@ impl<'a> TryFrom<&'a IVirtualDesktop> for DesktopInternal {
         Ok(DesktopInternal::Guid(guid))
     }
 }
-impl<'a> TryFrom<&'a ManuallyDrop<IVirtualDesktop>> for DesktopInternal {
+impl<'a> TryFrom<&'a ComIn<'a, IVirtualDesktop>> for DesktopInternal {
     type Error = Error;
 
-    fn try_from(desktop: &'a ManuallyDrop<IVirtualDesktop>) -> Result<Self> {
+    fn try_from(desktop: &'a ComIn<'a, IVirtualDesktop>) -> Result<Self> {
         let mut guid = GUID::default();
         unsafe { desktop.get_id(&mut guid).as_result()? }
         Ok(DesktopInternal::Guid(guid))
@@ -514,13 +513,13 @@ impl ComObjects {
 
     fn move_view_to_desktop(
         &self,
-        view: ManuallyDrop<IApplicationView>,
+        view: ComIn<IApplicationView>,
         desktop: &DesktopInternal,
     ) -> Result<()> {
         let desktop = self.get_idesktop(desktop)?;
         unsafe {
             self.get_manager_internal()?
-                .move_view_to_desktop(view, ManuallyDrop::new(desktop))
+                .move_view_to_desktop(view, ComIn::new(&desktop))
                 .as_result()
                 .map_err(|e| {
                     if e == Error::ComElementNotFound {
@@ -609,7 +608,7 @@ impl ComObjects {
         let desktop = self.get_idesktop(desktop)?;
         unsafe {
             self.get_manager_internal()?
-                .switch_desktop(ManuallyDrop::new(desktop))
+                .switch_desktop(ComIn::new(&desktop))
                 .as_result()?
         }
         Ok(())
@@ -639,7 +638,7 @@ impl ComObjects {
         let fb_desktop = self.get_idesktop(fallback_desktop)?;
         unsafe {
             self.get_manager_internal()?
-                .remove_desktop(ManuallyDrop::new(desktop), ManuallyDrop::new(fb_desktop))
+                .remove_desktop(ComIn::new(&desktop), ComIn::new(&fb_desktop))
                 .as_result()?
         }
         Ok(())
@@ -670,7 +669,7 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn move_window_to_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        self.move_view_to_desktop(ManuallyDrop::new(view), desktop)
+        self.move_view_to_desktop(ComIn::new(&view), desktop)
     }
 
     #[apply(retry_function)]
@@ -721,7 +720,7 @@ impl ComObjects {
         unsafe {
             let mut value = false;
             self.get_pinned_apps()?
-                .is_view_pinned(ManuallyDrop::new(view), &mut value)
+                .is_view_pinned(ComIn::new(&view), &mut value)
                 .as_result()?;
             Ok(value)
         }
@@ -732,7 +731,7 @@ impl ComObjects {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             self.get_pinned_apps()?
-                .pin_view(ManuallyDrop::new(view))
+                .pin_view(ComIn::new(&view))
                 .as_result()?;
         }
         Ok(())
@@ -743,7 +742,7 @@ impl ComObjects {
         let view = self.get_iapplication_view_for_hwnd(window)?;
         unsafe {
             self.get_pinned_apps()?
-                .unpin_view(ManuallyDrop::new(view))
+                .unpin_view(ComIn::new(&view))
                 .as_result()?;
         }
         Ok(())
@@ -809,7 +808,7 @@ impl ComObjects {
 
         unsafe {
             manager_internal
-                .set_name(ManuallyDrop::new(desktop), HSTRING::from(name))
+                .set_name(ComIn::new(&desktop), HSTRING::from(name))
                 .as_result()
         }
     }
@@ -830,7 +829,7 @@ impl ComObjects {
         let desktop = self.get_idesktop(&desktop)?;
         unsafe {
             manager_internal
-                .set_wallpaper(ManuallyDrop::new(desktop), HSTRING::from(path))
+                .set_wallpaper(ComIn::new(&desktop), HSTRING::from(path))
                 .as_result()
         }
     }

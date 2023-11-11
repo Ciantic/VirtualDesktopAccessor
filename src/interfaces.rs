@@ -5,8 +5,8 @@
 /// IMyObject` are incorrect, they probably should be *mut Option<IMyObject>.
 ///
 /// Generally these are the rules:
-/// 1. InOpt = `Option<ManuallyDrop<IMyObject>>`
-/// 2. In = `ManuallyDrop<IMyObject>`
+/// 1. InOpt = `Option<ComIn<IMyObject>>` or `Option<ManuallyDrop<IMyObject>>`
+/// 2. In = `ComIn<IMyObject>` or `ManuallyDrop<IMyObject>`
 /// 3. Out = `*mut Option<IMyObject>`
 /// 4. OutOpt = `*mut Option<IMyObject>`
 ///
@@ -32,15 +32,76 @@
 /// Rules as [written by David
 /// Risney](https://github.com/MicrosoftEdge/WebView2Feedback/issues/2133).
 ///
-/// If you read the rules carefully, ManuallyDrop is most common usecase in Rust
+/// If you read the rules carefully, ComIn is most common usecase in Rust
 /// API definitions as most parameters are `In` parameters.
 #[allow(non_upper_case_globals)]
 use std::ffi::c_void;
-use std::mem::ManuallyDrop;
+use std::ops::Deref;
 use windows::{
-    core::{IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING},
+    core::{ComInterface, IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING},
     Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
 };
+
+/// ComIn is a wrapper for COM objects that are passed as input parameters. It
+/// allows to keep the life of the COM object for the duration of the function
+/// call.
+///
+/// Imagine following situation:
+///
+/// First you call an API function that gives COM object as out parameter. And
+/// you want to pass it to another function that takes the COM object as an
+/// input parameter. If you were to use ManuallyDrop then you'd have to call the
+/// drop manually after the second function call.
+///
+/// E.g.
+///
+/// ```rust
+/// fn get_current_desktop(&mut self, desktop: &mut Option<IVirtualDesktop>) -> HRESULT;
+/// fn switch_desktop(&self, desktop: ManuallyDrop<IVirtualDesktop>) -> HRESULT;
+///
+/// let mut desktop: Option<IVirtualDesktop> = None;
+/// get_current_desktop(&mut desktop);
+/// if let Some(desktop) = desktop {
+///     let input = ManuallyDrop::new(desktop);
+///     switch_desktop(input);
+///     ManuallyDrop::drop(input);
+/// }
+/// ```
+///
+/// To make things safer and easier to use, ComIn is used instead.
+///
+/// ```rust
+/// fn get_current_desktop(&mut self, desktop: &mut Option<IVirtualDesktop>) -> HRESULT;
+/// fn switch_desktop(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
+///
+/// let mut desktop: Option<IVirtualDesktop> = None;
+/// if let Some(desktop) = desktop {
+///     get_current_desktop(&mut desktop);
+///     switch_desktop(ComIn::new(&input));
+/// }
+/// ```
+#[repr(transparent)]
+pub struct ComIn<'a, T: ComInterface> {
+    data: *mut c_void,
+    _phantom: std::marker::PhantomData<&'a T>,
+}
+
+impl<'a, T: ComInterface> ComIn<'a, T> {
+    pub fn new(t: &'a T) -> Self {
+        Self {
+            // Copies the raw Inteface pointer
+            data: t.as_raw(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T: ComInterface> Deref for ComIn<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { std::mem::transmute(&self.data) }
+    }
+}
 
 #[allow(non_upper_case_globals)]
 pub const CLSID_ImmersiveShell: GUID = GUID {
@@ -253,7 +314,7 @@ pub unsafe trait IApplicationView: IUnknown {
 pub unsafe trait IVirtualDesktop: IUnknown {
     pub unsafe fn is_view_visible(
         &self,
-        p_view: ManuallyDrop<IApplicationView>,
+        p_view: ComIn<IApplicationView>,
         out_bool: *mut u32,
     ) -> HRESULT;
     pub unsafe fn get_id(&self, out_guid: *mut GUID) -> HRESULT;
@@ -309,74 +370,60 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
     pub unsafe fn unregister_for_application_view_changes(&self, id: DWORD) -> HRESULT;
 }
 
-// NOTE: Currently ManuallyDrop is basically ManuallyDrop. I've tried without
-// ManuallyDrop and the code starts to act weird if we call Release() on the
-// values given by the shell to the IVirtualDesktopNotification.
-//
-// Normally functions should call IUnknown's Release() on the given pointer
-// after they are done with it, but the shell doesn't like that for this
-// interface.
 #[windows_interface::interface("B287FA1C-7771-471A-A2DF-9B6B21F0D675")]
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
-    pub unsafe fn virtual_desktop_created(&self, desktop: ManuallyDrop<IVirtualDesktop>)
-        -> HRESULT;
+    pub unsafe fn virtual_desktop_created(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_begin(
         &self,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroy_failed(
         &self,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_destroyed(
         &self,
-        desktop_destroyed: ManuallyDrop<IVirtualDesktop>,
-        desktop_fallback: ManuallyDrop<IVirtualDesktop>,
+        desktop_destroyed: ComIn<IVirtualDesktop>,
+        desktop_fallback: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_moved(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         old_index: i64,
         new_index: i64,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_name_changed(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 
-    pub unsafe fn view_virtual_desktop_changed(
-        &self,
-        view: ManuallyDrop<IApplicationView>,
-    ) -> HRESULT;
+    pub unsafe fn view_virtual_desktop_changed(&self, view: ComIn<IApplicationView>) -> HRESULT;
 
     pub unsafe fn current_virtual_desktop_changed(
         &self,
-        desktop_old: ManuallyDrop<IVirtualDesktop>,
-        desktop_new: ManuallyDrop<IVirtualDesktop>,
+        desktop_old: ComIn<IVirtualDesktop>,
+        desktop_new: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn virtual_desktop_wallpaper_changed(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         name: HSTRING,
     ) -> HRESULT;
 
-    pub unsafe fn virtual_desktop_switched(
-        &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
-    ) -> HRESULT;
+    pub unsafe fn virtual_desktop_switched(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
 
     pub unsafe fn remote_virtual_desktop_connected(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 }
 
@@ -397,13 +444,13 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
 
     pub unsafe fn move_view_to_desktop(
         &self,
-        view: ManuallyDrop<IApplicationView>,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        view: ComIn<IApplicationView>,
+        desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn can_move_view_between_desktops(
         &self,
-        view: ManuallyDrop<IApplicationView>,
+        view: ComIn<IApplicationView>,
         can_move: *mut i32,
     ) -> HRESULT;
 
@@ -418,25 +465,21 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
     /// 4 = Right direction
     pub unsafe fn get_adjacent_desktop(
         &self,
-        in_desktop: ManuallyDrop<IVirtualDesktop>,
+        in_desktop: ComIn<IVirtualDesktop>,
         direction: UINT,
         out_pp_desktop: *mut Option<IVirtualDesktop>,
     ) -> HRESULT;
 
-    pub unsafe fn switch_desktop(&self, desktop: ManuallyDrop<IVirtualDesktop>) -> HRESULT;
+    pub unsafe fn switch_desktop(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
 
     pub unsafe fn create_desktop(&self, out_desktop: *mut Option<IVirtualDesktop>) -> HRESULT;
 
-    pub unsafe fn move_desktop(
-        &self,
-        in_desktop: ManuallyDrop<IVirtualDesktop>,
-        index: UINT,
-    ) -> HRESULT;
+    pub unsafe fn move_desktop(&self, in_desktop: ComIn<IVirtualDesktop>, index: UINT) -> HRESULT;
 
     pub unsafe fn remove_desktop(
         &self,
-        destroy_desktop: ManuallyDrop<IVirtualDesktop>,
-        fallback_desktop: ManuallyDrop<IVirtualDesktop>,
+        destroy_desktop: ComIn<IVirtualDesktop>,
+        fallback_desktop: ComIn<IVirtualDesktop>,
     ) -> HRESULT;
 
     pub unsafe fn find_desktop(
@@ -447,18 +490,13 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
 
     pub unsafe fn get_desktop_switch_include_exclude_views(
         &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
+        desktop: ComIn<IVirtualDesktop>,
         out_pp_desktops1: *mut IObjectArray,
         out_pp_desktops2: *mut IObjectArray,
     ) -> HRESULT;
 
-    pub unsafe fn set_name(&self, desktop: ManuallyDrop<IVirtualDesktop>, name: HSTRING)
-        -> HRESULT;
-    pub unsafe fn set_wallpaper(
-        &self,
-        desktop: ManuallyDrop<IVirtualDesktop>,
-        name: HSTRING,
-    ) -> HRESULT;
+    pub unsafe fn set_name(&self, desktop: ComIn<IVirtualDesktop>, name: HSTRING) -> HRESULT;
+    pub unsafe fn set_wallpaper(&self, desktop: ComIn<IVirtualDesktop>, name: HSTRING) -> HRESULT;
     pub unsafe fn update_wallpaper_for_all(&self, name: HSTRING) -> HRESULT;
 }
 
@@ -470,9 +508,9 @@ pub unsafe trait IVirtualDesktopPinnedApps: IUnknown {
 
     pub unsafe fn is_view_pinned(
         &self,
-        view: ManuallyDrop<IApplicationView>,
+        view: ComIn<IApplicationView>,
         out_iss: *mut bool,
     ) -> HRESULT;
-    pub unsafe fn pin_view(&self, view: ManuallyDrop<IApplicationView>) -> HRESULT;
-    pub unsafe fn unpin_view(&self, view: ManuallyDrop<IApplicationView>) -> HRESULT;
+    pub unsafe fn pin_view(&self, view: ComIn<IApplicationView>) -> HRESULT;
+    pub unsafe fn unpin_view(&self, view: ComIn<IApplicationView>) -> HRESULT;
 }

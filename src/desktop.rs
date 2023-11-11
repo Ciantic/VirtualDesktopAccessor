@@ -1,6 +1,8 @@
+use crate::interfaces::ComIn;
+
 use super::comobjects::*;
 use super::{interfaces::IVirtualDesktop, *};
-use std::{convert::TryFrom, fmt::Debug, mem::ManuallyDrop};
+use std::{convert::TryFrom, fmt::Debug};
 use windows::{core::GUID, Win32::Foundation::HWND};
 
 /// You can construct Desktop instance with `get_desktop(5)` by index or GUID.
@@ -76,10 +78,17 @@ impl TryFrom<IVirtualDesktop> for Desktop {
         Ok(Desktop(DesktopInternal::try_from(&desktop)?))
     }
 }
-impl TryFrom<ManuallyDrop<IVirtualDesktop>> for Desktop {
+impl<'a> TryFrom<&'a ComIn<'a, IVirtualDesktop>> for Desktop {
     type Error = Error;
 
-    fn try_from(desktop: ManuallyDrop<IVirtualDesktop>) -> Result<Self> {
+    fn try_from(desktop: &'a ComIn<'a, IVirtualDesktop>) -> Result<Self> {
+        Ok(Desktop(DesktopInternal::try_from(desktop)?))
+    }
+}
+impl<'a> TryFrom<ComIn<'a, IVirtualDesktop>> for Desktop {
+    type Error = Error;
+
+    fn try_from(desktop: ComIn<'a, IVirtualDesktop>) -> Result<Self> {
         Ok(Desktop(DesktopInternal::try_from(&desktop)?))
     }
 }
