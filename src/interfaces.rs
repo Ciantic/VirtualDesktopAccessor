@@ -342,7 +342,7 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
 // Normally functions should call IUnknown's Release() on the given pointer
 // after they are done with it, but the shell doesn't like that for this
 // interface.
-#[windows_interface::interface("B287FA1C-7771-471A-A2DF-9B6B21F0D675")]
+#[windows_interface::interface("B9E5E94D-233E-49AB-AF5C-2B4541C3AADE")]
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(
         &self,
@@ -408,7 +408,7 @@ pub unsafe trait IVirtualDesktopNotificationService: IUnknown {
     pub unsafe fn unregister(&self, cookie: u32) -> HRESULT;
 }
 
-#[windows_interface::interface("A3175F2D-239C-4BD2-8AA0-EEBA8B0B138E")]
+#[windows_interface::interface("4970BA3D-FD4E-4647-BEA3-D89076EF4B9C")]
 pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
     pub unsafe fn get_desktop_count(&self, out_count: *mut UINT) -> HRESULT;
 
