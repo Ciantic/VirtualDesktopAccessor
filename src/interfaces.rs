@@ -310,7 +310,7 @@ pub unsafe trait IApplicationView: IUnknown {
     pub unsafe fn unknown12(&self, arg: *mut SIZE) -> HRESULT;
 }
 
-#[windows_interface::interface("A871910E-6CC0-4E65-8B9B-458CE9115E30")]
+#[windows_interface::interface("3F07F4BE-B107-441A-AF0F-39D82529072C")]
 pub unsafe trait IVirtualDesktop: IUnknown {
     pub unsafe fn is_view_visible(
         &self,
