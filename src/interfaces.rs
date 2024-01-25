@@ -188,7 +188,7 @@ pub unsafe trait IServiceProvider: IUnknown {
     // ) -> HRESULT;
 }
 
-#[windows_interface::interface("a5cd92ff-29be-454c-8d04-d82879fb3f1b")]
+#[windows_interface::interface("A5CD92FF-29BE-454C-8D04-D82879FB3F1B")]
 pub unsafe trait IVirtualDesktopManager: IUnknown {
     pub unsafe fn is_window_on_current_desktop(
         &self,
@@ -310,7 +310,7 @@ pub unsafe trait IApplicationView: IUnknown {
     pub unsafe fn unknown12(&self, arg: *mut SIZE) -> HRESULT;
 }
 
-#[windows_interface::interface("3F07F4BE-B107-441A-AF0F-39D82529072C")]
+#[windows_interface::interface("A871910E-6CC0-4E65-8B9B-458CE9115E30")]
 pub unsafe trait IVirtualDesktop: IUnknown {
     pub unsafe fn is_view_visible(
         &self,
@@ -370,7 +370,7 @@ pub unsafe trait IApplicationViewCollection: IUnknown {
     pub unsafe fn unregister_for_application_view_changes(&self, id: DWORD) -> HRESULT;
 }
 
-#[windows_interface::interface("B287FA1C-7771-471A-A2DF-9B6B21F0D675")]
+#[windows_interface::interface("B9E5E94D-233E-49AB-AF5C-2B4541C3AADE")]
 pub unsafe trait IVirtualDesktopNotification: IUnknown {
     pub unsafe fn virtual_desktop_created(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
 
@@ -438,7 +438,7 @@ pub unsafe trait IVirtualDesktopNotificationService: IUnknown {
     pub unsafe fn unregister(&self, cookie: u32) -> HRESULT;
 }
 
-#[windows_interface::interface("A3175F2D-239C-4BD2-8AA0-EEBA8B0B138E")]
+#[windows_interface::interface("53F5CA0B-158F-4124-900C-057158060B27")]
 pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
     pub unsafe fn get_desktop_count(&self, out_count: *mut UINT) -> HRESULT;
 
@@ -500,7 +500,7 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
     pub unsafe fn update_wallpaper_for_all(&self, name: HSTRING) -> HRESULT;
 }
 
-#[windows_interface::interface("4ce81583-1e4c-4632-a621-07a53543148f")]
+#[windows_interface::interface("4CE81583-1E4C-4632-A621-07A53543148F")]
 pub unsafe trait IVirtualDesktopPinnedApps: IUnknown {
     pub unsafe fn is_app_pinned(&self, app_id: PCWSTR, out_iss: *mut bool) -> HRESULT;
     pub unsafe fn pin_app(&self, app_id: PCWSTR) -> HRESULT;
