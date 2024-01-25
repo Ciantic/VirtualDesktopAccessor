@@ -1,13 +1,13 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 11 (22H2 Os Build 22621.2215, tested also with 23H2 22631.2506) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2023
+DLL for accessing Windows 11 (22H2 Os Build 22621.2215, tested also with 23H2 22631.3085) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2023
 
 This repository also contains [Rust library `winvd`](./README-crate.md) for accessing the Virtual Desktop via Rust bindings.
 
 ## AutoHotkey example here:
 
-* [AutoHotkey V1 example.ahk ⬅️](./example.ahk)
-* [AutoHotkey V2 example.ah2 ⬅️](./example.ah2)
+- [AutoHotkey V1 example.ahk ⬅️](./example.ahk)
+- [AutoHotkey V2 example.ah2 ⬅️](./example.ah2)
 
 ## Download from releases:
 
@@ -36,7 +36,7 @@ fn PinWindow(hwnd: HWND) -> i32
 fn UnPinWindow(hwnd: HWND) -> i32
 fn IsPinnedApp(hwnd: HWND) -> i32
 fn PinApp(hwnd: HWND) -> i32
-fn UnPinApp(hwnd: HWND) -> i32 
+fn UnPinApp(hwnd: HWND) -> i32
 fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
 fn CreateDesktop() -> i32 // Win11 only
 fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i32 // Win11 only
