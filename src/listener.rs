@@ -4,14 +4,14 @@ use std::time::Duration;
 
 use crate::comobjects::ComObjects;
 use crate::interfaces::{
-    ComIn, IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
+    IApplicationView, IVirtualDesktop, IVirtualDesktopNotification,
     IVirtualDesktopNotification_Impl,
 };
 use crate::log::log_output;
 use crate::DesktopEventSender;
 use crate::{DesktopEvent, Result};
 
-use windows::core::{Interface, HRESULT, HSTRING};
+use windows::core::{HRESULT, HSTRING};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Threading::{
     GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
@@ -141,9 +141,9 @@ impl<'a> VirtualDesktopNotificationWrapper<'a> {
         sender: Box<dyn Fn(DesktopEvent)>,
     ) -> Result<Pin<Box<VirtualDesktopNotificationWrapper>>> {
         let ptr: Pin<Box<IVirtualDesktopNotification>> =
-            Pin::new(Box::new(VirtualDesktopNotification { sender }.into()));
+            Box::pin(VirtualDesktopNotification { sender }.into());
         let raw_ptr = ptr.as_raw();
-        let cookie = com_objects.register_for_notifications(raw_ptr)?;
+        let cookie = com_objects.register_for_notifications(&ptr)?;
         let notification = Pin::new(Box::new(VirtualDesktopNotificationWrapper {
             com_objects,
             cookie,
@@ -173,7 +173,6 @@ impl<'a> Drop for VirtualDesktopNotificationWrapper<'a> {
     }
 }
 
-#[windows::core::implement(IVirtualDesktopNotification)]
 struct VirtualDesktopNotification {
     sender: Box<dyn Fn(DesktopEvent)>,
 }
@@ -192,10 +191,10 @@ fn eat_error<T>(func: impl FnOnce() -> Result<T>) -> Option<T> {
 // Allow unused variable warnings
 #[allow(unused_variables)]
 impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
-    unsafe fn current_virtual_desktop_changed(
+    fn current_virtual_desktop_changed(
         &self,
-        desktop_old: ComIn<IVirtualDesktop>,
-        desktop_new: ComIn<IVirtualDesktop>,
+        desktop_old: &IVirtualDesktop,
+        desktop_new: &IVirtualDesktop,
     ) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopChanged {
@@ -206,9 +205,9 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_wallpaper_changed(
+    fn virtual_desktop_wallpaper_changed(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: &IVirtualDesktop,
         name: HSTRING,
     ) -> HRESULT {
         eat_error(|| {
@@ -220,7 +219,7 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_created(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+    fn virtual_desktop_created(&self, desktop: &IVirtualDesktop) -> HRESULT {
         eat_error(|| {
             Ok((self.sender)(DesktopEvent::DesktopCreated(
                 desktop.try_into()?,
@@ -229,26 +228,26 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_destroy_begin(
+    fn virtual_desktop_destroy_begin(
         &self,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        desktop_destroyed: &IVirtualDesktop,
+        desktop_fallback: &IVirtualDesktop,
     ) -> HRESULT {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_destroy_failed(
+    fn virtual_desktop_destroy_failed(
         &self,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        desktop_destroyed: &IVirtualDesktop,
+        desktop_fallback: &IVirtualDesktop,
     ) -> HRESULT {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_destroyed(
+    fn virtual_desktop_destroyed(
         &self,
-        desktop_destroyed: ComIn<IVirtualDesktop>,
-        desktop_fallback: ComIn<IVirtualDesktop>,
+        desktop_destroyed: &IVirtualDesktop,
+        desktop_fallback: &IVirtualDesktop,
     ) -> HRESULT {
         // Desktop destroyed is not anymore in the stack
         eat_error(|| {
@@ -260,9 +259,9 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_moved(
+    fn virtual_desktop_moved(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: &IVirtualDesktop,
         old_index: i64,
         new_index: i64,
     ) -> HRESULT {
@@ -276,9 +275,9 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_name_changed(
+    fn virtual_desktop_name_changed(
         &self,
-        desktop: ComIn<IVirtualDesktop>,
+        desktop: &IVirtualDesktop,
         name: HSTRING,
     ) -> HRESULT {
         eat_error(|| {
@@ -290,18 +289,18 @@ impl IVirtualDesktopNotification_Impl for VirtualDesktopNotification {
         HRESULT(0)
     }
 
-    unsafe fn view_virtual_desktop_changed(&self, view: ComIn<IApplicationView>) -> HRESULT {
+    fn view_virtual_desktop_changed(&self, view: &IApplicationView) -> HRESULT {
         let mut hwnd = HWND::default();
         let _ = view.get_thumbnail_window(&mut hwnd);
         (self.sender)(DesktopEvent::WindowChanged(hwnd));
         HRESULT(0)
     }
 
-    unsafe fn virtual_desktop_switched(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+    fn virtual_desktop_switched(&self, desktop: &IVirtualDesktop) -> HRESULT {
         HRESULT(0)
     }
 
-    unsafe fn remote_virtual_desktop_connected(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT {
+    fn remote_virtual_desktop_connected(&self, desktop: &IVirtualDesktop) -> HRESULT {
         HRESULT(0)
     }
 }

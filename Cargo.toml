@@ -14,10 +14,12 @@ windows = { version = "0.52", features = [
     # Find WinApi features with searching here https://microsoft.github.io/windows-docs-rs/
     "implement",
     "Win32_System_Com",
-    "Win32_UI_Shell_Common",        # for IObjectArray
-    "Win32_UI_WindowsAndMessaging", # for TranslateMessage etc.
-    "Win32_Foundation",             # for FindWindowW
-    "Win32_System_Threading",       # For CreateThread
+    "Win32_UI_Shell_Common",          # for IObjectArray
+    "Win32_UI_WindowsAndMessaging",   # for TranslateMessage etc.
+    "Win32_Foundation",               # for FindWindowW
+    "Win32_System_Threading",         # For CreateThread
+    "Win32_System_SystemInformation", # For RtlGetVersion return type
+    "Wdk_System_SystemServices",      # For RtlGetVersion
 ] }
 windows-interface = { version = "0.52" }
 windows-implement = { version = "0.52" }

@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+#![allow(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 
 use once_cell::sync::Lazy;
 use std::{
@@ -40,7 +40,7 @@ pub extern "C" fn GetDesktopIdByNumber(number: i32) -> GUID {
 
 #[no_mangle]
 pub extern "C" fn GetDesktopNumberById(desktop_id: GUID) -> i32 {
-    get_desktop(&desktop_id)
+    get_desktop(desktop_id)
         .get_index()
         .map_or(-1, |x| x as i32)
 }
@@ -120,23 +120,20 @@ pub extern "C" fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u
             log::log_output("RegisterPostMessageHook: create new threads");
             let listener_thread = std::thread::spawn(move || {
                 for item in rx {
-                    match item {
-                        DesktopEvent::DesktopChanged { new, old } => {
-                            let new_index = new.get_index().unwrap_or(0);
-                            let old_index = old.get_index().unwrap_or(0);
-                            let a = LISTENER_HWNDS.lock().unwrap();
-                            for hwnd in a.iter() {
-                                unsafe {
-                                    let _ = PostMessageW(
-                                        HWND(*hwnd as isize),
-                                        message_offset,
-                                        WPARAM(old_index as usize),
-                                        LPARAM(new_index as isize),
-                                    );
-                                }
+                    if let DesktopEvent::DesktopChanged { new, old } = item {
+                        let new_index = new.get_index().unwrap_or(0);
+                        let old_index = old.get_index().unwrap_or(0);
+                        let a = LISTENER_HWNDS.lock().unwrap();
+                        for hwnd in a.iter() {
+                            unsafe {
+                                let _ = PostMessageW(
+                                    HWND(*hwnd),
+                                    message_offset,
+                                    WPARAM(old_index as usize),
+                                    LPARAM(new_index as isize),
+                                );
                             }
                         }
-                        _ => (),
                     }
                 }
             });
