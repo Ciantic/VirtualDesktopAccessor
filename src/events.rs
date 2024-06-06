@@ -100,9 +100,9 @@ pub enum DesktopEvent {
 ///
 /// # Example
 ///
-/// ```rust
-/// let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
-/// let _notifications_thread = listen_desktop_events(tx);
+/// ```rust,no_run
+/// let (tx, rx) = std::sync::mpsc::channel::<winvd::DesktopEvent>();
+/// let _notifications_thread = winvd::listen_desktop_events(tx);
 /// // Do with receiver something
 /// for item in rx {
 ///    println!("{:?}", item);

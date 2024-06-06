@@ -1,6 +1,6 @@
 use super::*;
 use once_cell::sync::Lazy;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 use windows::core::PCWSTR;
@@ -12,9 +12,9 @@ static SEMAPHORE: Lazy<Arc<Mutex<u32>>> = Lazy::new(|| Arc::new(Mutex::new(0)));
 // Run the tests synchronously
 pub fn sync_test<T>(test: T)
 where
-    T: FnOnce() -> (),
+    T: FnOnce(),
 {
-    let mut tests_ran = SEMAPHORE.lock().unwrap();
+    let mut tests_ran = SEMAPHORE.lock().unwrap_or_else(PoisonError::into_inner);
     test();
     *tests_ran += 1;
     drop(tests_ran);
@@ -24,7 +24,7 @@ where
 fn test_desktop_get() {
     sync_test(|| {
         let desktop = get_desktop(0).get_id().unwrap();
-        get_desktop(&desktop).get_index().unwrap();
+        get_desktop(desktop).get_index().unwrap();
     })
 }
 
@@ -292,17 +292,24 @@ fn test_threads() {
         // };
         let mut threads = vec![];
         for _ in 0..555 {
-            threads.push(std::thread::spawn(|| {
-                get_desktops().unwrap().iter().for_each(|d| {
-                    let _n = d.get_name().unwrap();
+            threads.push(std::thread::spawn(|| -> bool {
+                for d in get_desktops().unwrap() {
+                    let _n = match d.get_name() {
+                        Ok(n) => n,
+                        Err(Error::ComNotImplemented) => return true,
+                        Err(e) => panic!("Failed to get name of desktop: {e:?}"),
+                    };
                     let _i = d.get_index().unwrap();
                     // println!("Thread {n} {i} {:?}", std::thread::current().id());
-                })
+                }
+                false
             }));
         }
         thread::sleep(Duration::from_millis(150));
         for t in threads {
-            t.join().unwrap();
+            if t.join().unwrap() {
+                panic!("Failed to get name of desktop because that feature wasn't implemented on current Windows version");
+            }
         }
     })
 }

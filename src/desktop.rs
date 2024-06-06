@@ -1,5 +1,6 @@
 use super::comobjects::*;
-use super::{interfaces::IVirtualDesktop, *};
+use super::interfaces_multi::{ComIn, IVirtualDesktop};
+use super::*;
 use std::{convert::TryFrom, fmt::Debug};
 use windows::{core::GUID, Win32::Foundation::HWND};
 
@@ -76,11 +77,18 @@ impl TryFrom<IVirtualDesktop> for Desktop {
         Ok(Desktop(DesktopInternal::try_from(&desktop)?))
     }
 }
-impl<'a> TryFrom<&'a IVirtualDesktop> for Desktop {
+impl<'a> TryFrom<&'a ComIn<'a, IVirtualDesktop>> for Desktop {
     type Error = Error;
 
-    fn try_from(desktop: &'a IVirtualDesktop) -> Result<Self> {
+    fn try_from(desktop: &'a ComIn<'a, IVirtualDesktop>) -> Result<Self> {
         Ok(Desktop(DesktopInternal::try_from(desktop)?))
+    }
+}
+impl<'a> TryFrom<ComIn<'a, IVirtualDesktop>> for Desktop {
+    type Error = Error;
+
+    fn try_from(desktop: ComIn<'a, IVirtualDesktop>) -> Result<Self> {
+        Ok(Desktop(DesktopInternal::try_from(&desktop)?))
     }
 }
 impl Desktop {

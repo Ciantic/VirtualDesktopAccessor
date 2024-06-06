@@ -1,13 +1,11 @@
 //! This module contains COM object for accessing the Windows Virtual Desktop API
-#![allow(clippy::bool_assert_comparison)]
 #![allow(clippy::upper_case_acronyms)]
 
-use super::interfaces::*;
+use super::interfaces_multi::*;
 use super::Result;
 use std::convert::TryFrom;
 use std::rc::Rc;
 use std::{cell::RefCell, ffi::c_void};
-use windows::core::ComInterface;
 use windows::core::HRESULT;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::CoIncrementMTAUsage;
@@ -57,7 +55,8 @@ pub enum Error {
     /// library.
     ComNoInterface,
 
-    /// Not implemented
+    /// Not implemented. When supporting multiple Windows versions this is
+    /// returned for methods that don't exist in the current version.
     ComNotImplemented,
 
     /// Some unhandled COM error
@@ -72,7 +71,7 @@ pub enum Error {
     InternalBorrowError,
 }
 
-trait HRESULTHelpers {
+pub(crate) trait HRESULTHelpers {
     fn as_error(&self) -> Error;
     fn as_result(&self) -> Result<()>;
 }
@@ -166,7 +165,16 @@ impl<'a> TryFrom<&'a IVirtualDesktop> for DesktopInternal {
 
     fn try_from(desktop: &'a IVirtualDesktop) -> Result<Self> {
         let mut guid = GUID::default();
-        desktop.get_id(&mut guid).as_result()?;
+        unsafe { desktop.get_id(&mut guid).as_result()? }
+        Ok(DesktopInternal::Guid(guid))
+    }
+}
+impl<'a> TryFrom<&'a ComIn<'a, IVirtualDesktop>> for DesktopInternal {
+    type Error = Error;
+
+    fn try_from(desktop: &'a ComIn<'a, IVirtualDesktop>) -> Result<Self> {
+        let mut guid = GUID::default();
+        unsafe { desktop.get_id(&mut guid).as_result()? }
         Ok(DesktopInternal::Guid(guid))
     }
 }
@@ -180,7 +188,7 @@ pub struct ComObjects {
     view_collection: RefCell<Option<Rc<IApplicationViewCollection>>>,
 }
 
-fn retry_function<F, R>(com_objects: &ComObjects, f: F, fn_name: &str) -> Result<R>
+fn retry_function<F, R>(com_objects: &ComObjects, f: F, _fn_name: &str) -> Result<R>
 where
     F: Fn() -> Result<R>,
 {
@@ -194,8 +202,7 @@ where
                     || er == &Error::ComAllocatedNullPtr
                     || er == &Error::ComNotInitialized =>
             {
-                #[cfg(debug_assertions)]
-                log_output(&format!("Retry the function \"{fn_name}\" after {:?}", er));
+                log_format!("Retry the function \"{_fn_name}\" after {:?}", er);
 
                 if er == &Error::ComNotInitialized {
                     let _ = unsafe { CoIncrementMTAUsage() };
@@ -217,10 +224,10 @@ where
 
     #[cfg(debug_assertions)]
     if let Err(er) = &value {
-        log_output(&format!(
-            "Com_objects function \"{fn_name}\" failed with {:?}",
+        log_format!(
+            "Com_objects function \"{_fn_name}\" failed with {:?}",
             er
-        ));
+        );
     }
 
     value
@@ -314,20 +321,9 @@ impl ComObjects {
             .try_borrow_mut()
             .map_err(|_| Error::InternalBorrowError)?;
         if manager_internal.is_none() {
-            let mut obj = std::ptr::null_mut::<c_void>();
             let provider = self.get_provider()?;
-            unsafe {
-                provider
-                    .query_service(
-                        &CLSID_VirtualDesktopManagerInternal,
-                        &IVirtualDesktopManagerInternal::IID(),
-                        &mut obj,
-                    )
-                    .as_result()?;
-            }
-            assert_eq!(obj.is_null(), false);
             *manager_internal = Some(Rc::new(unsafe {
-                IVirtualDesktopManagerInternal::from_raw(obj)
+                IVirtualDesktopManagerInternal::query_service(&provider)?
             }));
         }
         manager_internal
@@ -343,19 +339,8 @@ impl ComObjects {
             .map_err(|_| Error::InternalBorrowError)?;
         if notification_service.is_none() {
             let provider = self.get_provider()?;
-            let mut obj = std::ptr::null_mut::<c_void>();
-            unsafe {
-                provider
-                    .query_service(
-                        &CLSID_IVirtualNotificationService,
-                        &IVirtualDesktopNotificationService::IID(),
-                        &mut obj,
-                    )
-                    .as_result()?;
-            }
-            assert_eq!(obj.is_null(), false);
             *notification_service = Some(Rc::new(unsafe {
-                IVirtualDesktopNotificationService::from_raw(obj)
+                IVirtualDesktopNotificationService::query_service(&provider)?
             }));
         }
         notification_service
@@ -371,18 +356,7 @@ impl ComObjects {
             .map_err(|_| Error::InternalBorrowError)?;
         if pinned_apps.is_none() {
             let provider = self.get_provider()?;
-            let mut obj = std::ptr::null_mut::<c_void>();
-            unsafe {
-                provider
-                    .query_service(
-                        &CLSID_VirtualDesktopPinnedApps,
-                        &IVirtualDesktopPinnedApps::IID(),
-                        &mut obj,
-                    )
-                    .as_result()?;
-            }
-            assert_eq!(obj.is_null(), false);
-            *pinned_apps = Some(Rc::new(unsafe { IVirtualDesktopPinnedApps::from_raw(obj) }));
+            *pinned_apps = Some(Rc::new(unsafe { IVirtualDesktopPinnedApps::query_service(&provider)? }));
         }
         pinned_apps
             .as_ref()
@@ -397,19 +371,8 @@ impl ComObjects {
             .map_err(|_| Error::InternalBorrowError)?;
         if view_collection.is_none() {
             let provider = self.get_provider()?;
-            let mut obj = std::ptr::null_mut::<c_void>();
-            unsafe {
-                provider
-                    .query_service(
-                        &IApplicationViewCollection::IID(),
-                        &IApplicationViewCollection::IID(),
-                        &mut obj,
-                    )
-                    .as_result()?;
-            }
-            assert_eq!(obj.is_null(), false);
             *view_collection = Some(Rc::new(unsafe {
-                IApplicationViewCollection::from_raw(obj)
+                IApplicationViewCollection::query_service(&provider)?
             }));
         }
         view_collection
@@ -448,9 +411,11 @@ impl ComObjects {
         match self.get_manager_internal() {
             Ok(manager_internal) => {
                 let mut out_count = 0;
-                let res = manager_internal
-                    .get_desktop_count(&mut out_count)
-                    .as_result();
+                let res = unsafe {
+                    manager_internal
+                        .get_desktop_count(&mut out_count)
+                        .as_result()
+                };
 
                 #[cfg(debug_assertions)]
                 if let Err(er) = &res {
@@ -468,9 +433,11 @@ impl ComObjects {
 
     fn get_idesktops_array(&self) -> Result<IObjectArray> {
         let mut desktops = None;
-        self.get_manager_internal()?
-            .get_desktops(&mut desktops)
-            .as_result()?;
+        unsafe {
+            self.get_manager_internal()?
+                .get_desktops(&mut desktops)
+                .as_result()?
+        }
         desktops.ok_or(Error::ComAllocatedNullPtr)
     }
 
@@ -508,13 +475,17 @@ impl ComObjects {
             DesktopInternal::Guid(id) => {
                 let manager = self.get_manager_internal()?;
                 let mut desktop = None;
-                manager.find_desktop(id, &mut desktop).as_result()?;
+                unsafe {
+                    manager.find_desktop(id, &mut desktop).as_result()?;
+                }
                 desktop.ok_or(Error::DesktopNotFound)
             }
             DesktopInternal::IndexGuid(_, id) => {
                 let manager = self.get_manager_internal()?;
                 let mut desktop = None;
-                manager.find_desktop(id, &mut desktop).as_result()?;
+                unsafe {
+                    manager.find_desktop(id, &mut desktop).as_result()?;
+                }
                 desktop.ok_or(Error::DesktopNotFound)
             }
         }
@@ -522,22 +493,22 @@ impl ComObjects {
 
     fn move_view_to_desktop(
         &self,
-        view: &IApplicationView,
+        view: ComIn<IApplicationView>,
         desktop: &DesktopInternal,
     ) -> Result<()> {
         let desktop = self.get_idesktop(desktop)?;
-
-        self.get_manager_internal()?
-            .move_view_to_desktop(view, &desktop)
-            .as_result()
-            .map_err(|e| {
-                if e == Error::ComElementNotFound {
-                    Error::DesktopNotFound
-                } else {
-                    e
-                }
-            })?;
-
+        unsafe {
+            self.get_manager_internal()?
+                .move_view_to_desktop(view, ComIn::new(&desktop))
+                .as_result()
+                .map_err(|e| {
+                    if e == Error::ComElementNotFound {
+                        Error::DesktopNotFound
+                    } else {
+                        e
+                    }
+                })?
+        }
         Ok(())
     }
 
@@ -592,39 +563,45 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn register_for_notifications(
         &self,
-        notification: &IVirtualDesktopNotification,
-        // notification: *mut c_void, // IVirtualDesktopNotification raw pointer
+        // notification: &IVirtualDesktopNotification,
+        notification: *mut c_void, // IVirtualDesktopNotification raw pointer
     ) -> Result<u32> {
         let notification_service = self.get_notification_service()?;
 
-        let mut cookie = 0;
-        notification_service
-            .register(notification, &mut cookie)
-            .as_result()
-            .map(|_| cookie)
+        unsafe {
+            let mut cookie = 0;
+            notification_service
+                .register(notification, &mut cookie)
+                .as_result()
+                .map(|_| cookie)
+        }
     }
 
     #[apply(retry_function)]
     pub fn unregister_for_notifications(&self, cookie: u32) -> Result<()> {
         let notification_service = self.get_notification_service()?;
-        notification_service.unregister(cookie).as_result()
+        unsafe { notification_service.unregister(cookie).as_result() }
     }
 
     #[apply(retry_function)]
     pub fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
         let desktop = self.get_idesktop(desktop)?;
-        self.get_manager_internal()?
-            .switch_desktop(&desktop)
-            .as_result()?;
+        unsafe {
+            self.get_manager_internal()?
+                .switch_desktop(ComIn::new(&desktop))
+                .as_result()?
+        }
         Ok(())
     }
 
     #[apply(retry_function)]
     pub fn create_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
-        self.get_manager_internal()?
-            .create_desktop(&mut desktop)
-            .as_result()?;
+        unsafe {
+            self.get_manager_internal()?
+                .create_desktop(&mut desktop)
+                .as_result()?
+        }
         let desktop = desktop.ok_or(Error::ComAllocatedNullPtr)?;
         let id = get_idesktop_guid(&desktop)?;
         let index = self.get_desktop_index_by_guid(&id)?;
@@ -639,9 +616,11 @@ impl ComObjects {
     ) -> Result<()> {
         let desktop = self.get_idesktop(desktop)?;
         let fb_desktop = self.get_idesktop(fallback_desktop)?;
-        self.get_manager_internal()?
-            .remove_desktop(&desktop, &fb_desktop)
-            .as_result()?;
+        unsafe {
+            self.get_manager_internal()?
+                .remove_desktop(ComIn::new(&desktop), ComIn::new(&fb_desktop))
+                .as_result()?
+        }
         Ok(())
     }
 
@@ -670,14 +649,16 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn move_window_to_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        self.move_view_to_desktop(&view, desktop)
+        self.move_view_to_desktop(ComIn::new(&view), desktop)
     }
 
     #[apply(retry_function)]
     pub fn get_desktop_count(&self) -> Result<u32> {
         let manager = self.get_manager_internal()?;
         let mut count = 0;
-        manager.get_desktop_count(&mut count).as_result()?;
+        unsafe {
+            manager.get_desktop_count(&mut count).as_result()?;
+        };
         Ok(count)
     }
 
@@ -703,9 +684,11 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn get_current_desktop(&self) -> Result<DesktopInternal> {
         let mut desktop = None;
-        self.get_manager_internal()?
-            .get_current_desktop(&mut desktop)
-            .as_result()?;
+        unsafe {
+            self.get_manager_internal()?
+                .get_current_desktop(&mut desktop)
+                .as_result()?
+        }
         let desktop = desktop.ok_or(Error::ComAllocatedNullPtr)?;
         let id = get_idesktop_guid(&desktop)?;
         Ok(DesktopInternal::Guid(id))
@@ -714,24 +697,34 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn is_pinned_window(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        let mut value = false;
-        self.get_pinned_apps()?
-            .is_view_pinned(&view, &mut value)
-            .as_result()?;
-        Ok(value)
+        unsafe {
+            let mut value = false;
+            self.get_pinned_apps()?
+                .is_view_pinned(ComIn::new(&view), &mut value)
+                .as_result()?;
+            Ok(value)
+        }
     }
 
     #[apply(retry_function)]
     pub fn pin_window(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        self.get_pinned_apps()?.pin_view(&view).as_result()?;
+        unsafe {
+            self.get_pinned_apps()?
+                .pin_view(ComIn::new(&view))
+                .as_result()?;
+        }
         Ok(())
     }
 
     #[apply(retry_function)]
     pub fn unpin_window(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        self.get_pinned_apps()?.unpin_view(&view).as_result()?;
+        unsafe {
+            self.get_pinned_apps()?
+                .unpin_view(ComIn::new(&view))
+                .as_result()?;
+        }
         Ok(())
     }
 
@@ -782,7 +775,9 @@ impl ComObjects {
     pub fn get_desktop_name(&self, desktop: &DesktopInternal) -> Result<String> {
         let desktop = self.get_idesktop(desktop)?;
         let mut name = HSTRING::default();
-        desktop.get_name(&mut name).as_result()?;
+        unsafe {
+            desktop.get_name(&mut name).as_result()?;
+        }
         Ok(name.to_string())
     }
 
@@ -791,32 +786,38 @@ impl ComObjects {
         let desktop = self.get_idesktop(desktop)?;
         let manager_internal = self.get_manager_internal()?;
 
-        manager_internal
-            .set_name(&desktop, HSTRING::from(name))
-            .as_result()
+        unsafe {
+            manager_internal
+                .set_name(ComIn::new(&desktop), HSTRING::from(name))
+                .as_result()
+        }
     }
 
     #[apply(retry_function)]
     pub fn get_desktop_wallpaper(&self, desktop: &DesktopInternal) -> Result<String> {
         let desktop = self.get_idesktop(desktop)?;
         let mut path = HSTRING::default();
-        desktop.get_wallpaper(&mut path).as_result()?;
+        unsafe {
+            desktop.get_wallpaper(&mut path).as_result()?;
+        }
         Ok(path.to_string())
     }
 
     #[apply(retry_function)]
     pub fn set_desktop_wallpaper(&self, desktop: &DesktopInternal, path: &str) -> Result<()> {
         let manager_internal = self.get_manager_internal()?;
-        let desktop = self.get_idesktop(desktop)?;
-        manager_internal
-            .set_wallpaper(&desktop, HSTRING::from(path))
-            .as_result()
+        let desktop = self.get_idesktop(&desktop)?;
+        unsafe {
+            manager_internal
+                .set_wallpaper(ComIn::new(&desktop), HSTRING::from(path))
+                .as_result()
+        }
     }
 }
 
 fn get_idesktop_guid(desktop: &IVirtualDesktop) -> Result<GUID> {
     let mut guid = GUID::default();
-    desktop.get_id(&mut guid).as_result()?;
+    unsafe { desktop.get_id(&mut guid).as_result()? }
     Ok(guid)
 }
 
