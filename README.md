@@ -1,6 +1,6 @@
 # VirtualDesktopAccessor.dll
 
-DLL for accessing Windows 11 (requires at least 24H2 26100.2605, tested with 25H2 OS Build 26200.7171) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2024
+DLL for accessing Windows 11 (requires at least 24H2 26100.2605, tested with 25H2 OS Build 26200.8117) Virtual Desktop features from e.g. AutoHotkey. MIT Licensed, see [LICENSE](LICENSE.txt) &copy; Jari Pennanen, 2015-2024
 
 This repository also contains [Rust library `winvd`](./README-crate.md) for accessing the Virtual Desktop via Rust bindings.
 
