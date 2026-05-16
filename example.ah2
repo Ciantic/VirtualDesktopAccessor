@@ -65,6 +65,7 @@ GoToDesktopNumber(num) {
     DllCall(GoToDesktopNumberProc, "Int", num, "Int")
     return
 }
+
 MoveOrGotoDesktopNumber(num) {
     ; If user is holding down Mouse left button, move the current window also
     if (GetKeyState("LButton")) {
@@ -74,6 +75,7 @@ MoveOrGotoDesktopNumber(num) {
     }
     return
 }
+
 GetDesktopName(num) {
     global GetDesktopNameProc
     utf8_buffer := Buffer(1024, 0)
@@ -81,6 +83,7 @@ GetDesktopName(num) {
     name := StrGet(utf8_buffer, 1024, "UTF-8")
     return name
 }
+
 SetDesktopName(num, name) {
     global SetDesktopNameProc
     OutputDebug(name)
@@ -89,11 +92,13 @@ SetDesktopName(num, name) {
     ran := DllCall(SetDesktopNameProc, "Int", num, "Ptr", name_utf8, "Int")
     return ran
 }
+
 CreateDesktop() {
     global CreateDesktopProc
     ran := DllCall(CreateDesktopProc, "Int")
     return ran
 }
+
 RemoveDesktop(remove_desktop_number, fallback_desktop_number) {
     global RemoveDesktopProc
     ran := DllCall(RemoveDesktopProc, "Int", remove_desktop_number, "Int", fallback_desktop_number, "Int")
@@ -104,6 +109,7 @@ RemoveDesktop(remove_desktop_number, fallback_desktop_number) {
 
 DllCall(RegisterPostMessageHookProc, "Ptr", A_ScriptHwnd, "Int", 0x1400 + 30, "Int")
 OnMessage(0x1400 + 30, OnChangeDesktop)
+
 OnChangeDesktop(wParam, lParam, msg, hwnd) {
     Critical(1)
     OldDesktop := wParam + 1
@@ -115,35 +121,17 @@ OnChangeDesktop(wParam, lParam, msg, hwnd) {
     ; TraySetIcon(".\Icons\icon" NewDesktop ".ico")
 }
 
-; #^!+1::MoveOrGotoDesktopNumber(0)
-; #^!+2::MoveOrGotoDesktopNumber(1)
-; #^!+3::MoveOrGotoDesktopNumber(2)
-; #^!+4::MoveOrGotoDesktopNumber(3)
-; #^!+5::MoveOrGotoDesktopNumber(4)
-; #^!+q::MoveOrGotoDesktopNumber(5)
-; #^!+w::MoveOrGotoDesktopNumber(6)
-; #^!+e::MoveOrGotoDesktopNumber(7)
-; #^!+r::MoveOrGotoDesktopNumber(8)
-; #^!+t::MoveOrGotoDesktopNumber(9)
-; #^!+x::MoveOrGotoDesktopNumber(10)
-; #^!+c::MoveOrGotoDesktopNumber(11)
-; #^!+v::MoveOrGotoDesktopNumber(12)
-; #^!+b::MoveOrGotoDesktopNumber(13)
+; ------------------------------------------------------------
+; Win + Ctrl + number hotkeys
+; ------------------------------------------------------------
 
-
-F13 & 1:: MoveOrGotoDesktopNumber(0)
-F13 & 2:: MoveOrGotoDesktopNumber(1)
-F13 & 3:: MoveOrGotoDesktopNumber(2)
-F13 & 4:: MoveOrGotoDesktopNumber(3)
-F13 & 5:: MoveOrGotoDesktopNumber(4)
-F13 & q:: MoveOrGotoDesktopNumber(5)
-F13 & w:: MoveOrGotoDesktopNumber(6)
-F13 & e:: MoveOrGotoDesktopNumber(7)
-F13 & r:: MoveOrGotoDesktopNumber(8)
-F13 & t:: MoveOrGotoDesktopNumber(9)
-F13 & x:: MoveOrGotoDesktopNumber(10)
-F13 & c:: MoveOrGotoDesktopNumber(11)
-F13 & v:: MoveOrGotoDesktopNumber(12)
-F13 & b:: MoveOrGotoDesktopNumber(13)
-F14 UP:: GoToPrevDesktop()
-F15 UP:: GoToNextDesktop()
+#^1::MoveOrGotoDesktopNumber(0)
+#^2::MoveOrGotoDesktopNumber(1)
+#^3::MoveOrGotoDesktopNumber(2)
+#^4::MoveOrGotoDesktopNumber(3)
+#^5::MoveOrGotoDesktopNumber(4)
+#^6::MoveOrGotoDesktopNumber(5)
+#^7::MoveOrGotoDesktopNumber(6)
+#^8::MoveOrGotoDesktopNumber(7)
+#^9::MoveOrGotoDesktopNumber(8)
+#^0::MoveOrGotoDesktopNumber(9)
