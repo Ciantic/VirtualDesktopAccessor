@@ -440,3 +440,17 @@ fn test_desktop_count() {
         assert!(count > 1);
     })
 }
+
+#[test]
+fn test_switch_desktop_raw() {
+    sync_test(|| {
+        let current_desktop = get_current_desktop().unwrap().get_index().unwrap();
+        switch_desktop_raw(0).unwrap();
+        assert_eq!(get_current_desktop().unwrap().get_index().unwrap(), 0);
+        switch_desktop_raw(current_desktop).unwrap();
+        assert_eq!(
+            get_current_desktop().unwrap().get_index().unwrap(),
+            current_desktop
+        );
+    });
+}
