@@ -146,13 +146,22 @@ where
     desktop.into()
 }
 
-/// Switch desktop by index or GUID
+/// Switch desktop by index or GUID (with automatic focus restoration)
 pub fn switch_desktop<T>(desktop: T) -> Result<()>
 where
     T: Into<Desktop>,
     T: Send + 'static + Copy,
 {
     with_com_objects(move |o| o.switch_desktop(&desktop.into().into()))
+}
+
+/// Raw COM switch desktop without focus restoration
+pub fn switch_desktop_raw<T>(desktop: T) -> Result<()>
+where
+    T: Into<Desktop>,
+    T: Send + 'static + Copy,
+{
+    with_com_objects(move |o| o.switch_desktop_raw(&desktop.into().into()))
 }
 
 /// Move active foreground window to desktop and switch to it
