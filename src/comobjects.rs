@@ -604,13 +604,63 @@ impl ComObjects {
         unsafe { notification_service.unregister(cookie).as_result() }
     }
 
+    pub fn focus_top_window_on_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
+        let desktop_guid = self.get_desktop_id(desktop)?;
+        if let Ok(view_collection) = self.get_view_collection() {
+            let mut views_array: Option<IObjectArray> = None;
+            unsafe {
+                let _ = view_collection.get_views_by_zorder(&mut views_array as *mut _ as *mut _);
+            }
+            if let Some(views) = views_array {
+                let count = unsafe { views.GetCount().unwrap_or(0) };
+                for i in 0..count {
+                    if let Ok(view) = unsafe { views.GetAt::<IApplicationView>(i) } {
+                        let mut view_desktop_id = GUID::default();
+                        let mut show_in_switchers = 0;
+                        unsafe {
+                            let _ = view.get_virtual_desktop_id(&mut view_desktop_id);
+                            let _ = view.get_show_in_switchers(&mut show_in_switchers);
+                        }
+                        if view_desktop_id == desktop_guid && show_in_switchers != 0 {
+                            unsafe {
+                                let _ = view.set_focus();
+                                let mut hwnd = HWND::default();
+                                if view.get_thumbnail_window(&mut hwnd).is_ok()
+                                    && hwnd != HWND::default()
+                                {
+                                    let _ = windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow(hwnd);
+                                }
+                            }
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     #[apply(retry_function)]
     pub fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
-        let desktop = self.get_idesktop(desktop)?;
+        let desktop_obj = self.get_idesktop(desktop)?;
+        let manager_internal = self.get_manager_internal()?;
         unsafe {
-            self.get_manager_internal()?
-                .switch_desktop(ComIn::new(&desktop))
-                .as_result()?
+            manager_internal
+                .switch_desktop(ComIn::new(&desktop_obj))
+                .as_result()?;
+        }
+        let _ = self.focus_top_window_on_desktop(desktop);
+        Ok(())
+    }
+
+    #[apply(retry_function)]
+    pub fn move_foreground_window_to_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
+        let desktop_obj = self.get_idesktop(desktop)?;
+        let manager_internal = self.get_manager_internal()?;
+        unsafe {
+            manager_internal
+                .switch_desktop_and_move_foreground_view(ComIn::new(&desktop_obj))
+                .as_result()?;
         }
         Ok(())
     }

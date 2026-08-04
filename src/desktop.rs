@@ -155,6 +155,15 @@ where
     with_com_objects(move |o| o.switch_desktop(&desktop.into().into()))
 }
 
+/// Move active foreground window to desktop and switch to it
+pub fn move_foreground_window_to_desktop<T>(desktop: T) -> Result<()>
+where
+    T: Into<Desktop>,
+    T: Send + 'static + Copy,
+{
+    with_com_objects(move |o| o.move_foreground_window_to_desktop(&desktop.into().into()))
+}
+
 /// Remove desktop by index or GUID
 pub fn remove_desktop<T>(desktop: T, fallback_desktop: T) -> Result<()>
 where

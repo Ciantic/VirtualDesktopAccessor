@@ -73,6 +73,11 @@ pub extern "C" fn GoToDesktopNumber(desktop_number: i32) -> i32 {
 }
 
 #[no_mangle]
+pub extern "C" fn GoToDesktopNumberAndMoveForegroundWindow(desktop_number: i32) -> i32 {
+    move_foreground_window_to_desktop(desktop_number as u32).map_or(-1, |_| 1)
+}
+
+#[no_mangle]
 pub extern "C" fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32 {
     let name_str = unsafe { CStr::from_ptr(in_name_ptr).to_string_lossy() };
     get_desktop(desktop_number)
