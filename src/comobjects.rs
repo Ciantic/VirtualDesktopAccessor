@@ -598,19 +598,221 @@ impl ComObjects {
         }
     }
 
+    /// Maximum retry attempts when waiting for OS virtual desktop switch confirmation.
+    const DESKTOP_SWITCH_RETRIES: usize = 10;
+
+    /// Delay in milliseconds between desktop switch status polling retries.
+    const DESKTOP_SWITCH_RETRY_DELAY_MS: u64 = 5;
+
+    /// Maximum width threshold for small floating WS_EX_TOPMOST windows (e.g. PiP overlays, HUDs).
+    const SMALL_TOPMOST_MAX_WIDTH: i32 = 800;
+
+    /// Maximum height threshold for small floating WS_EX_TOPMOST windows (e.g. PiP overlays, HUDs).
+    const SMALL_TOPMOST_MAX_HEIGHT: i32 = 600;
+
+    // Experimental heuristic.
+    //
+    // Some Picture-in-Picture (PiP) windows are reported near the top of the
+    // application Z-order and may receive focus after a desktop switch.
+    // Until Windows exposes a reliable way to identify these windows, apply a
+    // conservative heuristic based on window styles, size and (where necessary)
+    // window title.
+    //
+    // This heuristic may be refined as additional PiP implementations are tested.
+    fn is_focusable_window(hwnd: HWND) -> bool {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongW, GetWindowRect, GetWindowTextW, IsIconic, IsWindowVisible, GWL_EXSTYLE,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+        };
+
+        if hwnd == HWND::default() {
+            return false;
+        }
+
+        unsafe {
+            // Skip minimized windows
+            if IsIconic(hwnd).as_bool() {
+                return false;
+            }
+
+            // Skip non-visible windows
+            if !IsWindowVisible(hwnd).as_bool() {
+                return false;
+            }
+
+            // Filter out Tool Windows and Non-Activatable Windows
+            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+            if ex_style & (WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) != 0 {
+                return false;
+            }
+
+            // Filter out Picture-In-Picture windows by title
+            let mut title_buf = [0u16; 256];
+            let len = GetWindowTextW(hwnd, &mut title_buf);
+            if len > 0 {
+                let title = String::from_utf16_lossy(&title_buf[..len as usize]).to_lowercase();
+                if title.contains("picture-in-picture")
+                    || title.contains("picture in picture")
+                    || title == "pip"
+                {
+                    return false;
+                }
+            }
+
+            // Filter out small floating WS_EX_TOPMOST windows (e.g. video overlays, HUDs)
+            if ex_style & WS_EX_TOPMOST.0 != 0 {
+                let mut rect = windows::Win32::Foundation::RECT::default();
+                if GetWindowRect(hwnd, &mut rect).is_ok() {
+                    let width = rect.right - rect.left;
+                    let height = rect.bottom - rect.top;
+                    if width < Self::SMALL_TOPMOST_MAX_WIDTH
+                        && height < Self::SMALL_TOPMOST_MAX_HEIGHT
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     #[apply(retry_function)]
     pub fn unregister_for_notifications(&self, cookie: u32) -> Result<()> {
         let notification_service = self.get_notification_service()?;
         unsafe { notification_service.unregister(cookie).as_result() }
     }
 
+    /// Restores keyboard focus to the highest Z-ordered visible application view on the target desktop.
+    ///
+    /// Note: Starting with Windows 11 24H2+, IVirtualDesktopManagerInternal::switch_desktop()
+    /// switches the desktop view, but no longer automatically transfers active window focus.
+    /// To match native Explorer behavior, this function queries IApplicationViewCollection
+    /// ordered by Z-order, skipping minimized windows, invisible views, and Picture-in-Picture / Tool
+    /// windows, and sets focus to the primary active application.
+    pub fn restore_desktop_focus(&self, desktop: &DesktopInternal) -> Result<()> {
+        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+
+        let desktop_guid = self.get_desktop_id(desktop)?;
+        if let Ok(view_collection) = self.get_view_collection() {
+            let mut views_array: Option<IObjectArray> = None;
+            unsafe {
+                let _ = view_collection.get_views_by_zorder(&mut views_array as *mut _ as *mut _);
+            }
+            if let Some(views) = views_array {
+                let count = unsafe { views.GetCount().unwrap_or(0) };
+                for i in 0..count {
+                    if let Ok(view) = unsafe { views.GetAt::<IApplicationView>(i) } {
+                        let mut view_desktop_id = GUID::default();
+                        let mut show_in_switchers = 0;
+                        let mut can_receive_input = 0;
+                        unsafe {
+                            let _ = view.get_virtual_desktop_id(&mut view_desktop_id);
+                            let _ = view.get_show_in_switchers(&mut show_in_switchers);
+                            let _ = view.can_receive_input(&mut can_receive_input);
+                        }
+
+                        if view_desktop_id == desktop_guid
+                            && show_in_switchers != 0
+                            && can_receive_input != 0
+                        {
+                            let mut hwnd = HWND::default();
+                            unsafe {
+                                if view.get_thumbnail_window(&mut hwnd).is_ok() {
+                                    if !Self::is_focusable_window(hwnd) {
+                                        continue;
+                                    }
+
+                                    let _ = view.set_focus();
+                                    let _ = SetForegroundWindow(hwnd);
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Pure COM switch desktop without focus restoration side-effects.
     #[apply(retry_function)]
-    pub fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
-        let desktop = self.get_idesktop(desktop)?;
+    pub fn switch_desktop_raw(&self, desktop: &DesktopInternal) -> Result<()> {
+        let desktop_obj = self.get_idesktop(desktop)?;
+        let manager_internal = self.get_manager_internal()?;
         unsafe {
-            self.get_manager_internal()?
-                .switch_desktop(ComIn::new(&desktop))
-                .as_result()?
+            manager_internal
+                .switch_desktop(ComIn::new(&desktop_obj))
+                .as_result()?;
+        }
+        Ok(())
+    }
+
+    /// Switches to the specified virtual desktop and restores focus to its top application view.
+    pub fn switch_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
+        // Handle same-desktop trigger: if already on target desktop, check if foreground window was stolen
+        if let Ok(current) = self.get_current_desktop() {
+            if let (Ok(curr_guid), Ok(target_guid)) =
+                (self.get_desktop_id(&current), self.get_desktop_id(desktop))
+            {
+                if curr_guid == target_guid {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        GetClassNameW, GetForegroundWindow,
+                    };
+                    let fg_hwnd = unsafe { GetForegroundWindow() };
+                    if fg_hwnd != HWND::default() {
+                        let mut class_buf = [0u16; 256];
+                        let len = unsafe { GetClassNameW(fg_hwnd, &mut class_buf) };
+                        if len > 0 {
+                            let class_name = String::from_utf16_lossy(&class_buf[..len as usize]);
+                            if class_name != "Shell_TrayWnd"
+                                && class_name != "WorkerW"
+                                && class_name != "Progman"
+                            {
+                                return Ok(());
+                            }
+                        }
+                    }
+                    // If foreground was stolen by Taskbar/Shell, restore focus back to the top app
+                    let _ = self.restore_desktop_focus(desktop);
+                    return Ok(());
+                }
+            }
+        }
+
+        self.switch_desktop_raw(desktop)?;
+
+        // Briefly wait for OS desktop switch confirmation before restoring focus
+        if let Ok(target_guid) = self.get_desktop_id(desktop) {
+            let mut attempts = 0;
+            while attempts < Self::DESKTOP_SWITCH_RETRIES {
+                if let Ok(current) = self.get_current_desktop() {
+                    if let Ok(current_guid) = self.get_desktop_id(&current) {
+                        if current_guid == target_guid {
+                            break;
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(
+                    Self::DESKTOP_SWITCH_RETRY_DELAY_MS,
+                ));
+                attempts += 1;
+            }
+        }
+
+        let _ = self.restore_desktop_focus(desktop);
+        Ok(())
+    }
+
+    #[apply(retry_function)]
+    pub fn move_foreground_window_to_desktop(&self, desktop: &DesktopInternal) -> Result<()> {
+        let desktop_obj = self.get_idesktop(desktop)?;
+        let manager_internal = self.get_manager_internal()?;
+        unsafe {
+            manager_internal
+                .switch_desktop_and_move_foreground_view(ComIn::new(&desktop_obj))
+                .as_result()?;
         }
         Ok(())
     }

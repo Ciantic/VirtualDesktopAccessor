@@ -1,4 +1,5 @@
 #![allow(non_camel_case_types)]
+#![allow(non_upper_case_globals)]
 /// Interface definitions for the Virtual Desktop API
 ///
 /// Most of the functions are not tested or used, beware if you try to use these
@@ -35,7 +36,6 @@
 ///
 /// If you read the rules carefully, ComIn is most common usecase in Rust
 /// API definitions as most parameters are `In` parameters.
-#[allow(non_upper_case_globals)]
 use std::ffi::c_void;
 use std::ops::Deref;
 use windows::{
@@ -56,7 +56,7 @@ use windows::{
 ///
 /// E.g.
 ///
-/// ```rust
+/// ```rust,ignore
 /// fn get_current_desktop(&mut self, desktop: &mut Option<IVirtualDesktop>) -> HRESULT;
 /// fn switch_desktop(&self, desktop: ManuallyDrop<IVirtualDesktop>) -> HRESULT;
 ///
@@ -71,7 +71,7 @@ use windows::{
 ///
 /// To make things safer and easier to use, ComIn is used instead.
 ///
-/// ```rust
+/// ```rust,ignore
 /// fn get_current_desktop(&mut self, desktop: &mut Option<IVirtualDesktop>) -> HRESULT;
 /// fn switch_desktop(&self, desktop: ComIn<IVirtualDesktop>) -> HRESULT;
 ///
