@@ -621,8 +621,8 @@ impl ComObjects {
     // This heuristic may be refined as additional PiP implementations are tested.
     fn is_focusable_window(hwnd: HWND) -> bool {
         use windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowLongW, GetWindowRect, GetWindowTextW, IsIconic, IsWindowVisible,
-            GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+            GetWindowLongW, GetWindowRect, GetWindowTextW, IsIconic, IsWindowVisible, GWL_EXSTYLE,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
         };
 
         if hwnd == HWND::default() {
@@ -636,7 +636,7 @@ impl ComObjects {
             }
 
             // Skip non-visible windows
-            if IsWindowVisible(hwnd).as_bool() == false {
+            if !IsWindowVisible(hwnd).as_bool() {
                 return false;
             }
 
@@ -665,7 +665,9 @@ impl ComObjects {
                 if GetWindowRect(hwnd, &mut rect).is_ok() {
                     let width = rect.right - rect.left;
                     let height = rect.bottom - rect.top;
-                    if width < Self::SMALL_TOPMOST_MAX_WIDTH && height < Self::SMALL_TOPMOST_MAX_HEIGHT {
+                    if width < Self::SMALL_TOPMOST_MAX_WIDTH
+                        && height < Self::SMALL_TOPMOST_MAX_HEIGHT
+                    {
                         return false;
                     }
                 }
@@ -755,7 +757,9 @@ impl ComObjects {
                 (self.get_desktop_id(&current), self.get_desktop_id(desktop))
             {
                 if curr_guid == target_guid {
-                    use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        GetClassNameW, GetForegroundWindow,
+                    };
                     let fg_hwnd = unsafe { GetForegroundWindow() };
                     if fg_hwnd != HWND::default() {
                         let mut class_buf = [0u16; 256];
@@ -790,7 +794,9 @@ impl ComObjects {
                         }
                     }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(Self::DESKTOP_SWITCH_RETRY_DELAY_MS));
+                std::thread::sleep(std::time::Duration::from_millis(
+                    Self::DESKTOP_SWITCH_RETRY_DELAY_MS,
+                ));
                 attempts += 1;
             }
         }
