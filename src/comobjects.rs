@@ -646,6 +646,17 @@ impl ComObjects {
     }
 
     #[apply(retry_function)]
+    pub fn move_desktop(&self, desktop: &DesktopInternal, index: u32) -> Result<()> {
+        let desktop = self.get_idesktop(desktop)?;
+        unsafe {
+            self.get_manager_internal()?
+                .move_desktop(ComIn::new(&desktop), index)
+                .as_result()?
+        }
+        Ok(())
+    }
+
+    #[apply(retry_function)]
     pub fn is_window_on_desktop(&self, window: &HWND, desktop: &DesktopInternal) -> Result<bool> {
         let desktop_win = self.get_desktop_by_window(window)?;
         Ok(self.get_desktop_id(&desktop_win)? == self.get_desktop_id(&*desktop)?)

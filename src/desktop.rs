@@ -166,6 +166,15 @@ where
     })
 }
 
+/// Move (reorder) a desktop to a new index
+pub fn move_desktop<T>(desktop: T, index: u32) -> Result<()>
+where
+    T: Into<Desktop>,
+    T: Send + 'static + Copy,
+{
+    with_com_objects(move |o| o.move_desktop(&desktop.into().into(), index))
+}
+
 /// Is window on desktop by index or GUID
 pub fn is_window_on_desktop<T>(desktop: T, hwnd: HWND) -> Result<bool>
 where
