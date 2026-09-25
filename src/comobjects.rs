@@ -10,7 +10,10 @@ use windows::Win32::System::Com::CoIncrementMTAUsage;
 use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
 use windows::{
     core::{Interface, GUID, HSTRING},
-    Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
+    Win32::{
+        System::Com::{CoCreateInstance, CoTaskMemFree},
+        UI::Shell::Common::IObjectArray,
+    },
 };
 
 #[cfg(debug_assertions)]
@@ -762,33 +765,34 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn is_pinned_app(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
+        let pinned_apps = self.get_pinned_apps()?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
-        unsafe {
-            let mut value = false;
-            self.get_pinned_apps()?
-                .is_app_pinned(app_id, &mut value)
-                .as_result()?;
-            Ok(value)
-        }
+        let mut value = false;
+        let res = unsafe { pinned_apps.is_app_pinned(app_id, &mut value).as_result() };
+        unsafe { CoTaskMemFree(Some(app_id as *const _)) };
+        res?;
+        Ok(value)
     }
 
     #[apply(retry_function)]
     pub fn pin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
+        let pinned_apps = self.get_pinned_apps()?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
-        unsafe {
-            self.get_pinned_apps()?.pin_app(app_id).as_result()?;
-        }
+        let res = unsafe { pinned_apps.pin_app(app_id).as_result() };
+        unsafe { CoTaskMemFree(Some(app_id as *const _)) };
+        res?;
         Ok(())
     }
 
     #[apply(retry_function)]
     pub fn unpin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
+        let pinned_apps = self.get_pinned_apps()?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
-        unsafe {
-            self.get_pinned_apps()?.unpin_app(app_id).as_result()?;
-        }
+        let res = unsafe { pinned_apps.unpin_app(app_id).as_result() };
+        unsafe { CoTaskMemFree(Some(app_id as *const _)) };
+        res?;
         Ok(())
     }
 
