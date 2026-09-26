@@ -16,9 +16,6 @@ use windows::{
 #[cfg(debug_assertions)]
 use crate::log::log_output;
 
-type WCHAR = u16;
-type APPIDPWSTR = *const WCHAR;
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     /// Window is not found
@@ -751,9 +748,9 @@ impl ComObjects {
 
     #[apply(retry_function)]
     fn get_iapplication_id_for_view(&self, view: &IApplicationView) -> Result<APPIDPWSTR> {
-        let mut app_id: APPIDPWSTR = std::ptr::null_mut();
+        let mut app_id = APPIDPWSTR::default();
         unsafe {
-            view.get_app_user_model_id(&mut app_id as *mut _ as *mut _)
+            view.get_app_user_model_id(&mut app_id.0)
                 .as_result()?
         }
         Ok(app_id)

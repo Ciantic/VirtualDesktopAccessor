@@ -40,7 +40,11 @@ use std::ffi::c_void;
 use std::ops::Deref;
 use windows::{
     core::{IUnknown, IUnknown_Vtbl, Interface, GUID, HRESULT, HSTRING},
-    Win32::{Foundation::HWND, UI::Shell::Common::IObjectArray},
+    Win32::{
+        Foundation::HWND,
+        System::Com::CoTaskMemFree,
+        UI::Shell::Common::IObjectArray,
+    },
 };
 
 /// ComIn is a wrapper for COM objects that are passed as input parameters. It
@@ -145,6 +149,47 @@ type ULONG = u32;
 type WCHAR = u16;
 type PCWSTR = *const WCHAR;
 type PWSTR = *mut WCHAR;
+
+/// RAII wrapper for an Application User Model ID (AUMID) string allocated by
+/// `IApplicationView::GetAppUserModelId`.
+///
+/// In COM, strings returned via `[out]` parameters are allocated on the process
+/// COM task heap with `CoTaskMemAlloc`. The caller takes ownership and is required
+/// to free the buffer with `CoTaskMemFree`. This wrapper ensures the memory is
+/// automatically released when dropped, including on early returns or error paths.
+///
+/// `#[repr(transparent)]` guarantees the struct has the exact same layout as a raw
+/// `PWSTR` pointer across FFI boundaries.
+#[repr(transparent)]
+#[derive(Debug, PartialEq, Eq)]
+pub struct APPIDPWSTR(pub PWSTR);
+
+impl Default for APPIDPWSTR {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
+
+impl APPIDPWSTR {
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+
+    pub fn as_ptr(&self) -> *const WCHAR {
+        self.0
+    }
+}
+
+impl Drop for APPIDPWSTR {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                CoTaskMemFree(Some(self.0 as *const _));
+            }
+        }
+    }
+}
+
 type ULONGLONG = u64;
 type LONG = i32;
 
@@ -508,9 +553,9 @@ pub unsafe trait IVirtualDesktopManagerInternal: IUnknown {
 
 #[windows_interface::interface("4CE81583-1E4C-4632-A621-07A53543148F")]
 pub unsafe trait IVirtualDesktopPinnedApps: IUnknown {
-    pub unsafe fn is_app_pinned(&self, app_id: PCWSTR, out_iss: *mut bool) -> HRESULT;
-    pub unsafe fn pin_app(&self, app_id: PCWSTR) -> HRESULT;
-    pub unsafe fn unpin_app(&self, app_id: PCWSTR) -> HRESULT;
+    pub unsafe fn is_app_pinned(&self, app_id: APPIDPWSTR, out_iss: *mut bool) -> HRESULT;
+    pub unsafe fn pin_app(&self, app_id: APPIDPWSTR) -> HRESULT;
+    pub unsafe fn unpin_app(&self, app_id: APPIDPWSTR) -> HRESULT;
 
     pub unsafe fn is_view_pinned(
         &self,
