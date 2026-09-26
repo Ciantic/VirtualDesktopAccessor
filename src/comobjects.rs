@@ -10,17 +10,11 @@ use windows::Win32::System::Com::CoIncrementMTAUsage;
 use windows::Win32::System::Com::CLSCTX_LOCAL_SERVER;
 use windows::{
     core::{Interface, GUID, HSTRING},
-    Win32::{
-        System::Com::{CoCreateInstance, CoTaskMemFree},
-        UI::Shell::Common::IObjectArray,
-    },
+    Win32::{System::Com::CoCreateInstance, UI::Shell::Common::IObjectArray},
 };
 
 #[cfg(debug_assertions)]
 use crate::log::log_output;
-
-type WCHAR = u16;
-type APPIDPWSTR = *const WCHAR;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
@@ -754,9 +748,9 @@ impl ComObjects {
 
     #[apply(retry_function)]
     fn get_iapplication_id_for_view(&self, view: &IApplicationView) -> Result<APPIDPWSTR> {
-        let mut app_id: APPIDPWSTR = std::ptr::null_mut();
+        let mut app_id = APPIDPWSTR::default();
         unsafe {
-            view.get_app_user_model_id(&mut app_id as *mut _ as *mut _)
+            view.get_app_user_model_id(&mut app_id.0)
                 .as_result()?
         }
         Ok(app_id)
@@ -765,34 +759,33 @@ impl ComObjects {
     #[apply(retry_function)]
     pub fn is_pinned_app(&self, window: &HWND) -> Result<bool> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        let pinned_apps = self.get_pinned_apps()?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
-        let mut value = false;
-        let res = unsafe { pinned_apps.is_app_pinned(app_id, &mut value).as_result() };
-        unsafe { CoTaskMemFree(Some(app_id as *const _)) };
-        res?;
-        Ok(value)
+        unsafe {
+            let mut value = false;
+            self.get_pinned_apps()?
+                .is_app_pinned(app_id, &mut value)
+                .as_result()?;
+            Ok(value)
+        }
     }
 
     #[apply(retry_function)]
     pub fn pin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        let pinned_apps = self.get_pinned_apps()?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
-        let res = unsafe { pinned_apps.pin_app(app_id).as_result() };
-        unsafe { CoTaskMemFree(Some(app_id as *const _)) };
-        res?;
+        unsafe {
+            self.get_pinned_apps()?.pin_app(app_id).as_result()?;
+        }
         Ok(())
     }
 
     #[apply(retry_function)]
     pub fn unpin_app(&self, window: &HWND) -> Result<()> {
         let view = self.get_iapplication_view_for_hwnd(window)?;
-        let pinned_apps = self.get_pinned_apps()?;
         let app_id = self.get_iapplication_id_for_view(&view)?;
-        let res = unsafe { pinned_apps.unpin_app(app_id).as_result() };
-        unsafe { CoTaskMemFree(Some(app_id as *const _)) };
-        res?;
+        unsafe {
+            self.get_pinned_apps()?.unpin_app(app_id).as_result()?;
+        }
         Ok(())
     }
 
