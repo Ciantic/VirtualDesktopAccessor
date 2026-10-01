@@ -105,7 +105,8 @@ unsafe impl Send for DesktopEvent {}
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
+/// use winvd::*;
 /// let (tx, rx) = std::sync::mpsc::channel::<DesktopEvent>();
 /// let _notifications_thread = listen_desktop_events(tx);
 /// // Do with receiver something
