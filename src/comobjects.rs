@@ -3,6 +3,7 @@ use super::interfaces::*;
 use super::Result;
 use std::convert::TryFrom;
 use std::rc::Rc;
+use std::sync::Mutex;
 use std::{cell::RefCell, ffi::c_void};
 use windows::core::HRESULT;
 use windows::Win32::Foundation::HWND;
@@ -862,17 +863,31 @@ thread_local! {
         std::mem::ManuallyDrop::new(ComObjects::new());
 }
 
-/// This is a helper function to initialize and run COM related functions in a
-/// a single thread.
+/// Serializes every call made through `with_com_objects`.
+///
+/// Without it, two threads calling into the virtual desktop COM API at the
+/// same time can abort the whole process with `0xC0000409`
+/// (STATUS_STACK_BUFFER_OVERRUN).
+static COM_LOCK: Mutex<()> = Mutex::new(());
+
+/// This is a helper function to initialize and run COM related functions.
 ///
 /// Virtual Desktop COM Objects don't like to being called from different
 /// threads rapidly, something goes wrong. This function ensures that all COM
-/// calls are done in a single thread.
+/// calls are serialized, so no two calls overlap regardless of which thread
+/// makes them.
 pub fn with_com_objects<F, T>(f: F) -> Result<T>
 where
     F: Fn(&ComObjects) -> Result<T> + 'static,
     T: 'static,
 {
+    // The guard is held for the duration of the call itself, so the COM
+    // invocation inside `f` is serialized too, not just the thread-local
+    // lookup.
+    let _guard = COM_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     // return std::thread::scope(|env| {
     //     let com2 = ComObjects::new();
     //     run_function_and_retry(&f, &com2)
