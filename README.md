@@ -26,7 +26,9 @@ fn GetWindowDesktopId(hwnd: HWND) -> GUID
 fn GetWindowDesktopNumber(hwnd: HWND) -> i32
 fn IsWindowOnCurrentVirtualDesktop(hwnd: HWND) -> i32
 fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
-fn GoToDesktopNumber(desktop_number: i32) -> i32
+fn GoToDesktopNumber(desktop_number: i32) -> i32 // Win11 24H2+: Automatically restores focus to top application
+fn GoToDesktopNumberRaw(desktop_number: i32) -> i32 // Pure COM desktop switch without focus restoration
+fn GoToDesktopNumberAndMoveForegroundWindow(desktop_number: i32) -> i32 // Moves active window to target desktop and switches to it
 fn SetDesktopName(desktop_number: i32, in_name_ptr: *const i8) -> i32  // Win11 only
 fn GetDesktopName(desktop_number: i32, out_utf8_ptr: *mut u8, out_utf8_len: usize) -> i32 // Win11 only
 fn RegisterPostMessageHook(listener_hwnd: HWND, message_offset: u32) -> i32

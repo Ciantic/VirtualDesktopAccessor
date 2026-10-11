@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use once_cell::sync::Lazy;
 use std::{
@@ -70,6 +71,16 @@ pub extern "C" fn MoveWindowToDesktopNumber(hwnd: HWND, desktop_number: i32) -> 
 #[no_mangle]
 pub extern "C" fn GoToDesktopNumber(desktop_number: i32) -> i32 {
     switch_desktop(desktop_number as u32).map_or(-1, |_| 1)
+}
+
+#[no_mangle]
+pub extern "C" fn GoToDesktopNumberRaw(desktop_number: i32) -> i32 {
+    switch_desktop_raw(desktop_number as u32).map_or(-1, |_| 1)
+}
+
+#[no_mangle]
+pub extern "C" fn GoToDesktopNumberAndMoveForegroundWindow(desktop_number: i32) -> i32 {
+    move_foreground_window_to_desktop(desktop_number as u32).map_or(-1, |_| 1)
 }
 
 #[no_mangle]
