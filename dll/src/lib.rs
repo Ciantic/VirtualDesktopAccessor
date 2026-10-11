@@ -217,6 +217,14 @@ pub extern "C" fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_num
 }
 
 #[no_mangle]
+pub extern "C" fn MoveDesktop(desktop_number: i32, new_index: i32) -> i32 {
+    if desktop_number < 0 || new_index < 0 {
+        return -1;
+    }
+    move_desktop(desktop_number, new_index as u32).map_or(-1, |_| 1)
+}
+
+#[no_mangle]
 pub extern "C" fn RestartVirtualDesktopAccessor() {
     // ?
 }
