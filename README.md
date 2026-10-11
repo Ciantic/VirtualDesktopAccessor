@@ -40,4 +40,5 @@ fn UnPinApp(hwnd: HWND) -> i32
 fn IsWindowOnDesktopNumber(hwnd: HWND, desktop_number: i32) -> i32
 fn CreateDesktop() -> i32 // Win11 only
 fn RemoveDesktop(remove_desktop_number: i32, fallback_desktop_number: i32) -> i32 // Win11 only
+fn MoveDesktop(desktop_number: i32, new_index: i32) -> i32 // Win11 only
 ```
