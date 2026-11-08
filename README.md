@@ -13,6 +13,11 @@ This repository also contains [Rust library `winvd`](./README-crate.md) for acce
 
 [Download the DLL from releases ⬇️](https://github.com/Ciantic/VirtualDesktopAccessor/releases/)
 
+## Testing DLL process exit
+
+See [the AutoHotkey process-exit regression test](dll/tests/README.md) to build
+the DLL and check that a short-lived host can query desktops and exit cleanly.
+
 ## Reference of exported DLL functions
 
 All functions return -1 in case of error.
